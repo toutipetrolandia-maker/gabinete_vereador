@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Users, 
   Stethoscope, 
@@ -9,9 +9,10 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { collection, query, limit, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, limit, getDocs, orderBy, onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { motion } from 'motion/react';
+import { cn } from '../lib/utils';
 import { 
   BarChart, 
   Bar, 
@@ -33,15 +34,27 @@ export default function Dashboard() {
     demandas: 0
   });
   const [recent, setRecent] = useState<any[]>([]);
+  const [appName, setAppName] = useState('Gabinete Digital');
 
   useEffect(() => {
+    const unsubSettings = onSnapshot(doc(db, 'app_settings', 'global'), (snap) => {
+      if (snap.exists()) {
+        setAppName(snap.data().app_name || 'Gabinete Digital');
+      }
+    }, (error) => {
+      console.error("Error listening to settings in Dashboard:", error);
+    });
+
     const fetchData = async () => {
       // Fetch counts from various collections
       try {
         const collections = ['atendimentos', 'atendimentos_medicos', 'malotes', 'demandas_parlamentares'];
-        const counts = await Promise.all(collections.map(async (col) => {
-          const snap = await getDocs(query(collection(db, col), limit(1)));
-          return snap.size; // This is just a sample check, for real apps we'd use a counter or dedicated stats doc
+        await Promise.all(collections.map(async (col) => {
+          try {
+            await getDocs(query(collection(db, col), limit(1)));
+          } catch (err) {
+            console.warn(`Could not fetch limit for ${col}:`, err);
+          }
         }));
 
         setStats({
@@ -59,6 +72,8 @@ export default function Dashboard() {
       }
     };
     fetchData();
+
+    return () => unsubSettings();
   }, []);
 
   const chartData = [
@@ -82,7 +97,7 @@ export default function Dashboard() {
     <div className="space-y-8 pb-10">
       <header>
         <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Visão Geral</h1>
-        <p className="text-slate-400">Bem-vindo ao painel de controle do gabinete.</p>
+        <p className="text-slate-400">Bem-vindo ao painel de controle do {appName}.</p>
       </header>
 
       {/* Stats Grid */}

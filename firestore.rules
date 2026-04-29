@@ -14,14 +14,24 @@ service cloud.firestore {
     }
 
     function hasRole(roles) {
-      return isSignedIn() && getUserData().role in roles;
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in roles;
     }
 
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if hasRole(['admin']) || (isSignedIn() && request.auth.uid == userId);
-      allow delete: if hasRole(['admin']);
+      // User can read/write their own profile and team (Requested)
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      
+      // Admin/Vereador can see the user list for management (Needed for Settings)
+      allow read: if hasRole(['admin', 'vereador']);
+      
+      // Admin can manage roles
+      allow write: if hasRole(['admin']);
+
+      match /team/{teamId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
     }
 
     match /atendimentos/{id} {
@@ -53,6 +63,11 @@ service cloud.firestore {
       allow read: if hasRole(['admin', 'vereador']);
       allow create: if isSignedIn();
       allow update, delete: if false;
+    }
+
+    match /app_settings/{id} {
+      allow read: if isSignedIn();
+      allow write: if hasRole(['admin']);
     }
   }
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { 
   BarChart3, 
   Users, 
@@ -13,8 +13,9 @@ import {
   X,
   FileDown
 } from 'lucide-react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
-import { auth } from '../lib/firebase';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -27,6 +28,18 @@ interface LayoutProps {
 export default function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
   const { profile } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [appName, setAppName] = useState('Gabinete Digital');
+
+  React.useEffect(() => {
+     const unsub = onSnapshot(doc(db, 'app_settings', 'global'), (snap) => {
+        if (snap.exists()) {
+           setAppName(snap.data().app_name || 'Gabinete Digital');
+        }
+     }, (error) => {
+        console.error("Error listening to settings in Layout:", error);
+     });
+     return () => unsub();
+  }, []);
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -66,7 +79,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
           </div>
           {isSidebarOpen && (
             <div className="flex flex-col">
-              <span className="font-bold tracking-tight">Gabinete Digital</span>
+              <span className="font-bold tracking-tight">{appName}</span>
               <span className="text-[10px] uppercase text-blue-400 font-mono tracking-wider">Sistema v1.0</span>
             </div>
           )}

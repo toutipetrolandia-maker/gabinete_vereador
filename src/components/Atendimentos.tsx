@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   collection, 
   addDoc, 
@@ -7,7 +7,8 @@ import {
   onSnapshot,
   serverTimestamp,
   updateDoc,
-  doc
+  doc,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
@@ -19,7 +20,9 @@ import {
   Clock, 
   CheckCircle2, 
   AlertCircle,
-  X
+  X,
+  Edit2,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -31,24 +34,49 @@ export default function Atendimentos() {
   const { profile, user } = useAuth();
   const [data, setData] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Form State
-  const [formData, setFormData] = useState({
+  const initialForm = {
     nome_completo: '',
+    cpf: '',
     telefone: '',
     email: '',
     tipo_atendimento: 'Geral',
     status: 'Novo',
     prioridade: 'Média',
     descricao: '',
-  });
+  };
+
+  // Masks
+  const maskCPF = (value: string) => {
+    return value
+      .replace(/\D/g, '')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})/, '$1-$2')
+      .replace(/(-\d{2})\d+?$/, '$1');
+  };
+
+  const maskPhone = (value: string) => {
+    return value
+      .replace(/\D/g, '')
+      .replace(/(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{5})(\d)/, '$1-$2')
+      .replace(/(-\d{4})\d+?$/, '$1');
+  };
+
+  // Form State
+  const [formData, setFormData] = useState(initialForm);
 
   useEffect(() => {
     const q = query(collection(db, 'atendimentos'), orderBy('created_at', 'desc'));
     const unsubscribe = onSnapshot(q, (snap) => {
       setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (error) => {
+      console.error("Error listening to atendimentos:", error);
       setLoading(false);
     });
     return () => unsubscribe();
@@ -57,25 +85,24 @@ export default function Atendimentos() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const docRef = await addDoc(collection(db, 'atendimentos'), {
-        ...formData,
-        atendente_id: user?.uid,
-        created_at: serverTimestamp(),
-        updated_at: serverTimestamp(),
-      });
-
-      await logAction('Criar', 'atendimentos', docRef.id, { next: formData });
-
-      setShowModal(false);
-      setFormData({
-        nome_completo: '',
-        telefone: '',
-        email: '',
-        tipo_atendimento: 'Geral',
-        status: 'Novo',
-        prioridade: 'Média',
-        descricao: '',
-      });
+      if (editingId) {
+        const existing = data.find(i => i.id === editingId);
+        await updateDoc(doc(db, 'atendimentos', editingId), {
+          ...formData,
+          updated_at: serverTimestamp(),
+        });
+        await logAction('Atualizar', 'atendimentos', editingId, { previous: existing, next: formData });
+      } else {
+        const docRef = await addDoc(collection(db, 'atendimentos'), {
+          ...formData,
+          atendente_id: user?.uid,
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+        });
+        await logAction('Criar', 'atendimentos', docRef.id, { next: formData });
+      }
+      
+      closeModal();
     } catch (err) {
       console.error(err);
     }
@@ -88,11 +115,39 @@ export default function Atendimentos() {
         status: newStatus,
         updated_at: serverTimestamp()
       });
+      await logAction('Atualizar', 'atendimentos', id, { previous: { status: existing?.status }, next: { status: newStatus } });
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
-      await logAction('Atualizar', 'atendimentos', id, { 
-        previous: { status: existing?.status }, 
-        next: { status: newStatus } 
-      });
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingId(null);
+    setFormData(initialForm);
+  };
+
+  const handleEdit = (item: any) => {
+    setEditingId(item.id);
+    setFormData({
+      nome_completo: item.nome_completo || '',
+      cpf: item.cpf || '',
+      telefone: item.telefone || '',
+      email: item.email || '',
+      tipo_atendimento: item.tipo_atendimento || 'Geral',
+      status: item.status || 'Novo',
+      prioridade: item.prioridade || 'Média',
+      descricao: item.descricao || '',
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este atendimento?')) return;
+    try {
+      const existing = data.find(i => i.id === id);
+      await deleteDoc(doc(db, 'atendimentos', id));
+      await logAction('Excluir', 'atendimentos', id, { previous: existing });
     } catch (err) {
       console.error(err);
     }
@@ -100,6 +155,7 @@ export default function Atendimentos() {
 
   const filteredData = data.filter(item => 
     item.nome_completo?.toLowerCase().includes(search.toLowerCase()) ||
+    item.cpf?.includes(search) ||
     item.descricao?.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -127,7 +183,7 @@ export default function Atendimentos() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
           <input 
             type="text" 
-            placeholder="Buscar por nome ou descrição..."
+            placeholder="Buscar por nome, CPF ou descrição..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
@@ -166,7 +222,11 @@ export default function Atendimentos() {
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
                       <span className="text-sm font-medium text-slate-200">{item.nome_completo}</span>
-                      <span className="text-xs text-slate-500">{item.telefone}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500">{item.cpf}</span>
+                        <span className="text-[10px] text-slate-600">•</span>
+                        <span className="text-[10px] text-slate-500">{item.telefone}</span>
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -204,13 +264,31 @@ export default function Atendimentos() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                        {profile?.role !== 'consulta' && (
-                         <button 
-                           onClick={() => updateStatus(item.id, 'Concluído')}
-                           className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400 transition-all opacity-0 group-hover:opacity-100"
-                           title="Concluir"
-                         >
-                           <CheckCircle2 size={16} />
-                         </button>
+                         <>
+                           <button 
+                             onClick={() => updateStatus(item.id, 'Concluído')}
+                             className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400 transition-all opacity-0 group-hover:opacity-100"
+                             title="Concluir"
+                           >
+                             <CheckCircle2 size={16} />
+                           </button>
+                           <button 
+                             onClick={() => handleEdit(item)}
+                             className="p-1.5 rounded-lg hover:bg-blue-500/10 text-slate-500 hover:text-blue-400 transition-all opacity-0 group-hover:opacity-100"
+                             title="Editar"
+                           >
+                             <Edit2 size={16} />
+                           </button>
+                           {profile?.role === 'admin' && (
+                             <button 
+                               onClick={() => handleDelete(item.id)}
+                               className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-500 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100"
+                               title="Excluir"
+                             >
+                               <Trash2 size={16} />
+                             </button>
+                           )}
+                         </>
                        )}
                        <button className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-500 hover:text-white transition-all">
                          <MoreHorizontal size={16} />
@@ -243,17 +321,17 @@ export default function Atendimentos() {
             >
               <div className="px-8 py-6 border-b border-slate-800 flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-white tracking-tight">Novo Atendimento</h2>
+                  <h2 className="text-xl font-bold text-white tracking-tight">{editingId ? 'Editar Atendimento' : 'Novo Atendimento'}</h2>
                   <p className="text-slate-500 text-sm font-sans">Preencha as informações para registro.</p>
                 </div>
-                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-slate-800 rounded-lg transition-colors">
+                <button onClick={closeModal} className="p-2 hover:bg-slate-800 rounded-lg transition-colors">
                   <X size={20} className="text-slate-400" />
                 </button>
               </div>
 
               <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2 col-span-2">
+                  <div className="space-y-2 col-span-2 md:col-span-1">
                     <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Nome Completo</label>
                     <input 
                       required
@@ -264,12 +342,22 @@ export default function Atendimentos() {
                       placeholder="Ex: João da Silva"
                     />
                   </div>
+                  <div className="space-y-2 col-span-2 md:col-span-1">
+                    <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">CPF</label>
+                    <input 
+                      type="text" 
+                      value={formData.cpf}
+                      onChange={e => setFormData({...formData, cpf: maskCPF(e.target.value)})}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors"
+                      placeholder="000.000.000-00"
+                    />
+                  </div>
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Telefone</label>
                     <input 
                       type="tel" 
                       value={formData.telefone}
-                      onChange={e => setFormData({...formData, telefone: e.target.value})}
+                      onChange={e => setFormData({...formData, telefone: maskPhone(e.target.value)})}
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors"
                       placeholder="(00) 00000-0000"
                     />
@@ -295,6 +383,19 @@ export default function Atendimentos() {
                       <option>Médico</option>
                       <option>Demanda</option>
                       <option>Sugestão</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Status</label>
+                    <select 
+                      value={formData.status}
+                      onChange={e => setFormData({...formData, status: e.target.value})}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors appearance-none"
+                    >
+                      <option>Novo</option>
+                      <option>Em andamento</option>
+                      <option>Concluído</option>
+                      <option>Encaminhado</option>
                     </select>
                   </div>
                   <div className="space-y-2">
@@ -324,7 +425,7 @@ export default function Atendimentos() {
                 <div className="pt-4 flex gap-3">
                   <button 
                     type="button" 
-                    onClick={() => setShowModal(false)}
+                    onClick={closeModal}
                     className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-4 rounded-xl transition-colors"
                   >
                     Cancelar
@@ -333,7 +434,7 @@ export default function Atendimentos() {
                     type="submit"
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-blue-900/20 transition-all"
                   >
-                    Salvar Registro
+                    {editingId ? 'Salvar Alterações' : 'Salvar Registro'}
                   </button>
                 </div>
               </form>

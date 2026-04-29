@@ -1,13 +1,17 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   collection, 
   addDoc, 
   query, 
   orderBy, 
   onSnapshot,
-  serverTimestamp
+  serverTimestamp,
+  updateDoc,
+  doc,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../hooks/useAuth';
 import { 
   Plus, 
   FileText, 
@@ -23,22 +27,29 @@ import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
 
 export default function Demandas() {
+  const { profile } = useAuth();
   const [data, setData] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [formData, setFormData] = useState({
+  const initialForm = {
     assunto: '',
     orgao_responsavel: '',
     prioridade: 'Média',
     status: 'Pendente',
     descricao: ''
-  });
+  };
+
+  const [formData, setFormData] = useState(initialForm);
 
   useEffect(() => {
     const q = query(collection(db, 'demandas_parlamentares'), orderBy('created_at', 'desc'));
     const unsubscribe = onSnapshot(q, (snap) => {
       setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (error) => {
+      console.error("Error listening to demandas:", error);
       setLoading(false);
     });
     return () => unsubscribe();
@@ -47,13 +58,50 @@ export default function Demandas() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const docRef = await addDoc(collection(db, 'demandas_parlamentares'), {
-        ...formData,
-        created_at: serverTimestamp(),
-      });
-      await logAction('Criar', 'demandas_parlamentares', docRef.id, { next: formData });
-      setShowModal(false);
-      setFormData({ assunto: '', orgao_responsavel: '', prioridade: 'Média', status: 'Pendente', descricao: '' });
+      if (editingId) {
+        const existing = data.find(i => i.id === editingId);
+        await updateDoc(doc(db, 'demandas_parlamentares', editingId), {
+          ...formData,
+          updated_at: serverTimestamp()
+        });
+        await logAction('Atualizar', 'demandas_parlamentares', editingId, { previous: existing, next: formData });
+      } else {
+        const docRef = await addDoc(collection(db, 'demandas_parlamentares'), {
+          ...formData,
+          created_at: serverTimestamp(),
+        });
+        await logAction('Criar', 'demandas_parlamentares', docRef.id, { next: formData });
+      }
+      closeModal();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingId(null);
+    setFormData(initialForm);
+  };
+
+  const handleEdit = (item: any) => {
+    setEditingId(item.id);
+    setFormData({
+      assunto: item.assunto || '',
+      orgao_responsavel: item.orgao_responsavel || '',
+      prioridade: item.prioridade || 'Média',
+      status: item.status || 'Pendente',
+      descricao: item.descricao || ''
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Excluir esta demanda?')) return;
+    try {
+      const existing = data.find(i => i.id === id);
+      await deleteDoc(doc(db, 'demandas_parlamentares', id));
+      await logAction('Excluir', 'demandas_parlamentares', id, { previous: existing });
     } catch (err) {
       console.error(err);
     }
@@ -111,9 +159,22 @@ export default function Demandas() {
                 </div>
              </div>
              <div className="flex items-center gap-2 shrink-0">
-                <button className="text-xs font-bold text-slate-400 hover:text-white px-3 py-1.5 bg-slate-800 rounded-lg transition-all">
-                  Editar
-                </button>
+                {profile?.role !== 'consulta' && (
+                  <button 
+                    onClick={() => handleEdit(item)}
+                    className="text-xs font-bold text-slate-400 hover:text-white px-3 py-1.5 bg-slate-800 rounded-lg transition-all"
+                  >
+                    Editar
+                  </button>
+                )}
+                {profile?.role === 'admin' && (
+                  <button 
+                    onClick={() => handleDelete(item.id)}
+                    className="text-xs font-bold text-red-400 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-all"
+                  >
+                    Excluir
+                  </button>
+                )}
                 <button className="text-xs font-bold text-white px-3 py-1.5 bg-purple-600/20 text-purple-400 rounded-lg border border-purple-500/20">
                   Gerar Ofício
                 </button>
@@ -125,11 +186,11 @@ export default function Demandas() {
       <AnimatePresence>
         {showModal && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowModal(false)} className="fixed inset-0 bg-slate-950/90 z-[60]" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeModal} className="fixed inset-0 bg-slate-950/90 z-[60]" />
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed inset-x-4 top-10 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[600px] bg-slate-900 border border-slate-800 rounded-3xl z-[70] shadow-2xl flex flex-col max-h-[80vh]">
                <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900">
-                  <h2 className="text-xl font-bold">Encaminhar Demanda</h2>
-                  <button onClick={() => setShowModal(false)}><X /></button>
+                  <h2 className="text-xl font-bold">{editingId ? 'Editar Demanda' : 'Encaminhar Demanda'}</h2>
+                  <button onClick={closeModal}><X /></button>
                </div>
                <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
                   <div className="space-y-1">
@@ -151,10 +212,20 @@ export default function Demandas() {
                      </div>
                   </div>
                   <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Status</label>
+                      <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none">
+                          <option>Pendente</option>
+                          <option>Encaminhado</option>
+                          <option>Concluído</option>
+                      </select>
+                  </div>
+                  <div className="space-y-1">
                      <label className="text-[10px] font-bold text-slate-500 uppercase">Descrição Detalhada</label>
                      <textarea rows={4} value={formData.descricao} onChange={e => setFormData({...formData, descricao: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none resize-none" />
                   </div>
-                  <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded-xl font-bold text-white shadow-xl shadow-purple-900/20">Protocolar Demanda</button>
+                  <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded-xl font-bold text-white shadow-xl shadow-purple-900/20">
+                      {editingId ? 'Salvar Alterações' : 'Protocolar Demanda'}
+                  </button>
                </form>
             </motion.div>
           </>
