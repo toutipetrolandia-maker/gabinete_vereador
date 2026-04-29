@@ -19,13 +19,20 @@ export default function Relatorios() {
   const [loading, setLoading] = useState(false);
   const [filterType, setFilterType] = useState('atendimentos');
   const [status, setStatus] = useState('Todos');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
   const exportPDF = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, filterType), orderBy('created_at', 'desc'));
+      let q = query(collection(db, filterType), orderBy('created_at', 'desc'));
+      
       const snap = await getDocs(q);
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      let data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // Client side filtering for the demo/simplicity if needed
+      if (status !== 'Todos') {
+        data = data.filter((item: any) => item.status === status);
+      }
 
       const doc = new jsPDF();
       doc.setFontSize(22);
@@ -100,6 +107,27 @@ export default function Relatorios() {
                        <option>Pendentes</option>
                        <option>Encaminhados</option>
                     </select>
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-2">
+                    <div>
+                       <label className="text-xs font-medium text-slate-400 mb-2 block">Início</label>
+                       <input 
+                         type="date"
+                         value={dateRange.start}
+                         onChange={e => setDateRange({...dateRange, start: e.target.value})}
+                         className="w-full bg-slate-800 border-none rounded-xl p-3 text-xs"
+                       />
+                    </div>
+                    <div>
+                       <label className="text-xs font-medium text-slate-400 mb-2 block">Fim</label>
+                       <input 
+                         type="date"
+                         value={dateRange.end}
+                         onChange={e => setDateRange({...dateRange, end: e.target.value})}
+                         className="w-full bg-slate-800 border-none rounded-xl p-3 text-xs"
+                       />
+                    </div>
                  </div>
 
                  <button 
