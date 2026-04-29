@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(roles) {
+      return isSignedIn() && getUserData().role in roles;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if hasRole(['admin']) || (isSignedIn() && request.auth.uid == userId);
+      allow delete: if hasRole(['admin']);
+    }
+
+    match /atendimentos/{id} {
+      allow read: if isSignedIn();
+      allow write: if hasRole(['admin', 'atendente', 'vereador']);
+    }
+
+    match /atendimentos_medicos/{id} {
+      allow read: if isSignedIn();
+      allow write: if hasRole(['admin', 'atendente', 'vereador']);
+    }
+
+    match /malotes/{id} {
+      allow read: if isSignedIn();
+      allow write: if hasRole(['admin', 'atendente']);
+    }
+
+    match /demandas_parlamentares/{id} {
+      allow read: if isSignedIn();
+      allow write: if hasRole(['admin', 'atendente', 'vereador']);
+    }
+
+    match /sugestoes/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn(); 
+    }
+
+    match /logs/{id} {
+      allow read: if hasRole(['admin', 'vereador']);
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+  }
+}

@@ -1,0 +1,135 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System user profiles and permissions",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "fotoUrl": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "atendente", "vereador", "consulta"] },
+        "ativo": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nome", "email", "role", "ativo"]
+    },
+    "Atendimento": {
+      "title": "Atendimento",
+      "description": "General cabinet appointment records",
+      "type": "object",
+      "properties": {
+        "nome_completo": { "type": "string" },
+        "cpf": { "type": "string" },
+        "telefone": { "type": "string" },
+        "email": { "type": "string" },
+        "endereco": { "type": "string" },
+        "bairro": { "type": "string" },
+        "cidade": { "type": "string" },
+        "tipo_atendimento": { "type": "string", "enum": ["Geral", "Médico", "Demanda", "Sugestão"] },
+        "descricao": { "type": "string" },
+        "status": { "type": "string", "enum": ["Novo", "Em andamento", "Concluído", "Encaminhado"] },
+        "prioridade": { "type": "string", "enum": ["Baixa", "Média", "Alta"] },
+        "data_atendimento": { "type": "string", "format": "date-time" },
+        "atendente_id": { "type": "string" },
+        "observacoes": { "type": "string" },
+        "anexos_ids": { "type": "array", "items": { "type": "string" } },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nome_completo", "tipo_atendimento", "status", "prioridade"]
+    },
+    "AtendimentoMedico": {
+      "title": "Atendimento Médico",
+      "description": "Health specific appointments",
+      "type": "object",
+      "properties": {
+        "atendimento_id": { "type": "string" },
+        "unidade_saude": { "type": "string" },
+        "especialidade": { "type": "string" },
+        "descricao_problema": { "type": "string" },
+        "encaminhamento": { "type": "string" },
+        "data_consulta": { "type": "string", "format": "date-time" },
+        "medico": { "type": "string" },
+        "cod_cid": { "type": "string" },
+        "necessita_exame": { "type": "boolean" },
+        "exames_solicitados": { "type": "string" }
+      }
+    },
+    "Malote": {
+      "title": "Malote",
+      "description": "Health Secretary transport protocol",
+      "type": "object",
+      "properties": {
+        "protocolo": { "type": "string" },
+        "destinatario": { "type": "string" },
+        "secretaria": { "type": "string" },
+        "tipo_documento": { "type": "string" },
+        "assunto": { "type": "string" },
+        "descricao": { "type": "string" },
+        "status": { "type": "string" },
+        "data_envio": { "type": "string", "format": "date-time" },
+        "enviado_por": { "type": "string" },
+        "observacoes": { "type": "string" },
+        "anexos_ids": { "type": "array", "items": { "type": "string" } },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "DemandaParlamentar": {
+      "title": "Demanda Parlamentar",
+      "description": "Parliamentary requests and demands",
+      "type": "object",
+      "properties": {
+        "assunto": { "type": "string" },
+        "descricao": { "type": "string" },
+        "orgao_responsavel": { "type": "string" },
+        "prioridade": { "type": "string" },
+        "status": { "type": "string" },
+        "data_prazo": { "type": "string", "format": "date-time" },
+        "encaminhamento": { "type": "string" },
+        "anexos_ids": { "type": "array", "items": { "type": "string" } },
+        "criado_por": { "type": "string" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Sugestao": {
+      "title": "Sugestão",
+      "description": "Public suggestions",
+      "type": "object",
+      "properties": {
+        "nome_completo": { "type": "string" },
+        "telefone": { "type": "string" },
+        "email": { "type": "string" },
+        "sugestao": { "type": "string" },
+        "status": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Log": {
+      "title": "Log",
+      "description": "System audit logs",
+      "type": "object",
+      "properties": {
+        "usuario_id": { "type": "string" },
+        "usuario_nome": { "type": "string" },
+        "acao": { "type": "string" },
+        "colecao": { "type": "string" },
+        "documento_id": { "type": "string" },
+        "dados_anteriores": { "type": "object" },
+        "dados_novos": { "type": "object" },
+        "criado_em": { "type": "string", "format": "date-time" },
+        "ip": { "type": "string" }
+      },
+      "required": ["usuario_id", "acao", "colecao", "criado_em"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/atendimentos/{atendimentoId}": { "schema": "Atendimento", "description": "All appointments" },
+    "/atendimentos_medicos/{atendimentoId}": { "schema": "AtendimentoMedico", "description": "Medical details linked to atendimento" },
+    "/malotes/{maloteId}": { "schema": "Malote", "description": "Transport protocols" },
+    "/demandas_parlamentares/{demandaId}": { "schema": "DemandaParlamentar", "description": "Parliamentary demands" },
+    "/sugestoes/{sugestaoId}": { "schema": "Sugestao", "description": "Public suggestions" },
+    "/logs/{logId}": { "schema": "Log", "description": "Audit logs" }
+  }
+}
