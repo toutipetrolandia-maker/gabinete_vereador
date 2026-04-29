@@ -77,6 +77,8 @@ export default function Settings() {
     log.colecao?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const [search, setSearch] = useState('');
+
   return (
     <div className="space-y-8 pb-10">
       <header>
@@ -97,23 +99,24 @@ export default function Settings() {
             <History size={18} />
             Trilha de Auditoria
           </button>
-          <button 
-            onClick={() => setActiveSubTab('users')}
-            className={cn(
-              "w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
-              activeSubTab === 'users' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-slate-400 hover:bg-slate-900"
-            )}
-          >
-            <User size={18} />
-            Gestão de Usuários
-          </button>
+          {profile?.role === 'admin' && (
+            <button 
+              onClick={() => setActiveSubTab('users')}
+              className={cn(
+                "w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
+                activeSubTab === 'users' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-slate-400 hover:bg-slate-900"
+              )}
+            >
+              <User size={18} />
+              Gestão de Usuários
+            </button>
+          )}
           <button className="w-full text-left px-4 py-3 text-slate-400 hover:bg-slate-900 rounded-xl transition-all flex items-center gap-3">
             <Database size={18} />
             Backup e Dados
           </button>
         </div>
 
-        {/* Content Area */}
         <div className="lg:col-span-3 space-y-6">
           {activeSubTab === 'audit' ? (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
@@ -191,7 +194,7 @@ export default function Settings() {
                 </table>
               </div>
             </div>
-          ) : (
+          ) : activeSubTab === 'users' ? (
             <motion.div 
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -260,6 +263,23 @@ export default function Settings() {
                 </table>
               </div>
             </motion.div>
+          ) : (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 space-y-6">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Database className="text-blue-500" size={20} />
+                Configurações de Domínio de Autenticação
+              </h2>
+              <p className="text-slate-400 text-sm">
+                Se você está tentando acessar o sistema através de um domínio novo (como o Vercel), você precisa autorizá-lo no Firebase Console.
+              </p>
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                <p className="text-xs font-mono text-emerald-400">1. Vá para o Console Firebase → Authentication → Settings → Authorized Domains</p>
+                <p className="text-xs font-mono text-emerald-400">2. Adicione o domínio: <span className="text-white bg-slate-800 px-1 rounded">{window.location.hostname}</span></p>
+              </div>
+              <p className="text-xs text-slate-500 italic">
+                Sem este passo, o login com Google resultará em erro de "Domínio não autorizado".
+              </p>
+            </div>
           )}
         </div>
       </div>

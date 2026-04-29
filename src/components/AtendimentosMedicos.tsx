@@ -25,7 +25,7 @@ import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
 
 export default function AtendimentosMedicos() {
-  const { user } = useAuth();
+  const { profile, user } = useAuth();
   const [data, setData] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -76,13 +76,15 @@ export default function AtendimentosMedicos() {
           </h1>
           <p className="text-slate-400 text-sm">Controle de encaminhamentos e saúde.</p>
         </div>
-        <button 
-          onClick={() => setShowModal(true)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-900/20"
-        >
-          <Plus size={20} />
-          Nova Demanda de Saúde
-        </button>
+        {profile?.role !== 'consulta' && (
+          <button 
+            onClick={() => setShowModal(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-900/20"
+          >
+            <Plus size={20} />
+            Nova Demanda de Saúde
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

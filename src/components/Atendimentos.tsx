@@ -110,13 +110,15 @@ export default function Atendimentos() {
           <h1 className="text-2xl font-bold text-white">Atendimentos</h1>
           <p className="text-slate-400 text-sm">Gerencie os atendimentos gerais do gabinete.</p>
         </div>
-        <button 
-          onClick={() => setShowModal(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
-        >
-          <Plus size={20} />
-          Novo Atendimento
-        </button>
+        {profile?.role !== 'consulta' && (
+          <button 
+            onClick={() => setShowModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
+          >
+            <Plus size={20} />
+            Novo Atendimento
+          </button>
+        )}
       </div>
 
       {/* Filters/Search Bar */}
@@ -201,13 +203,15 @@ export default function Atendimentos() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                       <button 
-                         onClick={() => updateStatus(item.id, 'Concluído')}
-                         className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400 transition-all opacity-0 group-hover:opacity-100"
-                         title="Concluir"
-                       >
-                         <CheckCircle2 size={16} />
-                       </button>
+                       {profile?.role !== 'consulta' && (
+                         <button 
+                           onClick={() => updateStatus(item.id, 'Concluído')}
+                           className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400 transition-all opacity-0 group-hover:opacity-100"
+                           title="Concluir"
+                         >
+                           <CheckCircle2 size={16} />
+                         </button>
+                       )}
                        <button className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-500 hover:text-white transition-all">
                          <MoreHorizontal size={16} />
                        </button>

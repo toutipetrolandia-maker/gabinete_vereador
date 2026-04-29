@@ -7,12 +7,22 @@ import { motion } from 'motion/react';
 export default function Login() {
   const [loading, setLoading] = useState(false);
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleLogin = async () => {
     setLoading(true);
+    setError(null);
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (error) {
-      console.error('Login error:', error);
+    } catch (err: any) {
+      console.error('Login error:', err);
+      if (err.code === 'auth/unauthorized-domain') {
+        setError('Este domínio não está autorizado no Firebase. Adicione-o nas configurações do console Firebase.');
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setError('O login foi cancelado.');
+      } else {
+        setError('Erro ao autenticar: ' + err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -30,6 +40,12 @@ export default function Login() {
         </div>
         <h1 className="text-2xl font-bold text-white mb-2 font-sans tracking-tight">Gabinete Digital</h1>
         <p className="text-slate-400 mb-8 font-sans">Sistema de Controle de Atendimentos</p>
+        
+        {error && (
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs text-left">
+            {error}
+          </div>
+        )}
         
         <button
           onClick={handleLogin}
