@@ -161,18 +161,18 @@ export default function Atendimentos() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Atendimentos</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-white">Atendimentos</h1>
           <p className="text-slate-400 text-sm">Gerencie os atendimentos gerais do gabinete.</p>
         </div>
         {profile?.role !== 'consulta' && (
           <button 
             onClick={() => setShowModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 md:py-2 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20 w-full sm:w-auto"
           >
             <Plus size={20} />
-            Novo Atendimento
+            <span className="font-semibold">Novo Atendimento</span>
           </button>
         )}
       </div>
@@ -183,15 +183,15 @@ export default function Atendimentos() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
           <input 
             type="text" 
-            placeholder="Buscar por nome, CPF ou descrição..."
+            placeholder="Buscar..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
+            className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 md:py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all text-sm md:text-base"
           />
         </div>
-        <button className="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl flex items-center gap-2 text-slate-400 hover:text-white transition-all">
+        <button className="bg-slate-900 border border-slate-800 px-4 py-3 md:py-2 rounded-xl flex items-center justify-center gap-2 text-slate-400 hover:text-white transition-all w-full sm:w-auto">
           <Filter size={18} />
-          Filtros
+          <span className="text-sm font-medium">Filtros</span>
         </button>
       </div>
 

@@ -11,7 +11,8 @@ import {
   Trash2,
   Edit2,
   UserPlus,
-  X
+  X,
+  Settings as SettingsIcon
 } from 'lucide-react';
 import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, addDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -174,50 +175,46 @@ export default function Settings() {
         <p className="text-slate-400">Gerencie as preferências do sistema, usuários e visualize a trilha de auditoria.</p>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="flex flex-col lg:flex-row gap-8">
         {/* Sidebar Mini Nav */}
-        <div className="space-y-2">
+        <div className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 gap-2 scrollbar-none lg:w-64 shrink-0">
           {profile?.role === 'admin' && (
             <button 
               onClick={() => setActiveSubTab('general')}
               className={cn(
-                "w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
+                "whitespace-nowrap px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
                 activeSubTab === 'general' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-slate-400 hover:bg-slate-900"
               )}
             >
-              <Settings size={18} />
-              Configurações Gerais
+              <SettingsIcon size={18} />
+              Configurações
             </button>
           )}
           <button 
             onClick={() => setActiveSubTab('audit')}
             className={cn(
-              "w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
+              "whitespace-nowrap px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
               activeSubTab === 'audit' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-slate-400 hover:bg-slate-900"
             )}
           >
             <History size={18} />
-            Trilha de Auditoria
+            Auditoria
           </button>
           {profile?.role === 'admin' && (
             <button 
               onClick={() => setActiveSubTab('users')}
               className={cn(
-                "w-full text-left px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
+                "whitespace-nowrap px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
                 activeSubTab === 'users' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-slate-400 hover:bg-slate-900"
               )}
             >
               <User size={18} />
-              Gestão de Usuários
+              Usuários
             </button>
           )}
-          <button className="w-full text-left px-4 py-3 text-slate-400 hover:bg-slate-900 rounded-xl transition-all flex items-center gap-3">
-            <Database size={18} />
-            Backup e Dados
-          </button>
         </div>
 
-        <div className="lg:col-span-3 space-y-6">
+        <div className="flex-1 space-y-6 min-w-0">
           {activeSubTab === 'general' ? (
             <motion.div 
               initial={{ opacity: 0, scale: 0.98 }}

@@ -5,18 +5,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    function isSignedIn() {
-      return request.auth != null;
+    match /_connection_test/{id} {
+      allow read: if true;
     }
 
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    function isSignedIn() {
+      return request.auth != null;
     }
 
     function hasRole(roles) {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in roles;
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'none') in roles;
     }
 
     match /users/{userId} {
@@ -66,7 +66,7 @@ service cloud.firestore {
     }
 
     match /app_settings/{id} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if hasRole(['admin']);
     }
   }

@@ -114,20 +114,20 @@ export default function Malotes() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-             <Package className="text-amber-500" />
+          <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-3">
+             <Package className="text-amber-500 shrink-0" />
              Controle de Malotes
           </h1>
           <p className="text-slate-400 text-sm">Protocolos de envio para secretarias.</p>
         </div>
         <button 
           onClick={() => setShowModal(true)}
-          className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-900/20"
+          className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-3 md:py-2 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-900/20 w-full sm:w-auto"
         >
           <Plus size={20} />
-          Gerar Novo Protocolo
+          <span className="font-semibold text-sm">Novo Protocolo</span>
         </button>
       </div>
 
