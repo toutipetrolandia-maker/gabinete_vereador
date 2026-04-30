@@ -12,9 +12,10 @@ import {
   Edit2,
   UserPlus,
   X,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Link as LinkIcon
 } from 'lucide-react';
-import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, addDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, addDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
@@ -27,12 +28,19 @@ export default function Settings() {
   const { profile } = useAuth();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'users' | 'general'>('audit');
+  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'users' | 'general' | 'super'>('audit');
   const [usersList, setUsersList] = useState<any[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
-  const [newUser, setNewUser] = useState({ nome: '', email: '', role: 'atendente', ativo: true });
+  const [newUser, setNewUser] = useState({ nome: '', email: '', role: 'atendente', ativo: false });
   const [appName, setAppName] = useState('Gabinete Digital');
+  const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
+  const [perfilLink, setPerfilLink] = useState('https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
   const [savingSettings, setSavingSettings] = useState(false);
+  const [systemLocked, setSystemLocked] = useState(false);
+  const [billingStatus, setBillingStatus] = useState<'regular' | 'pending' | 'suspended'>('regular');
+  const [lgpdText, setLgpdText] = useState('Ao utilizar este sistema, você concorda com a coleta e processamento de dados pessoais de acordo com a LGPD para fins de gestão parlamentar.');
+
+  const isSuperAdmin = profile?.email === 'cleciotecnologia@gmail.com';
 
   useEffect(() => {
     if (!profile) return;
@@ -61,7 +69,13 @@ export default function Settings() {
 
     const unsubSettings = onSnapshot(doc(db, 'app_settings', 'global'), (snap) => {
       if (snap.exists()) {
-        setAppName(snap.data().app_name || 'Gabinete Digital');
+        const data = snap.data();
+        setAppName(data.app_name || 'Gabinete Digital');
+        setVereadorPhoto(data.vereador_photo || null);
+        setPerfilLink(data.perfil_link || 'https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
+        setSystemLocked(!!data.system_locked);
+        setBillingStatus(data.billing_status || 'regular');
+        setLgpdText(data.lgpd_text || 'Ao utilizar este sistema, você concorda com a coleta e processamento de dados pessoais de acordo com a LGPD para fins de gestão parlamentar.');
       }
     }, (error) => {
       console.error("Error listening to settings:", error);
@@ -79,28 +93,44 @@ export default function Settings() {
     if (profile?.role !== 'admin') return;
     setSavingSettings(true);
     try {
-      await updateDoc(doc(db, 'app_settings', 'global'), {
+      const data: any = {
         app_name: appName,
+        vereador_photo: vereadorPhoto,
+        perfil_link: perfilLink,
+        lgpd_text: lgpdText,
         updated_at: serverTimestamp(),
-      });
-      await logAction('Atualizar Configurações', 'app_settings', 'global', { next: { app_name: appName } });
+      };
+      
+      if (isSuperAdmin) {
+        data.system_locked = systemLocked;
+        data.billing_status = billingStatus;
+      }
+
+      await setDoc(doc(db, 'app_settings', 'global'), data, { merge: true });
+      await logAction('Atualizar Configurações', 'app_settings', 'global', { next: data });
       alert("Configurações salvas com sucesso!");
     } catch (error) {
-      // If doc doesn't exist, create it (should use setDoc but let's try to handle it simply)
       console.error("Erro ao salvar configurações:", error);
-      // Fallback for first time
-      try {
-        const { setDoc } = await import('firebase/firestore');
-        await setDoc(doc(db, 'app_settings', 'global'), {
-          app_name: appName,
-          updated_at: serverTimestamp(),
-        });
-      } catch (err2) {
-        console.error("Erro fatal ao salvar:", err2);
-      }
+      alert("Erro ao salvar configurações. Verifique o console.");
     } finally {
       setSavingSettings(false);
     }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 800000) { // ~800KB limit for base64 storage
+      alert("A imagem é muito grande. Escolha uma imagem menor que 800KB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setVereadorPhoto(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleUpdateRole = async (userId: string, newRole: string) => {
@@ -160,13 +190,12 @@ export default function Settings() {
     }
   };
 
+  const [search, setSearch] = useState('');
   const filteredLogs = logs.filter(log => 
     log.usuario_nome?.toLowerCase().includes(search.toLowerCase()) ||
     log.acao?.toLowerCase().includes(search.toLowerCase()) ||
     log.colecao?.toLowerCase().includes(search.toLowerCase())
   );
-
-  const [search, setSearch] = useState('');
 
   return (
     <div className="space-y-8 pb-10">
@@ -188,6 +217,18 @@ export default function Settings() {
             >
               <SettingsIcon size={18} />
               Configurações
+            </button>
+          )}
+          {isSuperAdmin && (
+            <button 
+              onClick={() => setActiveSubTab('super')}
+              className={cn(
+                "whitespace-nowrap px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
+                activeSubTab === 'super' ? "bg-amber-600 text-white shadow-lg shadow-amber-900/20" : "text-slate-400 hover:bg-slate-900"
+              )}
+            >
+              <Activity size={18} />
+              Super Admin
             </button>
           )}
           <button 
@@ -227,26 +268,98 @@ export default function Settings() {
               </div>
 
               <form onSubmit={handleUpdateSettings} className="space-y-6 max-w-xl">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-slate-500 tracking-widest px-1">Nome do Gabinete / Vereador</label>
-                  <input 
-                    type="text" 
-                    value={appName}
-                    onChange={e => setAppName(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                    placeholder="Ex: Gabinete do Vereador João"
-                  />
-                  <p className="text-[10px] text-slate-500 px-1 italic">Este nome aparecerá na barra lateral e no cabeçalho do sistema.</p>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-slate-500 tracking-widest px-1">Nome do Gabinete / Vereador</label>
+                    <input 
+                      type="text" 
+                      value={appName}
+                      onChange={e => setAppName(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      placeholder="Ex: Gabinete do Vereador João"
+                    />
+                    <p className="text-[10px] text-slate-500 px-1 italic">Este nome aparecerá na barra lateral e no cabeçalho do sistema.</p>
+                  </div>
+
+                  <div className="space-y-4 pt-2">
+                    <label className="text-xs font-bold uppercase text-slate-500 tracking-widest px-1">Foto do Vereador</label>
+                    <div className="flex items-center gap-6">
+                      <div className="relative group">
+                        <div className="w-24 h-24 rounded-2xl bg-slate-800 border-2 border-dashed border-slate-700 overflow-hidden flex items-center justify-center">
+                          {vereadorPhoto ? (
+                            <img src={vereadorPhoto} alt="Vereador" className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="text-slate-600" size={32} />
+                          )}
+                        </div>
+                        {vereadorPhoto && (
+                          <button 
+                            type="button"
+                            onClick={() => setVereadorPhoto(null)}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <label className="inline-block bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-4 py-3 rounded-xl cursor-pointer transition-all border border-slate-700">
+                          Escolher Foto
+                          <input 
+                            type="file" 
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            className="hidden" 
+                          />
+                        </label>
+                        <p className="text-[10px] text-slate-500 mt-2">Formatos aceitos: JPG, PNG. Tamanho máx: 800KB.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2">
+                    <label className="text-xs font-bold uppercase text-slate-500 tracking-widest px-1">Link do Perfil Oficial</label>
+                    <div className="relative">
+                      <input 
+                        type="url" 
+                        value={perfilLink}
+                        onChange={e => setPerfilLink(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 pl-12 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+                        placeholder="https://www.cmpa.ba.gov.br/vereador/..."
+                      />
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
+                        <LinkIcon size={18} />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-500 px-1 italic text-blue-400">
+                      Link da Câmara Municipal ou Rede Social oficial.
+                    </p>
+                  </div>
                 </div>
 
                 <button 
                   type="submit"
                   disabled={savingSettings}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-2xl shadow-lg shadow-blue-900/20 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-2xl shadow-lg shadow-blue-900/20 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed w-full md:w-auto justify-center"
                 >
                   {savingSettings ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
               </form>
+
+              <div className="pt-8 border-t border-slate-800 space-y-4">
+                 <div className="flex items-center gap-3 text-blue-400 font-bold uppercase text-xs tracking-widest">
+                    <Database size={16} />
+                    Configurações LGPD
+                 </div>
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase text-slate-500">Texto Base de Consentimento (LGPD)</label>
+                    <textarea 
+                      value={lgpdText}
+                      onChange={e => setLgpdText(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-sm text-slate-300 min-h-[100px] outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                 </div>
+              </div>
 
               <div className="pt-8 border-t border-slate-800">
                  <div className="flex items-center gap-3 text-amber-400 mb-4 font-bold uppercase text-xs tracking-widest">
@@ -261,6 +374,109 @@ export default function Settings() {
                     <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
                        <span className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Ambiente</span>
                        <span className="text-emerald-400 font-mono">Produção</span>
+                    </div>
+                 </div>
+              </div>
+            </motion.div>
+          ) : activeSubTab === 'super' ? (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <div className="bg-slate-900 border border-amber-500/20 rounded-3xl p-8 shadow-xl">
+                 <h2 className="text-2xl font-bold text-white flex items-center gap-3 mb-2">
+                    <Activity className="text-amber-500" size={24} />
+                    Painel de Controle Super Admin
+                 </h2>
+                 <p className="text-slate-400 mb-8 border-b border-slate-800 pb-4">
+                    Ferramentas exclusivas para manutenção do sistema e faturamento.
+                 </p>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-6">
+                       <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500">Status do Sistema</h3>
+                       <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex items-center justify-between">
+                          <div>
+                             <span className="block font-bold text-white mb-1">Trava de Segurança</span>
+                             <p className="text-xs text-slate-500">Bloqueia instantaneamente o acesso para todos os usuários.</p>
+                          </div>
+                          <button 
+                            onClick={() => setSystemLocked(!systemLocked)}
+                            className={cn(
+                              "w-14 h-8 rounded-full p-1 transition-all",
+                              systemLocked ? "bg-red-600" : "bg-slate-700"
+                            )}
+                          >
+                             <div className={cn(
+                               "w-6 h-6 bg-white rounded-full transition-all shadow-md",
+                               systemLocked ? "translate-x-6" : "translate-x-0"
+                             )} />
+                          </button>
+                       </div>
+                    </div>
+
+                    <div className="space-y-6">
+                       <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500">Gestão de Cobrança</h3>
+                       <div className="space-y-4">
+                          <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800">
+                             <label className="text-[10px] font-bold uppercase text-slate-500 block mb-3">Status Financeiro</label>
+                             <div className="grid grid-cols-3 gap-2">
+                                {['regular', 'pending', 'suspended'].map((status) => (
+                                  <button
+                                    key={status}
+                                    onClick={() => setBillingStatus(status as any)}
+                                    className={cn(
+                                      "py-2 px-3 rounded-lg text-[10px] font-bold uppercase transition-all border",
+                                      billingStatus === status 
+                                        ? "bg-amber-600 border-amber-500 text-white shadow-lg" 
+                                        : "bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700"
+                                    )}
+                                  >
+                                    {status === 'regular' ? 'Regular' : status === 'pending' ? 'Pendente' : 'Suspenso'}
+                                  </button>
+                                ))}
+                             </div>
+                             {billingStatus !== 'regular' && (
+                               <p className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300">
+                                  {billingStatus === 'pending' 
+                                    ? "O cliente verá um aviso de 'Fatura Pendente' na Dashboard."
+                                    : "O sistema será bloqueado e exibirá tela de suspensão por falta de pagamento."}
+                               </p>
+                             )}
+                          </div>
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="mt-8 pt-6 border-t border-slate-800 flex justify-end">
+                    <button 
+                      onClick={handleUpdateSettings}
+                      className="bg-amber-600 hover:bg-amber-700 text-white px-8 py-4 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all"
+                    >
+                       Aplicar Configurações de Super Admin
+                    </button>
+                 </div>
+              </div>
+              
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8">
+                 <h3 className="text-lg font-bold text-white mb-4">Métricas de Faturamento Brutal</h3>
+                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                       <span className="text-[10px] uppercase text-slate-500 font-bold block">Usuários Ativos</span>
+                       <span className="text-2xl font-bold text-white">{usersList.filter(u => u.ativo).length}</span>
+                    </div>
+                    <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                       <span className="text-[10px] uppercase text-slate-500 font-bold block">Logs Totais</span>
+                       <span className="text-2xl font-bold text-white">{logs.length}</span>
+                    </div>
+                    <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                       <span className="text-[10px] uppercase text-slate-500 font-bold block">Valor Estimado</span>
+                       <span className="text-2xl font-bold text-emerald-400">R$ 599,00</span>
+                    </div>
+                    <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                       <span className="text-[10px] uppercase text-slate-500 font-bold block">Próximo Venc.</span>
+                       <span className="text-2xl font-bold text-white">10/05</span>
                     </div>
                  </div>
               </div>
@@ -287,8 +503,8 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
+              <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-800">
+                <table className="w-full text-left min-w-[800px]">
                   <thead>
                     <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
                       <th className="px-6 py-4 font-bold">Usuário</th>
@@ -361,8 +577,8 @@ export default function Settings() {
                 </button>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
+              <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-800">
+                <table className="w-full text-left min-w-[900px]">
                   <thead>
                     <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
                       <th className="px-6 py-4 font-bold">Usuário</th>
@@ -396,9 +612,9 @@ export default function Settings() {
                         <td className="px-6 py-4">
                           <span className={cn(
                             "text-[10px] font-bold px-2 py-1 rounded-full uppercase",
-                            u.ativo ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+                            u.ativo ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-500 animate-pulse border border-amber-500/20"
                           )}>
-                            {u.ativo ? 'Ativo' : 'Inativo'}
+                            {u.ativo ? 'Ativo' : 'Pendente'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -408,10 +624,10 @@ export default function Settings() {
                               onClick={() => handleToggleAtivo(u.id, !!u.ativo)}
                               className={cn(
                                 "text-xs font-bold px-3 py-1.5 rounded-lg transition-all",
-                                u.ativo ? "text-slate-400 hover:text-red-400 hover:bg-red-500/10" : "text-emerald-400 hover:bg-emerald-500/10"
+                                u.ativo ? "text-slate-400 hover:text-red-400 hover:bg-red-500/10" : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-900/20"
                               )}
                             >
-                              {u.ativo ? 'Desativar' : 'Ativar'}
+                              {u.ativo ? 'Desativar' : 'Aprovar Usuário'}
                             </button>
                             {u.id !== auth.currentUser?.uid && (
                               <button 
@@ -442,14 +658,14 @@ export default function Settings() {
                       className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100]" 
                     />
                     <motion.div 
-                      initial={{ opacity: 0, scale: 0.95 }} 
-                      animate={{ opacity: 1, scale: 1 }} 
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl z-[101] shadow-2xl overflow-hidden"
+                      initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+                      animate={{ opacity: 1, scale: 1, y: 0 }} 
+                      exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                      className="fixed inset-x-2 top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-md bg-slate-900 border border-slate-800 rounded-3xl z-[101] shadow-2xl overflow-hidden flex flex-col"
                     >
                       <div className="p-6 border-b border-slate-800 flex items-center justify-between">
                         <h3 className="text-xl font-bold text-white">Novo Usuário</h3>
-                        <button onClick={() => setShowUserModal(false)} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400">
+                        <button onClick={() => setShowUserModal(false)} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 font-bold">
                           <X size={20} />
                         </button>
                       </div>

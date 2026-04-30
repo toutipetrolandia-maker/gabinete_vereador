@@ -187,12 +187,19 @@ export default function Demandas() {
         {showModal && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeModal} className="fixed inset-0 bg-slate-950/90 z-[60]" />
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed inset-x-4 top-10 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[600px] bg-slate-900 border border-slate-800 rounded-3xl z-[70] shadow-2xl flex flex-col max-h-[80vh]">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+              className="fixed inset-x-2 top-4 bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[600px] md:h-auto md:max-h-[95vh] bg-slate-900 border border-slate-800 rounded-3xl z-[70] shadow-2xl flex flex-col overflow-hidden"
+            >
                <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900">
-                  <h2 className="text-xl font-bold">{editingId ? 'Editar Demanda' : 'Encaminhar Demanda'}</h2>
-                  <button onClick={closeModal}><X /></button>
+                  <h2 className="text-lg md:text-xl font-bold">{editingId ? 'Editar Demanda' : 'Encaminhar Demanda'}</h2>
+                  <button onClick={closeModal} className="p-2 hover:bg-slate-800 rounded-lg transition-colors">
+                    <X size={20} className="text-slate-400" />
+                  </button>
                </div>
-               <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+               <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4">
                   <div className="space-y-1">
                      <label className="text-[10px] font-bold text-slate-500 uppercase">Assunto / Título</label>
                      <input required value={formData.assunto} onChange={e => setFormData({...formData, assunto: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none" />

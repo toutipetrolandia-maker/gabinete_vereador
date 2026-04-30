@@ -7,7 +7,8 @@ import {
   TrendingUp,
   Clock,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react';
 import { collection, query, limit, getDocs, orderBy, onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -35,11 +36,18 @@ export default function Dashboard() {
   });
   const [recent, setRecent] = useState<any[]>([]);
   const [appName, setAppName] = useState('Gabinete Digital');
+  const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
+  const [perfilLink, setPerfilLink] = useState('https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
+  const [billingStatus, setBillingStatus] = useState<'regular' | 'pending' | 'suspended'>('regular');
 
   useEffect(() => {
     const unsubSettings = onSnapshot(doc(db, 'app_settings', 'global'), (snap) => {
       if (snap.exists()) {
-        setAppName(snap.data().app_name || 'Gabinete Digital');
+        const data = snap.data();
+        setAppName(data.app_name || 'Gabinete Digital');
+        setVereadorPhoto(data.vereador_photo || null);
+        setPerfilLink(data.perfil_link || 'https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
+        setBillingStatus(data.billing_status || 'regular');
       }
     }, (error) => {
       console.error("Error listening to settings in Dashboard:", error);
@@ -94,14 +102,56 @@ export default function Dashboard() {
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
 
   return (
-    <div className="space-y-8 pb-10">
-      <header>
-        <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Visão Geral</h1>
-        <p className="text-slate-400">Bem-vindo ao painel de controle do {appName}.</p>
+    <div className="space-y-6 md:space-y-8 pb-10">
+      {billingStatus === 'pending' && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-3xl flex items-center gap-4 text-amber-500"
+        >
+          <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center shrink-0">
+            <AlertCircle size={20} />
+          </div>
+          <div>
+            <p className="text-sm font-bold uppercase tracking-widest">Fatura Pendente</p>
+            <p className="text-xs opacity-80">Identificamos uma pendência financeira em sua conta. Regularize seu plano para evitar a suspensão automática do sistema.</p>
+          </div>
+        </motion.div>
+      )}
+
+      <header className="px-1 md:px-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white mb-2">Visão Geral</h1>
+          <p className="text-slate-400 text-sm md:text-base">Bem-vindo ao painel de controle do {appName}.</p>
+        </div>
+        {vereadorPhoto && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="hidden md:flex items-center gap-3 p-2 bg-slate-900 border border-slate-800 rounded-2xl"
+          >
+            <div className="w-12 h-12 rounded-xl overflow-hidden shadow-inner border border-slate-700">
+               <img src={vereadorPhoto} alt="Vereador" className="w-full h-full object-cover" />
+            </div>
+            <div className="pr-4 border-r border-slate-800">
+               <span className="block text-[10px] uppercase font-bold text-slate-500 tracking-widest">Vereador Responsável</span>
+               <span className="block text-sm font-bold text-white">{appName.replace('Gabinete do ', '').replace('Gabinete de ', '')}</span>
+            </div>
+            <a 
+              href={perfilLink} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="p-2 hover:bg-slate-800 rounded-xl text-blue-400 transition-colors"
+              title="Ver Perfil Oficial"
+            >
+              <ExternalLink size={18} />
+            </a>
+          </motion.div>
+        )}
       </header>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-1 md:px-0">
         {[
           { label: 'Atendimentos', value: stats.atendimentos, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
           { label: 'Atend. Médicos', value: stats.medicos, icon: Stethoscope, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
@@ -190,11 +240,11 @@ export default function Dashboard() {
       {/* Recent Activity */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-          <h2 className="font-semibold">Atividades Recentes</h2>
-          <button className="text-sm text-blue-400 hover:underline">Ver todos</button>
+          <h2 className="font-semibold text-sm md:text-base">Atividades Recentes</h2>
+          <button className="text-xs md:text-sm text-blue-400 hover:underline">Ver todos</button>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-800">
+          <table className="w-full text-left min-w-[600px]">
             <thead>
               <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-500">
                 <th className="px-6 py-4 font-medium">Nome</th>

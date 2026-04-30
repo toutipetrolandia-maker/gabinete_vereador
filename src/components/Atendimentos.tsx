@@ -47,6 +47,7 @@ export default function Atendimentos() {
     status: 'Novo',
     prioridade: 'Média',
     descricao: '',
+    lgpd_consent: false,
   };
 
   // Masks
@@ -84,6 +85,10 @@ export default function Atendimentos() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.lgpd_consent) {
+      alert("O cidadão deve consentir com a LGPD para realizar o cadastro.");
+      return;
+    }
     try {
       if (editingId) {
         const existing = data.find(i => i.id === editingId);
@@ -138,6 +143,7 @@ export default function Atendimentos() {
       status: item.status || 'Novo',
       prioridade: item.prioridade || 'Média',
       descricao: item.descricao || '',
+      lgpd_consent: item.lgpd_consent || false,
     });
     setShowModal(true);
   };
@@ -196,9 +202,9 @@ export default function Atendimentos() {
       </div>
 
       {/* Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-800">
+          <table className="w-full text-left min-w-[800px]">
             <thead>
               <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-500">
                 <th className="px-6 py-4 font-medium">Paciente / Cidadão</th>
@@ -317,19 +323,19 @@ export default function Atendimentos() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-x-4 top-10 bottom-10 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[600px] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl z-[70] overflow-hidden flex flex-col"
+              className="fixed inset-x-2 top-4 bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[600px] md:h-auto md:max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl z-[70] overflow-hidden flex flex-col"
             >
-              <div className="px-8 py-6 border-b border-slate-800 flex items-center justify-between">
+              <div className="px-6 md:px-8 py-4 md:py-6 border-b border-slate-800 flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-white tracking-tight">{editingId ? 'Editar Atendimento' : 'Novo Atendimento'}</h2>
-                  <p className="text-slate-500 text-sm font-sans">Preencha as informações para registro.</p>
+                  <h2 className="text-lg md:text-xl font-bold text-white tracking-tight">{editingId ? 'Editar Atendimento' : 'Novo Atendimento'}</h2>
+                  <p className="text-slate-500 text-xs md:text-sm font-sans">Preencha as informações para registro.</p>
                 </div>
                 <button onClick={closeModal} className="p-2 hover:bg-slate-800 rounded-lg transition-colors">
                   <X size={20} className="text-slate-400" />
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 space-y-6">
+              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2 col-span-2 md:col-span-1">
                     <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Nome Completo</label>
@@ -420,6 +426,19 @@ export default function Atendimentos() {
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors resize-none"
                     placeholder="Descreva detalhadamente o que foi solicitado..."
                   />
+                </div>
+
+                <div className="flex items-start gap-3 p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl">
+                   <input 
+                     required
+                     type="checkbox" 
+                     checked={formData.lgpd_consent}
+                     onChange={(e) => setFormData({...formData, lgpd_consent: e.target.checked})}
+                     className="mt-1 w-4 h-4 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500"
+                   />
+                   <p className="text-[10px] text-slate-400 leading-relaxed font-sans">
+                      O cidadão declara estar ciente e concorda com a coleta e processamento de seus dados pessoais para fins de atendimento e gestão parlamentar, conforme as diretrizes da <strong>Lei Geral de Proteção de Dados (LGPD)</strong>.
+                   </p>
                 </div>
 
                 <div className="pt-4 flex gap-3">

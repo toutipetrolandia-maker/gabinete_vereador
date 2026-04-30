@@ -200,12 +200,17 @@ export default function Malotes() {
         {showModal && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeModal} className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[60]" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-x-4 top-10 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[500px] bg-slate-900 border border-slate-800 rounded-3xl z-[70] flex flex-col shadow-2xl overflow-hidden">
-               <div className="px-8 py-6 border-b border-slate-800 flex items-center justify-between">
-                  <h2 className="text-xl font-bold">{editingId ? 'Editar Protocolo' : 'Novo Protocolo de Envio'}</h2>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+              className="fixed inset-x-2 top-4 bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[500px] md:h-auto md:max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl z-[70] flex flex-col shadow-2xl overflow-hidden"
+            >
+               <div className="px-6 md:px-8 py-4 md:py-6 border-b border-slate-800 flex items-center justify-between">
+                  <h2 className="text-lg md:text-xl font-bold">{editingId ? 'Editar Protocolo' : 'Novo Protocolo de Envio'}</h2>
                   <button onClick={closeModal} className="p-2 hover:bg-slate-800 rounded-lg"><X size={20} /></button>
                </div>
-               <form onSubmit={handleSubmit} className="p-8 space-y-4">
+               <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                      <div className="space-y-1">
                         <label className="text-[10px] font-bold uppercase text-slate-500">Nº Protocolo</label>

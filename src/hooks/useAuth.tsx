@@ -47,11 +47,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             // First time user? Let's check if we should create a profile
             // For this app, we'll create a default profile
+            const isInitialAdmin = user.email === 'toutipetrolandia@gmail.com';
             const newProfile: UserProfile = {
               nome: user.displayName || 'Novo Usuário',
               email: user.email || '',
-              role: 'admin', // First user is admin for demo purposes, or we could check a count
-              ativo: true
+              role: isInitialAdmin ? 'admin' : 'consulta',
+              ativo: isInitialAdmin ? true : false
             };
             
             try {

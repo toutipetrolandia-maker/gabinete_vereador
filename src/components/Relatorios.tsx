@@ -41,17 +41,48 @@ export default function Relatorios() {
       doc.setTextColor(100);
       doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, 28);
 
-      const tableData = data.map((item: any) => [
-        item.nome_completo || item.assunto || '-',
-        item.tipo_atendimento || item.status || '-',
-        item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-',
-        item.status || '-'
-      ]);
+      const getTableConfig = () => {
+        switch (filterType) {
+          case 'demandas_parlamentares':
+            return {
+              head: [['Assunto', 'Órgão Resp.', 'Prioridade', 'Status', 'Data']],
+              body: data.map((item: any) => [
+                item.assunto || '-',
+                item.orgao_responsavel || '-',
+                item.prioridade || '-',
+                item.status || '-',
+                item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-'
+              ])
+            };
+          case 'atendimentos_medicos':
+            return {
+              head: [['Paciente', 'Serviço', 'Status', 'Data']],
+              body: data.map((item: any) => [
+                item.nome_completo || '-',
+                item.tipo_servico || '-',
+                item.status || '-',
+                item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-'
+              ])
+            };
+          default:
+            return {
+              head: [['Nome/Assunto', 'Tipo/Prioridade', 'Data', 'Status']],
+              body: data.map((item: any) => [
+                item.nome_completo || item.assunto || '-',
+                item.tipo_atendimento || item.prioridade || '-',
+                item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-',
+                item.status || '-'
+              ])
+            };
+        }
+      };
+
+      const config = getTableConfig();
 
       autoTable(doc, {
         startY: 35,
-        head: [['Nome/Assunto', 'Tipo/Prioridade', 'Data', 'Status']],
-        body: tableData,
+        head: config.head,
+        body: config.body,
         theme: 'striped',
         headStyles: { fillColor: [59, 130, 246] },
       });

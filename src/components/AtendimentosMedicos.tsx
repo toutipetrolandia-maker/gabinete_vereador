@@ -33,6 +33,14 @@ export default function AtendimentosMedicos() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const initialForm = {
     nome_completo: '',
@@ -217,12 +225,17 @@ export default function AtendimentosMedicos() {
         {showModal && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeModal} className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[60]" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-x-4 top-10 bottom-10 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[600px] bg-slate-900 border border-slate-800 rounded-3xl z-[70] flex flex-col shadow-2xl overflow-hidden">
-               <div className="px-8 py-6 border-b border-slate-800 flex items-center justify-between bg-slate-900">
-                  <h2 className="text-xl font-bold">{editingId ? 'Editar Registro Médico' : 'Registro de Saúde'}</h2>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+              className="fixed inset-x-2 top-4 bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[600px] md:h-auto md:max-h-[95vh] bg-slate-900 border border-slate-800 rounded-3xl z-[70] flex flex-col shadow-2xl overflow-hidden"
+            >
+               <div className="px-6 md:px-8 py-4 md:py-6 border-b border-slate-800 flex items-center justify-between bg-slate-900">
+                  <h2 className="text-lg md:text-xl font-bold">{editingId ? 'Editar Registro Médico' : 'Registro de Saúde'}</h2>
                   <button onClick={closeModal} className="p-2 hover:bg-slate-800 rounded-lg"><X size={20} /></button>
                </div>
-               <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 space-y-6">
+               <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
                   <div className="space-y-4">
                      <div className="space-y-1">
                         <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Nome do Paciente</label>

@@ -46,7 +46,8 @@ export default function Sugestoes() {
     telefone: '',
     email: '',
     sugestao: '',
-    status: 'Nova'
+    status: 'Nova',
+    lgpd_consent: false,
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -65,6 +66,10 @@ export default function Sugestoes() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.lgpd_consent) {
+      alert("É necessário o consentimento da LGPD para registrar a sugestão.");
+      return;
+    }
     try {
       if (editingId) {
         const existing = data.find(i => i.id === editingId);
@@ -99,7 +104,8 @@ export default function Sugestoes() {
       telefone: item.telefone || '',
       email: item.email || '',
       sugestao: item.sugestao || '',
-      status: item.status || 'Nova'
+      status: item.status || 'Nova',
+      lgpd_consent: item.lgpd_consent || false,
     });
     setShowModal(true);
   };
@@ -215,12 +221,17 @@ export default function Sugestoes() {
         {showModal && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeModal} className="fixed inset-0 bg-slate-950/95 z-[60] backdrop-blur-md" />
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="fixed inset-x-4 top-[15%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[500px] bg-slate-900 border border-slate-800 rounded-3xl z-[70] p-8 shadow-2xl">
-               <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-display font-bold">{editingId ? 'Editar Sugestão' : 'Ouvidoria Pública'}</h2>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+              className="fixed inset-x-2 top-4 bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[500px] md:h-auto md:max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl z-[70] shadow-2xl flex flex-col overflow-hidden"
+            >
+               <div className="flex justify-between items-center px-6 py-4 md:px-8 md:py-6 border-b border-slate-800 bg-slate-900">
+                  <h2 className="text-xl md:text-2xl font-display font-bold">{editingId ? 'Editar Sugestão' : 'Ouvidoria Pública'}</h2>
                   <button onClick={closeModal} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 transition-colors"><X size={18} /></button>
                </div>
-               <form onSubmit={handleSubmit} className="space-y-4">
+               <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4">
                   <div className="space-y-4">
                      <div className="relative group">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={18} />
@@ -240,6 +251,20 @@ export default function Sugestoes() {
                      </div>
                      <textarea required rows={4} value={formData.sugestao} onChange={e => setFormData({...formData, sugestao: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500/30 resize-none" placeholder="Qual a sugestão ou reclamação?" />
                   </div>
+
+                  <div className="flex items-start gap-3 p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl">
+                     <input 
+                       required
+                       type="checkbox" 
+                       checked={formData.lgpd_consent}
+                       onChange={(e) => setFormData({...formData, lgpd_consent: e.target.checked})}
+                       className="mt-1 w-4 h-4 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500"
+                     />
+                     <p className="text-[10px] text-slate-400 leading-relaxed font-sans">
+                        O cidadão declara estar ciente e concorda com a coleta e processamento de seus dados pessoais para fins de ouvidoria parlamentar, conforme a <strong>LGPD</strong>.
+                     </p>
+                  </div>
+
                   <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20">
                      <MessageCircle size={18} />
                      {editingId ? 'Salvar Alterações' : 'Registrar Mensagem'}

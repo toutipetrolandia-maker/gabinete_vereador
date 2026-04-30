@@ -19,15 +19,27 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'none') in roles;
     }
 
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.email == 'cleciotecnologia@gmail.com' && request.auth.token.email_verified == true;
+    }
+
     match /users/{userId} {
-      // User can read/write their own profile and team (Requested)
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      // O próprio usuário pode ler seu perfil e equipe, admins podem ler tudo
+      allow read: if isSignedIn() && (request.auth.uid == userId || hasRole(['admin', 'vereador']));
       
-      // Admin/Vereador can see the user list for management (Needed for Settings)
-      allow read: if hasRole(['admin', 'vereador']);
+      // Criação: Próprio usuário (cadastro novo) ou Admin
+      allow create: if isSignedIn() && (
+        (request.auth.uid == userId && request.resource.data.role == 'consulta' && request.resource.data.ativo == false) ||
+        hasRole(['admin'])
+      );
+
+      // Apenas Admin pode alterar status ativo ou trocar roles. Próprio usuário pode editar dados básicos.
+      allow update: if isSignedIn() && (
+        (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'ativo'])) ||
+        hasRole(['admin'])
+      );
       
-      // Admin can manage roles
-      allow write: if hasRole(['admin']);
+      allow delete: if hasRole(['admin']);
 
       match /team/{teamId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
@@ -67,7 +79,14 @@ service cloud.firestore {
 
     match /app_settings/{id} {
       allow read: if true;
-      allow write: if hasRole(['admin']);
+      allow create: if isSuperAdmin() || (
+        hasRole(['admin']) && 
+        !request.resource.data.keys().hasAny(['system_locked', 'billing_status'])
+      );
+      allow update: if isSuperAdmin() || (
+        hasRole(['admin']) && 
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['system_locked', 'billing_status'])
+      );
     }
   }
 }
