@@ -20,7 +20,8 @@ import {
   ClipboardList,
   Edit2,
   Trash2,
-  Clock
+  Clock,
+  MessageCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -215,8 +216,21 @@ export default function AtendimentosMedicos() {
               </div>
             </div>
             <h3 className="text-lg font-bold text-slate-100 mb-1">{item.nome_completo}</h3>
-            <div className="flex flex-wrap gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-2">
               <p className="text-xs text-blue-400 font-medium uppercase tracking-tighter">{item.especialidade} • {item.unidade_saude}</p>
+              {item.telefone && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-slate-500">{item.telefone}</span>
+                  <a 
+                    href={`https://wa.me/55${item.telefone.replace(/\D/g, '')}`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="text-emerald-500 hover:text-emerald-400 transition-colors"
+                  >
+                    <MessageCircle size={12} />
+                  </a>
+                </div>
+              )}
               {item.cartao_sus && (
                 <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">SUS: {item.cartao_sus}</span>
               )}

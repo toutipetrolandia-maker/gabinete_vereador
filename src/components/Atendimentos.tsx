@@ -26,7 +26,8 @@ import {
   Calendar as CalendarIcon,
   List as ListIcon,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  MessageCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -327,7 +328,20 @@ export default function Atendimentos() {
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] text-slate-500">{item.cpf}</span>
                           <span className="text-[10px] text-slate-600">•</span>
-                          <span className="text-[10px] text-slate-500">{item.telefone}</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-slate-500">{item.telefone}</span>
+                            {item.telefone && (
+                              <a 
+                                href={`https://wa.me/55${item.telefone.replace(/\D/g, '')}`} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="text-emerald-500 hover:text-emerald-400 transition-colors"
+                                title="Enviar WhatsApp"
+                              >
+                                <MessageCircle size={10} />
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>

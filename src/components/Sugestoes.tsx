@@ -194,7 +194,20 @@ export default function Sugestoes() {
                 </div>
                 <div>
                    <h3 className="font-bold text-slate-100">{item.nome_completo}</h3>
-                   <span className="text-[10px] text-slate-500 font-mono italic">{item.telefone}</span>
+                   <div className="flex items-center gap-1.5 text-slate-500">
+                      <span className="text-[10px] font-mono italic">{item.telefone}</span>
+                      {item.telefone && (
+                        <a 
+                          href={`https://wa.me/55${item.telefone.replace(/\D/g, '')}`} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="text-emerald-500 hover:text-emerald-400 transition-colors"
+                          title="Ver no WhatsApp"
+                        >
+                          <MessageCircle size={12} />
+                        </a>
+                      )}
+                   </div>
                 </div>
              </div>
 
