@@ -32,6 +32,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 import { logAction } from '../lib/audit';
+import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { useAuth } from '../hooks/useAuth';
 
 export default function Sugestoes() {
@@ -47,6 +48,7 @@ export default function Sugestoes() {
     email: '',
     sugestao: '',
     status: 'Nova',
+    lembrete: '',
     lgpd_consent: false,
   };
 
@@ -58,7 +60,7 @@ export default function Sugestoes() {
       setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     }, (error) => {
-      console.error("Error listening to sugestoes:", error);
+      handleFirestoreError(error, OperationType.LIST, 'sugestoes');
       setLoading(false);
     });
     return () => unsubscribe();
@@ -87,7 +89,7 @@ export default function Sugestoes() {
       }
       closeModal();
     } catch (err) {
-      console.error(err);
+      handleFirestoreError(err, OperationType.WRITE, 'sugestoes');
     }
   };
 
@@ -105,6 +107,7 @@ export default function Sugestoes() {
       email: item.email || '',
       sugestao: item.sugestao || '',
       status: item.status || 'Nova',
+      lembrete: item.lembrete || '',
       lgpd_consent: item.lgpd_consent || false,
     });
     setShowModal(true);
@@ -118,7 +121,7 @@ export default function Sugestoes() {
       await deleteDoc(doc(db, 'sugestoes', id));
       await logAction('Excluir', 'sugestoes', id, { previous: existing });
     } catch (err) {
-      console.error(err);
+      handleFirestoreError(err, OperationType.DELETE, `sugestoes/${id}`);
     }
   };
 
@@ -132,7 +135,7 @@ export default function Sugestoes() {
       });
       await logAction('Atualizar', 'sugestoes', id, { previous: { status: existing?.status }, next: { status: newStatus } });
     } catch (err) {
-      console.error(err);
+      handleFirestoreError(err, OperationType.UPDATE, `sugestoes/${id}`);
     }
   };
 
@@ -197,6 +200,12 @@ export default function Sugestoes() {
 
              <div className="bg-slate-950/50 p-4 rounded-2xl mb-4 border border-slate-800">
                 <p className="text-sm text-slate-300 leading-relaxed italic">"{item.sugestao}"</p>
+                {item.lembrete && (
+                   <div className="mt-2 flex items-center gap-2 text-[10px] text-blue-400 bg-blue-500/10 px-2 py-1 rounded-lg border border-blue-500/20 w-fit">
+                     <Clock size={10} />
+                     <span>Lembrete: {format(new Date(item.lembrete + 'T12:00:00'), 'dd/MM/yyyy')}</span>
+                   </div>
+                )}
              </div>
 
              <div className="flex items-center justify-between text-[10px] text-slate-500 uppercase tracking-tight">
@@ -248,6 +257,10 @@ export default function Sugestoes() {
                             <option>Analisada</option>
                             <option>Arquivada</option>
                         </select>
+                     </div>
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500">Lembrete para Acompanhamento</label>
+                        <input type="date" value={formData.lembrete} onChange={e => setFormData({...formData, lembrete: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl py-4 px-4 focus:ring-2 focus:ring-blue-500/30 [color-scheme:dark]" />
                      </div>
                      <textarea required rows={4} value={formData.sugestao} onChange={e => setFormData({...formData, sugestao: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500/30 resize-none" placeholder="Qual a sugestão ou reclamação?" />
                   </div>

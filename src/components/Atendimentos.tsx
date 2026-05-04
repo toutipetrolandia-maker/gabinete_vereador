@@ -45,6 +45,7 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
+import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
 export default function Atendimentos() {
   const { profile, user } = useAuth();
@@ -100,7 +101,7 @@ export default function Atendimentos() {
       setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     }, (error) => {
-      console.error("Error listening to atendimentos:", error);
+      handleFirestoreError(error, OperationType.LIST, 'atendimentos');
       setLoading(false);
     });
     return () => unsubscribe();
@@ -132,7 +133,7 @@ export default function Atendimentos() {
       
       closeModal();
     } catch (err) {
-      console.error(err);
+      handleFirestoreError(err, OperationType.WRITE, 'atendimentos');
     }
   };
 
@@ -145,7 +146,7 @@ export default function Atendimentos() {
       });
       await logAction('Atualizar', 'atendimentos', id, { previous: { status: existing?.status }, next: { status: newStatus } });
     } catch (err) {
-      console.error(err);
+      handleFirestoreError(err, OperationType.UPDATE, `atendimentos/${id}`);
     }
   };
 
@@ -182,7 +183,7 @@ export default function Atendimentos() {
       await deleteDoc(doc(db, 'atendimentos', id));
       await logAction('Excluir', 'atendimentos', id, { previous: existing });
     } catch (err) {
-      console.error(err);
+      handleFirestoreError(err, OperationType.DELETE, `atendimentos/${id}`);
     }
   };
 

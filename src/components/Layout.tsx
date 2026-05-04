@@ -16,13 +16,17 @@ import {
   ExternalLink,
   Wifi,
   WifiOff,
-  CheckCircle2
+  CheckCircle2,
+  Search
 } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import NotificationCenter from './NotificationCenter';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -274,7 +278,23 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
       </motion.aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto relative p-4 md:p-6 lg:p-10">
+      <main className="flex-1 overflow-y-auto relative p-4 md:p-6 lg:p-10 flex flex-col">
+        {/* Header Bar */}
+        <header className="flex items-center justify-between mb-8 pb-6 border-b border-slate-800/50">
+           <div className="flex items-center gap-4 bg-slate-900 border border-slate-800 px-4 py-2 rounded-2xl w-full max-w-md group focus-within:border-blue-500/50 transition-all">
+              <Search size={18} className="text-slate-500 group-focus-within:text-blue-500" />
+              <input type="text" placeholder="Pesquisar no gabinete..." className="bg-transparent border-none focus:ring-0 text-sm text-slate-100 placeholder:text-slate-500 w-full" />
+           </div>
+           
+           <div className="flex items-center gap-4">
+              <div className="hidden md:flex flex-col items-end mr-2">
+                 <span className="text-[10px] uppercase font-black tracking-widest text-blue-500 mb-0.5">Escritório Digital</span>
+                 <span className="text-xs font-bold text-slate-400">{format(new Date(), "dd 'de' MMMM", { locale: ptBR })}</span>
+              </div>
+              <NotificationCenter />
+           </div>
+        </header>
+
         <AnimatePresence>
           {showStatusToast && (
             <motion.div 

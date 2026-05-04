@@ -1,94 +1,175 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // ==========================================
+    // 1. GLOBAL HELPERS
+    // ==========================================
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function hasRole(role) {
+      return isSignedIn() && getUserData().role == role;
+    }
+    
+    // Internal user check: must be active and have a valid cabinet role
+    function isCabinetMember() {
+      let data = getUserData();
+      return isSignedIn() && data.ativo == true && data.role in ['admin', 'vereador', 'atendente'];
+    }
+    
+    function isAdmin() {
+      return hasRole('admin');
+    }
+    
+    function isVereador() {
+      return hasRole('vereador');
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // ==========================================
+    // 2. DEFAULT DENY
+    // ==========================================
+    
     match /{document=**} {
       allow read, write: if false;
     }
 
-    match /_connection_test/{id} {
-      allow read: if true;
+    // ==========================================
+    // 3. COLLECTION RULES
+    // ==========================================
+
+    // Health check Document
+    match /_connection_test/ping {
+      allow get: if isSignedIn();
     }
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function hasRole(roles) {
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'none') in roles;
-    }
-
-    function isSuperAdmin() {
-      return isSignedIn() && request.auth.token.email == 'cleciotecnologia@gmail.com' && request.auth.token.email_verified == true;
-    }
-
+    // USER PROFILES
     match /users/{userId} {
-      // O próprio usuário pode ler seu perfil e equipe, admins podem ler tudo
-      allow read: if isSignedIn() && (request.auth.uid == userId || hasRole(['admin', 'vereador']) || isSuperAdmin());
+      // Users can read their own profile. Admins and Vereadores can read all.
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin() || isVereador());
+      allow list: if isAdmin() || isVereador();
       
-      // Criação: Próprio usuário (cadastro novo) ou Admin
-      allow create: if isSignedIn() && (
-        (request.auth.uid == userId && request.resource.data.role == 'consulta' && request.resource.data.ativo == false) ||
-        hasRole(['admin']) || 
-        isSuperAdmin()
-      );
-
-      // Apenas Admin pode alterar status ativo ou trocar roles. Próprio usuário pode editar dados básicos.
-      allow update: if isSignedIn() && (
-        (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'ativo'])) ||
-        hasRole(['admin']) ||
-        isSuperAdmin()
-      );
-      
-      allow delete: if hasRole(['admin']) || isSuperAdmin();
-
-      match /team/{teamId} {
-        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      function isValidUser(data) {
+        return data.nome is string && data.nome.size() <= 100 &&
+               data.email is string && data.email == request.auth.token.email &&
+               data.role in ['admin', 'atendente', 'vereador', 'consulta'] &&
+               data.ativo is bool;
       }
+
+      // Initial profile creation (via useAuth hook)
+      allow create: if isEmailVerified() && isOwner(userId) && isValidUser(incoming());
+      
+      allow update: if isEmailVerified() && (
+        // Only admin can change roles or activation status
+        (isAdmin() && incoming().email == existing().email) ||
+        // User can update their own status (online/offline)
+        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'last_seen']))
+      );
     }
 
+    // ATENDIMENTOS (GENERIC)
     match /atendimentos/{id} {
-      allow read: if isSignedIn();
-      allow write: if hasRole(['admin', 'atendente', 'vereador']);
+      allow read: if isCabinetMember() || hasRole('consulta');
+      
+      function isValidAtendimento(data) {
+        return data.nome_completo is string && data.nome_completo.size() <= 150 &&
+               data.usuario_id == request.auth.uid &&
+               data.status in ['Novo', 'Em Andamento', 'Concluído', 'Cancelado', 'Pendente', 'Encaminhado', 'Em andamento'] &&
+               data.prioridade in ['Baixa', 'Média', 'Alta'];
+      }
+
+      allow create: if isCabinetMember() && isEmailVerified() && isValidAtendimento(incoming()) && incoming().created_at == request.time;
+      
+      allow update: if isCabinetMember() && isEmailVerified() && (
+        (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updated_at']) && incoming().updated_at == request.time) ||
+        (isAdmin()) ||
+        (incoming().usuario_id == existing().usuario_id && incoming().updated_at == request.time)
+      );
+      
+      allow delete: if isAdmin();
     }
 
+    // ATENDIMENTOS MÉDICOS (Sensitive PII)
     match /atendimentos_medicos/{id} {
-      allow read: if isSignedIn();
-      allow write: if hasRole(['admin', 'atendente', 'vereador']);
+      // Restricted to Cabinet Members only (No Consulta)
+      allow read: if isCabinetMember();
+      
+      function isValidAtendimentoMedico(data) {
+        return data.nome_completo is string && data.nome_completo.size() <= 150 &&
+               data.usuario_id == request.auth.uid;
+      }
+
+      allow create: if isCabinetMember() && isEmailVerified() && isValidAtendimentoMedico(incoming()) && incoming().created_at == request.time;
+      allow update: if isCabinetMember() && isEmailVerified() && (
+        isAdmin() || 
+        (incoming().usuario_id == existing().usuario_id && incoming().updated_at == request.time)
+      );
+      allow delete: if isAdmin();
     }
 
-    match /malotes/{id} {
+    // AGENDA VEREADOR
+    match /agenda_vereador/{id} {
       allow read: if isSignedIn();
-      allow write: if hasRole(['admin', 'atendente']);
+      allow create, update: if isCabinetMember() && isEmailVerified();
+      allow delete: if isAdmin() || (isVereador() && isEmailVerified());
     }
 
-    match /demandas_parlamentares/{id} {
-      allow read: if isSignedIn();
-      allow write: if hasRole(['admin', 'atendente', 'vereador']);
-    }
-
+    // SUGESTÕES
     match /sugestoes/{id} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn(); 
+      allow read: if isCabinetMember();
+      allow create, update: if isCabinetMember() && isEmailVerified();
+      allow delete: if isAdmin();
     }
 
+    // MALOTES
+    match /malotes/{id} {
+      allow read: if isCabinetMember();
+      allow create, update: if isCabinetMember() && isEmailVerified();
+      allow delete: if isAdmin();
+    }
+    
+    // DEMANDAS PARLAMENTARES
+    match /demandas_parlamentares/{id} {
+      allow read: if isCabinetMember();
+      allow create, update: if isCabinetMember() && isEmailVerified();
+      allow delete: if isAdmin();
+    }
+
+    // APP SETTINGS
+    match /app_settings/{docId} {
+      allow get: if isSignedIn();
+      allow update: if isEmailVerified() && (isAdmin() || isVereador());
+      allow create: if isAdmin();
+    }
+
+    // AUDIT LOGS (IMMUTABLE & RESTRICTED)
     match /logs/{id} {
-      allow read: if hasRole(['admin', 'vereador']) || isSuperAdmin();
-      allow create: if isSignedIn();
+      allow read: if isCabinetMember() && (isAdmin() || isVereador());
+      allow create: if isEmailVerified();
       allow update, delete: if false;
-    }
-
-    match /app_settings/{id} {
-      allow read: if true;
-      allow create: if isSuperAdmin() || (
-        hasRole(['admin']) && 
-        !request.resource.data.keys().hasAny(['system_locked', 'billing_status'])
-      );
-      allow update: if isSuperAdmin() || (
-        hasRole(['admin']) && 
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['system_locked', 'billing_status'])
-      );
     }
   }
 }

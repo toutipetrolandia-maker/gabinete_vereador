@@ -44,6 +44,7 @@ import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
+import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
 export default function Agenda() {
   const { profile } = useAuth();
@@ -60,7 +61,11 @@ export default function Agenda() {
     hora_inicio: '09:00',
     hora_fim: '10:00',
     local: '',
-    descricao: ''
+    descricao: '',
+    contato_nome: '',
+    contato_telefone: '',
+    lembrete_data: '',
+    lembrete_hora: ''
   };
   
   const [formData, setFormData] = useState(initialForm);
@@ -69,6 +74,9 @@ export default function Agenda() {
     const q = query(collection(db, 'agenda_vereador'), orderBy('data', 'asc'));
     const unsub = onSnapshot(q, (snap) => {
       setEvents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'agenda_vereador');
       setLoading(false);
     });
     return () => unsub();
@@ -101,19 +109,23 @@ export default function Agenda() {
       setEditingId(null);
       setFormData(initialForm);
     } catch (err) {
-      console.error("Error saving event:", err);
+      handleFirestoreError(err, OperationType.WRITE, 'agenda_vereador');
     }
   };
 
   const handleEdit = (event: any) => {
     setFormData({
-      titulo: event.titulo,
-      tipo: event.tipo,
-      data: event.data,
-      hora_inicio: event.hora_inicio,
-      hora_fim: event.hora_fim,
-      local: event.local,
-      descricao: event.descricao
+      titulo: event.titulo || '',
+      tipo: event.tipo || 'Compromisso',
+      data: event.data || '',
+      hora_inicio: event.hora_inicio || '',
+      hora_fim: event.hora_fim || '',
+      local: event.local || '',
+      descricao: event.descricao || '',
+      contato_nome: event.contato_nome || '',
+      contato_telefone: event.contato_telefone || '',
+      lembrete_data: event.lembrete_data || '',
+      lembrete_hora: event.lembrete_hora || ''
     });
     setEditingId(event.id);
     setShowModal(true);
@@ -121,8 +133,12 @@ export default function Agenda() {
 
   const handleDelete = async (id: string) => {
     if (confirm('Deseja excluir este compromisso?')) {
-      await deleteDoc(doc(db, 'agenda_vereador', id));
-      await logAction('Excluir', 'agenda_vereador', id, {});
+      try {
+        await deleteDoc(doc(db, 'agenda_vereador', id));
+        await logAction('Excluir', 'agenda_vereador', id, {});
+      } catch (err) {
+        handleFirestoreError(err, OperationType.DELETE, `agenda_vereador/${id}`);
+      }
     }
   };
 
@@ -275,7 +291,7 @@ export default function Agenda() {
                     </div>
                     <div>
                       <h4 className="font-bold text-slate-200">{event.titulo}</h4>
-                      <div className="flex flex-wrap gap-4 mt-1 text-xs text-slate-500">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-slate-500">
                         <div className="flex items-center gap-1.5">
                           <Clock size={12} />
                           {event.hora_inicio} - {event.hora_fim}
@@ -284,6 +300,18 @@ export default function Agenda() {
                           <div className="flex items-center gap-1.5">
                             <MapPin size={12} />
                             {event.local}
+                          </div>
+                        )}
+                        {event.contato_nome && (
+                          <div className="flex items-center gap-1.5 text-blue-400">
+                            <span className="font-bold">Contato:</span>
+                            {event.contato_nome} {event.contato_telefone && `(${event.contato_telefone})`}
+                          </div>
+                        )}
+                        {event.lembrete_data && (
+                          <div className="flex items-center gap-1.5 text-amber-400">
+                             <AlertCircle size={12} />
+                             <span className="font-bold italic">Lembrete: {format(parse(event.lembrete_data, 'yyyy-MM-dd', new Date()), 'dd/MM')} {event.lembrete_hora && ` às ${event.lembrete_hora}`}</span>
                           </div>
                         )}
                       </div>
@@ -395,7 +423,31 @@ export default function Agenda() {
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Local</label>
                     <input type="text" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1" placeholder="Ex: Câmara Municipal" />
                   </div>
-                  <div className="col-span-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Nome de Contato</label>
+                    <input type="text" value={formData.contato_nome} onChange={e => setFormData({...formData, contato_nome: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1" placeholder="Pessoa de contato" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Telefone de Contato</label>
+                    <input type="text" value={formData.contato_telefone} onChange={e => setFormData({...formData, contato_telefone: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1" placeholder="(00) 00000-0000" />
+                  </div>
+                  <div className="col-span-2 grid grid-cols-2 gap-4 pt-4 border-t border-slate-800">
+                    <div className="col-span-2">
+                       <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 flex items-center gap-2">
+                         <AlertCircle size={10} className="text-amber-500" />
+                         Lembrete Automático
+                       </h4>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Data do Lembrete</label>
+                      <input type="date" value={formData.lembrete_data} onChange={e => setFormData({...formData, lembrete_data: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 [color-scheme:dark]" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Hora do Lembrete</label>
+                      <input type="time" value={formData.lembrete_hora} onChange={e => setFormData({...formData, lembrete_hora: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 [color-scheme:dark]" />
+                    </div>
+                  </div>
+                  <div className="col-span-2 pt-4">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Descrição/Notas</label>
                     <textarea rows={3} value={formData.descricao} onChange={e => setFormData({...formData, descricao: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 resize-none" placeholder="Detalhes adicionais..." />
                   </div>

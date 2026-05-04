@@ -19,13 +19,15 @@ import {
   X,
   ClipboardList,
   Edit2,
-  Trash2
+  Trash2,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
+import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
 export default function AtendimentosMedicos() {
   const { profile, user } = useAuth();
@@ -51,8 +53,10 @@ export default function AtendimentosMedicos() {
     zona_rural: false,
     unidade_saude: '',
     especialidade: '',
+    cartao_sus: '',
     descricao_problema: '',
     necessita_exame: false,
+    lembrete_exame: '',
     status: 'Novo',
     prioridade: 'Média'
   };
@@ -83,7 +87,7 @@ export default function AtendimentosMedicos() {
       setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     }, (error) => {
-      console.error("Error listening to medical atendimentos:", error);
+      handleFirestoreError(error, OperationType.LIST, 'atendimentos_medicos');
       setLoading(false);
     });
     return () => unsubscribe();
@@ -109,7 +113,7 @@ export default function AtendimentosMedicos() {
       }
       closeModal();
     } catch (err) {
-      console.error(err);
+      handleFirestoreError(err, OperationType.WRITE, 'atendimentos_medicos');
     }
   };
 
@@ -130,8 +134,10 @@ export default function AtendimentosMedicos() {
       zona_rural: !!item.zona_rural,
       unidade_saude: item.unidade_saude || '',
       especialidade: item.especialidade || '',
+      cartao_sus: item.cartao_sus || '',
       descricao_problema: item.descricao_problema || '',
       necessita_exame: !!item.necessita_exame,
+      lembrete_exame: item.lembrete_exame || '',
       status: item.status || 'Novo',
       prioridade: item.prioridade || 'Média'
     });
@@ -146,7 +152,7 @@ export default function AtendimentosMedicos() {
       await deleteDoc(doc(db, 'atendimentos_medicos', id));
       await logAction('Excluir', 'atendimentos_medicos', id, { previous: existing });
     } catch (err) {
-      console.error(err);
+      handleFirestoreError(err, OperationType.DELETE, `atendimentos_medicos/${id}`);
     }
   };
 
@@ -209,12 +215,23 @@ export default function AtendimentosMedicos() {
               </div>
             </div>
             <h3 className="text-lg font-bold text-slate-100 mb-1">{item.nome_completo}</h3>
-            <p className="text-xs text-blue-400 font-medium mb-4 uppercase tracking-tighter">{item.especialidade} • {item.unidade_saude}</p>
+            <div className="flex flex-wrap gap-2 mb-2">
+              <p className="text-xs text-blue-400 font-medium uppercase tracking-tighter">{item.especialidade} • {item.unidade_saude}</p>
+              {item.cartao_sus && (
+                <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">SUS: {item.cartao_sus}</span>
+              )}
+            </div>
             
             <div className="space-y-3 mb-6">
                <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed">
                  {item.descricao_problema}
                </p>
+               {item.lembrete_exame && (
+                  <div className="flex items-center gap-2 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20 w-fit">
+                    <Clock size={10} />
+                    <span>Lembrete: Exame em {format(new Date(item.lembrete_exame + 'T12:00:00'), 'dd/MM/yyyy')}</span>
+                  </div>
+               )}
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-slate-800">
@@ -261,7 +278,7 @@ export default function AtendimentosMedicos() {
                         <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Endereço</label>
                         <input value={formData.endereco} onChange={e => setFormData({...formData, endereco: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50" placeholder="Rua, Número, etc." />
                      </div>
-                     <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                            <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Bairro</label>
                            <input value={formData.bairro} onChange={e => setFormData({...formData, bairro: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50" placeholder="Nome do bairro" />
@@ -270,11 +287,15 @@ export default function AtendimentosMedicos() {
                            <input type="checkbox" id="zona_rural_med" checked={formData.zona_rural} onChange={e => setFormData({...formData, zona_rural: e.target.checked})} className="w-5 h-5 rounded border-slate-700 bg-slate-900 text-emerald-600 focus:ring-emerald-500" />
                            <label htmlFor="zona_rural_med" className="text-xs font-bold uppercase text-slate-500 tracking-wider cursor-pointer">Zona Rural</label>
                         </div>
-                     </div>
-                     <div className="grid grid-cols-2 gap-4">
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                            <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Unidade de Saúde</label>
                            <input value={formData.unidade_saude} onChange={e => setFormData({...formData, unidade_saude: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50" />
+                        </div>
+                        <div className="space-y-1">
+                           <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Cartão SUS</label>
+                           <input value={formData.cartao_sus} onChange={e => setFormData({...formData, cartao_sus: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50" placeholder="000 0000 0000 0000" />
                         </div>
                         <div className="space-y-1">
                            <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Especialidade</label>
@@ -288,7 +309,7 @@ export default function AtendimentosMedicos() {
                                 <option>Alta</option>
                             </select>
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-1 col-span-2">
                             <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Status</label>
                             <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50 appearance-none">
                                 <option>Novo</option>
@@ -301,9 +322,17 @@ export default function AtendimentosMedicos() {
                         <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Relato do Problema</label>
                         <textarea rows={4} value={formData.descricao_problema} onChange={e => setFormData({...formData, descricao_problema: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50 resize-none" />
                      </div>
-                     <div className="flex items-center gap-3 bg-slate-800/50 p-4 rounded-xl border border-slate-800">
-                        <input type="checkbox" checked={formData.necessita_exame} onChange={e => setFormData({...formData, necessita_exame: e.target.checked})} className="w-5 h-5 rounded border-slate-700 bg-slate-900 text-emerald-600 focus:ring-emerald-500" />
-                        <label className="text-sm font-medium text-slate-300">Necessita de Exames Complementares?</label>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex items-center gap-3 bg-slate-800/50 p-4 rounded-xl border border-slate-800">
+                           <input type="checkbox" id="necessita_exame" checked={formData.necessita_exame} onChange={e => setFormData({...formData, necessita_exame: e.target.checked})} className="w-5 h-5 rounded border-slate-700 bg-slate-900 text-emerald-600 focus:ring-emerald-500" />
+                           <label htmlFor="necessita_exame" className="text-sm font-medium text-slate-300">Necessita de Exames?</label>
+                        </div>
+                        {formData.necessita_exame && (
+                          <div className="space-y-1">
+                             <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Data do Lembrete (Exame)</label>
+                             <input type="date" value={formData.lembrete_exame} onChange={e => setFormData({...formData, lembrete_exame: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50 [color-scheme:dark]" />
+                          </div>
+                        )}
                      </div>
                   </div>
                   <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 py-4 rounded-xl font-bold transition-all shadow-lg shadow-emerald-900/20">
