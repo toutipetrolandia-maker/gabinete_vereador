@@ -16,9 +16,11 @@ import {
   Link as LinkIcon,
   BookOpen,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  Download,
+  Save
 } from 'lucide-react';
-import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, addDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, addDoc, setDoc, deleteDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
@@ -31,7 +33,7 @@ export default function Settings() {
   const { profile } = useAuth();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'users' | 'general' | 'super' | 'manual'>('audit');
+  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'users' | 'general' | 'super' | 'manual' | 'backup'>('audit');
   const [usersList, setUsersList] = useState<any[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
   const [newUser, setNewUser] = useState({ nome: '', email: '', role: 'atendente', ativo: false });
@@ -39,6 +41,7 @@ export default function Settings() {
   const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
   const [perfilLink, setPerfilLink] = useState('https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
   const [savingSettings, setSavingSettings] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
   const [systemLocked, setSystemLocked] = useState(false);
   const [billingStatus, setBillingStatus] = useState<'regular' | 'pending' | 'suspended'>('regular');
   const [lgpdText, setLgpdText] = useState('Ao utilizar este sistema, você concorda com a coleta e processamento de dados pessoais de acordo com a LGPD para fins de gestão parlamentar.');
@@ -200,6 +203,57 @@ export default function Settings() {
     }
   };
 
+  const handleBackup = async () => {
+    if (!profile || profile.role !== 'admin') return;
+    setBackingUp(true);
+    try {
+      const collections = [
+        'atendimentos',
+        'demandas',
+        'sugestoes',
+        'malotes',
+        'agenda_vereador',
+        'users',
+        'app_settings',
+        'logs'
+      ];
+
+      const backupData: any = {
+        version: '1.0',
+        timestamp: new Date().toISOString(),
+        author: profile.nome,
+        data: {}
+      };
+
+      for (const col of collections) {
+        const snap = await getDocs(collection(db, col));
+        backupData.data[col] = snap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+      }
+
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `backup_gabinete_digital_${format(new Date(), 'dd_MM_yyyy_HHmm')}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      await logAction('Realizar Backup', 'sistema', 'backup', { 
+        next: { timestamp: backupData.timestamp, exported_by: profile.nome } 
+      });
+    } catch (error) {
+      console.error("Erro ao realizar backup:", error);
+      alert("Erro ao realizar backup. Tente novamente.");
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
   const [search, setSearch] = useState('');
   const filteredLogs = logs.filter(log => 
     log.usuario_nome?.toLowerCase().includes(search.toLowerCase()) ||
@@ -263,6 +317,17 @@ export default function Settings() {
               Usuários / Assessores
             </button>
           )}
+
+          <button 
+            onClick={() => setActiveSubTab('backup')}
+            className={cn(
+              "whitespace-nowrap px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
+              activeSubTab === 'backup' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20" : "text-slate-400 hover:bg-slate-900"
+            )}
+          >
+            <Save size={18} />
+            Cópia de Segurança
+          </button>
 
           <button 
             onClick={() => setActiveSubTab('manual')}
@@ -888,6 +953,89 @@ export default function Settings() {
                   </>
                 )}
               </AnimatePresence>
+            </motion.div>
+          ) : activeSubTab === 'backup' ? (
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-6"
+            >
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl">
+                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-slate-800 pb-8">
+                    <div>
+                       <h2 className="text-2xl font-bold text-white flex items-center gap-3 mb-2">
+                          <Database className="text-emerald-500" size={24} />
+                          Cópia de Segurança (Backup)
+                       </h2>
+                       <p className="text-slate-400 max-w-lg">
+                          Exporte todos os dados cadastrados no sistema (atendimentos, demandas, agenda e auditoria) para um arquivo JSON seguro.
+                       </p>
+                    </div>
+                    <button 
+                      onClick={handleBackup}
+                      disabled={backingUp || profile?.role !== 'admin'}
+                      className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-4 rounded-2xl font-bold flex items-center gap-3 shadow-lg shadow-emerald-900/20 transition-all shrink-0"
+                    >
+                      {backingUp ? (
+                         <>
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Processando...
+                         </>
+                      ) : (
+                         <>
+                            <Download size={20} />
+                            Gerar Backup Agora
+                         </>
+                      )}
+                    </button>
+                 </div>
+
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="p-6 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
+                       <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
+                          <ShieldCheck size={20} />
+                       </div>
+                       <h3 className="font-bold text-white text-sm">Segurança</h3>
+                       <p className="text-xs text-slate-500 leading-relaxed">
+                          O arquivo gerado contém dados sensíveis. Mantenha-o em local seguro e não compartilhe com terceiros.
+                       </p>
+                    </div>
+
+                    <div className="p-6 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
+                       <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                          <History size={20} />
+                       </div>
+                       <h3 className="font-bold text-white text-sm">Frequência</h3>
+                       <p className="text-xs text-slate-500 leading-relaxed">
+                          Recomendamos a realização de backups semanais para garantir que você tenha sempre uma cópia atualizada dos dados.
+                       </p>
+                    </div>
+
+                    <div className="p-6 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
+                       <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400">
+                          <Activity size={20} />
+                       </div>
+                       <h3 className="font-bold text-white text-sm">Formato</h3>
+                       <p className="text-xs text-slate-500 leading-relaxed">
+                          Os dados são exportados em formato JSON, compatível com planilhas e outros sistemas de banco de dados.
+                       </p>
+                    </div>
+                 </div>
+
+                 <div className="mt-8 p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl">
+                    <div className="flex gap-3">
+                       <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400 h-fit">
+                          <SettingsIcon size={16} />
+                       </div>
+                       <div>
+                          <h4 className="text-xs font-bold text-blue-300 uppercase mb-1">Backup Automático</h4>
+                          <p className="text-[10px] text-blue-300/60 leading-relaxed">
+                             O sistema realiza espelhamentos diários em servidores redundantes da Clécio Tecnologia via Google Cloud, porém a cópia de segurança manual é uma camada extra de proteção sob controle do Gabinete.
+                          </p>
+                       </div>
+                    </div>
+                 </div>
+              </div>
             </motion.div>
           ) : activeSubTab === 'manual' ? (
             <motion.div 
