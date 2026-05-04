@@ -26,6 +26,8 @@
         "protocolo": { "type": "string" },
         "bairro": { "type": "string" },
         "zona_rural": { "type": "boolean" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
         "tipo_atendimento": { "type": "string", "enum": ["Geral", "Médico", "Demanda", "Sugestão"] },
         "status": { "type": "string", "enum": ["Novo", "Em Andamento", "Concluído", "Cancelado"] },
         "prioridade": { "type": "string", "enum": ["Baixa", "Média", "Alta"] },

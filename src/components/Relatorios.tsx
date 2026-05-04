@@ -6,7 +6,9 @@ import {
   BarChart, 
   Download,
   CheckCircle2,
-  Calendar
+  Calendar,
+  MapPin,
+  ExternalLink
 } from 'lucide-react';
 import { collection, query, getDocs, orderBy, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -120,12 +122,13 @@ export default function Relatorios() {
             };
           default:
             return {
-              head: [['Nome/Assunto', 'Tipo/Prioridade', 'Data', 'Status']],
+              head: [['Nome/Assunto', 'Tipo/Prioridade', 'Data', 'Status', 'Localização']],
               body: filteredData.map((item: any) => [
                 item.nome_completo || item.assunto || '-',
                 item.tipo_atendimento || item.prioridade || '-',
                 item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-',
-                item.status || '-'
+                item.status || '-',
+                item.latitude ? `Maps: ${item.latitude.toFixed(4)}, ${item.longitude?.toFixed(4)}` : (item.zona_rural ? 'Rural (Sem Pin)' : 'Urbano')
               ])
             };
         }
@@ -325,6 +328,7 @@ export default function Relatorios() {
                                <th className="px-6 py-3">Nome / Assunto</th>
                                <th className="px-6 py-3">Status</th>
                                <th className="px-6 py-3">Bairro</th>
+                               <th className="px-6 py-3 text-center">Loc.</th>
                                <th className="px-6 py-3">Data</th>
                              </>
                            )}
@@ -332,9 +336,9 @@ export default function Relatorios() {
                      </thead>
                     <tbody className="divide-y divide-slate-800">
                        {loading ? (
-                         <tr><td colSpan={filterType === 'atendimentos_medicos' ? 5 : 4} className="px-6 py-10 text-center text-slate-600 text-sm italic">Carregando dados...</td></tr>
+                         <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-600 text-sm italic">Carregando dados...</td></tr>
                        ) : filteredData.length === 0 ? (
-                         <tr><td colSpan={filterType === 'atendimentos_medicos' ? 5 : 4} className="px-6 py-10 text-center text-slate-600 text-sm italic">Nenhum registro para os filtros selecionados.</td></tr>
+                         <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-600 text-sm italic">Nenhum registro para os filtros selecionados.</td></tr>
                        ) : filteredData.slice(0, 5).map((item, i) => (
                           <tr key={i} className="hover:bg-slate-800/20">
                              {filterType === 'atendimentos_medicos' ? (
@@ -363,6 +367,21 @@ export default function Relatorios() {
                                     </span>
                                  </td>
                                  <td className="px-6 py-4 text-xs text-slate-500">{item.bairro || '-'}</td>
+                                 <td className="px-6 py-4 text-center">
+                                    {item.latitude && item.longitude ? (
+                                      <a 
+                                        href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="inline-flex p-1.5 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-all"
+                                        title="Ver no Google Maps"
+                                      >
+                                        <MapPin size={14} />
+                                      </a>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-700 italic">-</span>
+                                    )}
+                                 </td>
                                  <td className="px-6 py-4 text-[10px] text-slate-500 font-mono">
                                    {item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-'}
                                  </td>

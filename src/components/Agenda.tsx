@@ -47,10 +47,12 @@ import { logAction } from '../lib/audit';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
 export default function Agenda() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
@@ -84,13 +86,16 @@ export default function Agenda() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile) return;
+    if (!user || !profile) return;
+
+    setSubmitting(true);
+    setError(null);
 
     try {
       const eventData = {
         ...formData,
         updated_at: serverTimestamp(),
-        usuario_id: profile.uid,
+        usuario_id: user.uid,
         usuario_nome: profile.nome
       };
 
@@ -108,8 +113,12 @@ export default function Agenda() {
       setShowModal(false);
       setEditingId(null);
       setFormData(initialForm);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'agenda_vereador');
+    } catch (err: any) {
+      console.error("Erro ao salvar compromisso:", err);
+      setError(err.message || String(err));
+      // No re-throw here so we can show the error in the UI
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -392,6 +401,12 @@ export default function Agenda() {
               </div>
 
               <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+                {error && (
+                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-400 text-xs">
+                    <AlertCircle size={18} />
+                    <p>{error}</p>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Título do Compromisso</label>
@@ -452,8 +467,19 @@ export default function Agenda() {
                     <textarea rows={3} value={formData.descricao} onChange={e => setFormData({...formData, descricao: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 resize-none" placeholder="Detalhes adicionais..." />
                   </div>
                 </div>
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 py-3.5 rounded-xl font-bold text-white shadow-xl shadow-blue-900/20 transition-all mt-4">
-                  {editingId ? 'Salvar Alterações' : 'Confirmar Agendamento'}
+                <button 
+                  type="submit" 
+                  disabled={submitting}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed py-3.5 rounded-xl font-bold text-white shadow-xl shadow-blue-900/20 transition-all mt-4 flex items-center justify-center gap-3"
+                >
+                  {submitting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    editingId ? 'Salvar Alterações' : 'Confirmar Agendamento'
+                  )}
                 </button>
               </form>
             </motion.div>

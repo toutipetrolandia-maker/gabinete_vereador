@@ -33,10 +33,35 @@ import {
   Stethoscope,
   ExternalLink,
   History,
-  User
+  User,
+  MapPin
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix for default marker icons in leaflet
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+function LocationMarker({ position, setPosition }: { position: [number, number] | null, setPosition: (pos: [number, number]) => void }) {
+  useMapEvents({
+    click(e) {
+      setPosition([e.latlng.lat, e.latlng.lng]);
+    },
+  });
+
+  return position === null ? null : (
+    <Marker position={position} />
+  );
+}
+
 import { 
   format, 
   startOfMonth, 
@@ -83,6 +108,8 @@ export default function Atendimentos() {
     prioridade: 'Média',
     descricao: '',
     lgpd_consent: false,
+    latitude: null as number | null,
+    longitude: null as number | null,
   };
 
   // Masks
@@ -204,6 +231,8 @@ export default function Atendimentos() {
       prioridade: item.prioridade || 'Média',
       descricao: item.descricao || '',
       lgpd_consent: item.lgpd_consent || false,
+      latitude: item.latitude || null,
+      longitude: item.longitude || null,
     });
     if (item.cpf) fetchMedicalHistory(item.cpf);
     setShowModal(true);
@@ -646,6 +675,39 @@ export default function Atendimentos() {
                     />
                     <label htmlFor="zona_rural" className="text-xs font-semibold uppercase text-slate-500 tracking-wider cursor-pointer">Zona Rural</label>
                   </div>
+
+                  {formData.zona_rural && (
+                    <div className="col-span-2 space-y-2">
+                      <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider flex items-center gap-2">
+                        <MapPin size={14} className="text-blue-500" />
+                        Localização Geográfica (Zona Rural)
+                      </label>
+                      <div className="h-64 rounded-2xl overflow-hidden border border-slate-700 relative z-0">
+                        <MapContainer 
+                          center={formData.latitude && formData.longitude ? [formData.latitude, formData.longitude] : [-8.7183, -38.2173]} 
+                          zoom={13} 
+                          style={{ height: '100%', width: '100%' }}
+                        >
+                          <TileLayer
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                          />
+                          <LocationMarker 
+                            position={formData.latitude && formData.longitude ? [formData.latitude, formData.longitude] : null} 
+                            setPosition={(pos) => setFormData({...formData, latitude: pos[0], longitude: pos[1]})} 
+                          />
+                        </MapContainer>
+                      </div>
+                      <p className="text-[10px] text-slate-500 italic">Clique no mapa para marcar a localização aproximada da residência ou pedido.</p>
+                      {formData.latitude && (
+                        <div className="flex gap-2">
+                          <span className="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-400 font-mono">LAT: {formData.latitude.toFixed(6)}</span>
+                          <span className="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-400 font-mono">LNG: {formData.longitude?.toFixed(6)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Tipo de Atendimento</label>
                     <select 
