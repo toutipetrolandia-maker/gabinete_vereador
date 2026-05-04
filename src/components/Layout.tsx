@@ -288,7 +288,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
            
            <div className="flex items-center gap-4">
               <div className="hidden md:flex flex-col items-end mr-2">
-                 <span className="text-[10px] uppercase font-black tracking-widest text-blue-500 mb-0.5">Escritório Digital</span>
+                 <span className="text-[10px] uppercase font-black tracking-widest text-blue-500 mb-0.5">Gabinete Digital</span>
                  <span className="text-xs font-bold text-slate-400">{format(new Date(), "dd 'de' MMMM", { locale: ptBR })}</span>
               </div>
               <NotificationCenter />

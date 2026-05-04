@@ -140,11 +140,33 @@ export default function Agenda() {
     setShowModal(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Deseja excluir este compromisso?')) {
+  const handlePostpone = async (event: any) => {
+    try {
+      const currentDate = parse(event.data, 'yyyy-MM-dd', new Date());
+      const nextDate = new Date(currentDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      const nextDateStr = format(nextDate, 'yyyy-MM-dd');
+
+      await updateDoc(doc(db, 'agenda_vereador', event.id), {
+        data: nextDateStr,
+        updated_at: serverTimestamp()
+      });
+      await logAction('Adiar Compromisso', 'agenda_vereador', event.id, { 
+        previous: { data: event.data },
+        next: { data: nextDateStr }
+      });
+    } catch (err) {
+      console.error("Erro ao adiar:", err);
+    }
+  };
+
+  const handleDelete = async (id: string, titulo: string) => {
+    if (confirm(`Deseja excluir o compromisso "${titulo}" permanentemente?`)) {
       try {
         await deleteDoc(doc(db, 'agenda_vereador', id));
-        await logAction('Excluir', 'agenda_vereador', id, {});
+        await logAction('Excluir Compromisso', 'agenda_vereador', id, { 
+          previous: { titulo } 
+        });
       } catch (err) {
         handleFirestoreError(err, OperationType.DELETE, `agenda_vereador/${id}`);
       }
@@ -326,12 +348,30 @@ export default function Agenda() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                    <button onClick={() => handleEdit(event)} className="p-2 hover:bg-blue-500/10 text-slate-500 hover:text-blue-400 rounded-lg">
-                      <Edit2 size={16} />
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                    <button 
+                      onClick={() => handlePostpone(event)} 
+                      title="Adiar para amanhã"
+                      className="p-2 hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400 rounded-lg flex flex-col items-center gap-0.5"
+                    >
+                      <Plus size={16} />
+                      <span className="text-[8px] font-black uppercase">Adiar</span>
                     </button>
-                    <button onClick={() => handleDelete(event.id)} className="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg">
+                    <button 
+                      onClick={() => handleEdit(event)} 
+                      title="Remarcar / Editar"
+                      className="p-2 hover:bg-blue-500/10 text-slate-500 hover:text-blue-400 rounded-lg flex flex-col items-center gap-0.5"
+                    >
+                      <Edit2 size={16} />
+                      <span className="text-[8px] font-black uppercase">Remarcar</span>
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(event.id, event.titulo)} 
+                      title="Excluir"
+                      className="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg flex flex-col items-center gap-0.5"
+                    >
                       <Trash2 size={16} />
+                      <span className="text-[8px] font-black uppercase">Excluir</span>
                     </button>
                   </div>
                 </div>
