@@ -209,7 +209,8 @@ export default function Settings() {
     try {
       const collections = [
         'atendimentos',
-        'demandas',
+        'atendimentos_medicos',
+        'demandas_parlamentares',
         'sugestoes',
         'malotes',
         'agenda_vereador',

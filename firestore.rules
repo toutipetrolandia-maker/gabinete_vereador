@@ -160,7 +160,7 @@ service cloud.firestore {
 
     // APP SETTINGS
     match /app_settings/{docId} {
-      allow get: if isSignedIn();
+      allow read: if isSignedIn();
       allow update: if isEmailVerified() && (isAdmin() || isVereador());
       allow create: if isAdmin();
     }
