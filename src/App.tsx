@@ -10,6 +10,7 @@ import Settings from './components/Settings';
 import Demandas from './components/Demandas';
 import Sugestoes from './components/Sugestoes';
 import Relatorios from './components/Relatorios';
+import Agenda from './components/Agenda';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -30,6 +31,7 @@ function AppContent() {
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
       {activeTab === 'dashboard' && <Dashboard />}
+      {activeTab === 'agenda' && <Agenda />}
       {activeTab === 'atendimentos' && <Atendimentos />}
       {activeTab === 'medico' && <AtendimentosMedicos />}
       {activeTab === 'malotes' && <Malotes />}

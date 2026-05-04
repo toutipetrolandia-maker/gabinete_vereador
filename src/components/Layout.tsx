@@ -79,6 +79,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+    { id: 'agenda', label: 'Agenda', icon: Clock },
     { id: 'atendimentos', label: 'Atendimentos', icon: Users },
     { id: 'medico', label: 'Atend. Médico', icon: Stethoscope },
     { id: 'malotes', label: 'Malotes', icon: Package },
