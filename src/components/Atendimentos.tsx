@@ -8,7 +8,9 @@ import {
   serverTimestamp,
   updateDoc,
   doc,
-  deleteDoc
+  deleteDoc,
+  where,
+  getDocs
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
@@ -27,7 +29,11 @@ import {
   List as ListIcon,
   ChevronLeft,
   ChevronRight,
-  MessageCircle
+  MessageCircle,
+  Stethoscope,
+  ExternalLink,
+  History,
+  User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -58,6 +64,10 @@ export default function Atendimentos() {
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [activeTypeFilter, setActiveTypeFilter] = useState('Todos');
+
+  // States for cross-data
+  const [medicalHistory, setMedicalHistory] = useState<any[]>([]);
+  const [searchingMedical, setSearchingMedical] = useState(false);
 
   const initialForm = {
     nome_completo: '',
@@ -95,6 +105,26 @@ export default function Atendimentos() {
 
   // Form State
   const [formData, setFormData] = useState(initialForm);
+
+  const fetchMedicalHistory = async (cpf: string) => {
+    const cleanCPF = cpf.replace(/\D/g, '');
+    if (cleanCPF.length < 11) return;
+    
+    setSearchingMedical(true);
+    try {
+      const q = query(
+        collection(db, 'atendimentos_medicos'), 
+        where('cpf', '==', cleanCPF), 
+        orderBy('created_at', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      setMedicalHistory(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (error) {
+      console.error("Error fetching medical history:", error);
+    } finally {
+      setSearchingMedical(false);
+    }
+  };
 
   useEffect(() => {
     const q = query(collection(db, 'atendimentos'), orderBy('created_at', 'desc'));
@@ -155,6 +185,7 @@ export default function Atendimentos() {
     setShowModal(false);
     setEditingId(null);
     setFormData(initialForm);
+    setMedicalHistory([]);
   };
 
   const handleEdit = (item: any) => {
@@ -174,6 +205,7 @@ export default function Atendimentos() {
       descricao: item.descricao || '',
       lgpd_consent: item.lgpd_consent || false,
     });
+    if (item.cpf) fetchMedicalHistory(item.cpf);
     setShowModal(true);
   };
 
@@ -506,51 +538,64 @@ export default function Atendimentos() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-x-2 top-4 bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[600px] md:h-auto md:max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl z-[70] overflow-hidden flex flex-col"
+              className="fixed inset-x-2 top-4 bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[900px] md:h-auto md:max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl z-[70] overflow-hidden flex flex-col"
             >
-              <div className="px-6 md:px-8 py-4 md:py-6 border-b border-slate-800 flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg md:text-xl font-bold text-white tracking-tight">{editingId ? 'Editar Atendimento' : 'Novo Atendimento'}</h2>
-                  <p className="text-slate-500 text-xs md:text-sm font-sans">Preencha as informações para registro.</p>
-                </div>
-                <button onClick={closeModal} className="p-2 hover:bg-slate-800 rounded-lg transition-colors">
-                  <X size={20} className="text-slate-400" />
-                </button>
-              </div>
+               <div className="flex flex-col md:flex-row h-full overflow-hidden">
+                 <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 border-r border-slate-800">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h2 className="text-lg md:text-xl font-bold text-white tracking-tight">{editingId ? 'Editar Atendimento' : 'Novo Atendimento'}</h2>
+                        <p className="text-slate-500 text-xs md:text-sm font-sans">Preencha as informações para registro.</p>
+                      </div>
+                      <button onClick={closeModal} className="p-2 hover:bg-slate-800 rounded-lg transition-colors md:hidden">
+                        <X size={20} className="text-slate-400" />
+                      </button>
+                    </div>
 
-              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2 col-span-2">
-                    <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Número do Protocolo</label>
-                    <input 
-                      type="text" 
-                      value={formData.protocolo}
-                      onChange={e => setFormData({...formData, protocolo: e.target.value})}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors"
-                      placeholder="Ex: PROT-2024-001"
-                    />
-                  </div>
-                  <div className="space-y-2 col-span-2 md:col-span-1">
-                    <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Nome Completo</label>
-                    <input 
-                      required
-                      type="text" 
-                      value={formData.nome_completo}
-                      onChange={e => setFormData({...formData, nome_completo: e.target.value})}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors"
-                      placeholder="Ex: João da Silva"
-                    />
-                  </div>
-                  <div className="space-y-2 col-span-2 md:col-span-1">
-                    <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">CPF</label>
-                    <input 
-                      type="text" 
-                      value={formData.cpf}
-                      onChange={e => setFormData({...formData, cpf: maskCPF(e.target.value)})}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors"
-                      placeholder="000.000.000-00"
-                    />
-                  </div>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2 col-span-2">
+                          <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Número do Protocolo</label>
+                          <input 
+                            type="text" 
+                            value={formData.protocolo}
+                            onChange={e => setFormData({...formData, protocolo: e.target.value})}
+                            className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors"
+                            placeholder="Ex: PROT-2024-001"
+                          />
+                        </div>
+                        <div className="space-y-2 col-span-2 md:col-span-1">
+                          <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Nome Completo</label>
+                          <input 
+                            required
+                            type="text" 
+                            value={formData.nome_completo}
+                            onChange={e => setFormData({...formData, nome_completo: e.target.value})}
+                            className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors"
+                            placeholder="Ex: João da Silva"
+                          />
+                        </div>
+                        <div className="space-y-2 col-span-2 md:col-span-1">
+                          <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">CPF</label>
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              value={formData.cpf}
+                              onChange={e => {
+                                const val = maskCPF(e.target.value);
+                                setFormData({...formData, cpf: val});
+                                if (val.replace(/\D/g, '').length === 11) fetchMedicalHistory(val);
+                              }}
+                              className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors pr-10"
+                              placeholder="000.000.000-00"
+                            />
+                            {searchingMedical && (
+                              <div className="absolute right-3 top-1/2 -track-y-1/2 mt-0.5">
+                                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Telefone</label>
                     <input 
@@ -680,10 +725,59 @@ export default function Atendimentos() {
                   </button>
                 </div>
               </form>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </div>
+            </div>
+
+            {/* Right: Medical History Sidebar */}
+            <div className="hidden md:flex w-80 bg-slate-950/50 flex-col overflow-hidden">
+               <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
+                     <Stethoscope size={14} className="text-emerald-500" />
+                     Histórico Médico
+                  </h3>
+                  <button onClick={closeModal} className="p-2 hover:bg-slate-800 rounded-lg hidden md:block"><X size={20} className="text-slate-500" /></button>
+               </div>
+               <div className="flex-1 overflow-y-auto p-6 space-y-4 shadow-inner">
+                 {medicalHistory.length > 0 ? (
+                   medicalHistory.map((h) => (
+                     <div key={h.id} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl group hover:border-emerald-500/30 transition-all">
+                       <div className="flex items-center justify-between mb-2">
+                         <span className="text-[9px] font-bold text-slate-500 uppercase">
+                           {h.created_at?.toDate ? format(h.created_at.toDate(), 'dd/MM/yyyy') : '...'}
+                         </span>
+                         <span className={cn(
+                           "px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter",
+                           h.prioridade === 'Alta' ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"
+                         )}>
+                           {h.especialidade || 'Clínico'}
+                         </span>
+                       </div>
+                       <p className="text-xs text-slate-300 font-medium line-clamp-3 leading-relaxed mb-2 italic">"{h.descricao_problema}"</p>
+                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/50">
+                          <div className="flex items-center gap-1">
+                             <User size={10} className="text-slate-600" />
+                             <span className="text-[9px] text-slate-600 font-bold">{h.usuario_nome?.split(' ')[0]}</span>
+                          </div>
+                          <button title="Ver atendimento médico" className="text-emerald-500 hover:text-emerald-400">
+                             <ExternalLink size={12} />
+                          </button>
+                       </div>
+                     </div>
+                   ))
+                 ) : (
+                   <div className="h-full flex flex-col items-center justify-center text-center opacity-30 px-4">
+                      <Stethoscope size={32} className="text-slate-700 mb-4" />
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed text-center">
+                        Sem registros médicos vinculados a este CPF
+                      </p>
+                   </div>
+                 )}
+               </div>
+            </div>
+          </div>
+        </motion.div>
+      </>
+    )}
+  </AnimatePresence>
+</div>
   );
 }

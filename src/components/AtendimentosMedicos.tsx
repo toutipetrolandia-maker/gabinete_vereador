@@ -8,7 +8,9 @@ import {
   serverTimestamp,
   updateDoc,
   doc,
-  deleteDoc
+  deleteDoc,
+  where,
+  getDocs
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
@@ -21,7 +23,10 @@ import {
   Edit2,
   Trash2,
   Clock,
-  MessageCircle
+  MessageCircle,
+  History,
+  User,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -37,6 +42,10 @@ export default function AtendimentosMedicos() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+
+  // States for cross-data
+  const [citizenHistory, setCitizenHistory] = useState<any[]>([]);
+  const [searchingCitizen, setSearchingCitizen] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -82,6 +91,48 @@ export default function AtendimentosMedicos() {
 
   const [formData, setFormData] = useState(initialForm);
 
+  // Function to search general assistance data by CPF
+  const searchCitizenData = async (cpf: string) => {
+    const cleanCPF = cpf.replace(/\D/g, '');
+    if (cleanCPF.length < 11) return;
+    
+    setSearchingCitizen(true);
+    try {
+      // Find in general assistances
+      const q = query(
+        collection(db, 'atendimentos'), 
+        where('cpf', '==', cleanCPF), 
+        orderBy('created_at', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const latestInfo = querySnapshot.docs[0].data();
+        const history = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        setCitizenHistory(history);
+        
+        // Auto-fill if it's a new entry and name is empty
+        if (!editingId && !formData.nome_completo) {
+          setFormData(prev => ({
+            ...prev,
+            nome_completo: latestInfo.nome_completo || '',
+            telefone: latestInfo.telefone || '',
+            endereco: latestInfo.endereco || '',
+            bairro: latestInfo.bairro || '',
+            zona_rural: latestInfo.zona_rural !== undefined ? latestInfo.zona_rural : prev.zona_rural
+          }));
+        }
+      } else {
+        setCitizenHistory([]);
+      }
+    } catch (error) {
+      console.error("Error searching citizen data:", error);
+    } finally {
+      setSearchingCitizen(false);
+    }
+  };
+
   useEffect(() => {
     const q = query(collection(db, 'atendimentos_medicos'), orderBy('created_at', 'desc'));
     const unsubscribe = onSnapshot(q, (snap) => {
@@ -122,6 +173,7 @@ export default function AtendimentosMedicos() {
     setShowModal(false);
     setEditingId(null);
     setFormData(initialForm);
+    setCitizenHistory([]);
   };
 
   const handleEdit = (item: any) => {
@@ -142,6 +194,7 @@ export default function AtendimentosMedicos() {
       status: item.status || 'Novo',
       prioridade: item.prioridade || 'Média'
     });
+    if (item.cpf) searchCitizenData(item.cpf);
     setShowModal(true);
   };
 
@@ -266,22 +319,42 @@ export default function AtendimentosMedicos() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-              className="fixed inset-x-2 top-4 bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[600px] md:h-auto md:max-h-[95vh] bg-slate-900 border border-slate-800 rounded-3xl z-[70] flex flex-col shadow-2xl overflow-hidden"
+              className="fixed inset-x-2 top-4 bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[900px] md:h-auto md:max-h-[95vh] bg-slate-900 border border-slate-800 rounded-[2rem] z-[70] flex flex-col shadow-2xl overflow-hidden"
             >
-               <div className="px-6 md:px-8 py-4 md:py-6 border-b border-slate-800 flex items-center justify-between bg-slate-900">
-                  <h2 className="text-lg md:text-xl font-bold">{editingId ? 'Editar Registro Médico' : 'Registro de Saúde'}</h2>
-                  <button onClick={closeModal} className="p-2 hover:bg-slate-800 rounded-lg"><X size={20} /></button>
-               </div>
-               <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
-                  <div className="space-y-4">
-                     <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Nome do Paciente</label>
-                        <input required value={formData.nome_completo} onChange={e => setFormData({...formData, nome_completo: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50" />
-                     </div>
-                     <div className="grid grid-cols-2 gap-4">
+               <div className="flex flex-col md:flex-row h-full overflow-hidden">
+                 {/* Left: Form */}
+                 <div className="flex-1 overflow-y-auto p-6 md:p-8 border-r border-slate-800">
+                    <div className="flex items-center justify-between mb-8">
+                       <h2 className="text-xl font-bold">{editingId ? 'Editar Registro Médico' : 'Novo Registro de Saúde'}</h2>
+                       <button onClick={closeModal} className="p-2 hover:bg-slate-800 rounded-lg md:hidden"><X size={20} /></button>
+                    </div>
+                    
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                       <div className="space-y-4">
+                          <div className="space-y-1">
+                             <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Nome do Paciente</label>
+                             <input required value={formData.nome_completo} onChange={e => setFormData({...formData, nome_completo: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50" />
+                          </div>
+                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                           <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">CPF</label>
-                           <input value={formData.cpf} onChange={e => setFormData({...formData, cpf: maskCPF(e.target.value)})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50" placeholder="000.000.000-00" />
+                           <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">CPF (Busca Automática)</label>
+                           <div className="relative">
+                             <input 
+                               value={formData.cpf} 
+                               onChange={e => {
+                                 const val = maskCPF(e.target.value);
+                                 setFormData({...formData, cpf: val});
+                                 if (val.replace(/\D/g, '').length === 11) searchCitizenData(val);
+                               }} 
+                               className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50 pr-10" 
+                               placeholder="000.000.000-00" 
+                             />
+                             {searchingCitizen && (
+                               <div className="absolute right-3 top-1/2 -track-y-1/2 mt-0.5">
+                                 <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                               </div>
+                             )}
+                           </div>
                         </div>
                         <div className="space-y-1">
                            <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Telefone</label>
@@ -353,8 +426,57 @@ export default function AtendimentosMedicos() {
                       {editingId ? 'Salvar Alterações' : 'Registrar Atendimento Médico'}
                   </button>
                </form>
-            </motion.div>
-          </>
+            </div>
+
+            {/* Right: History Sidebar */}
+            <div className="hidden md:flex w-80 bg-slate-950/50 flex-col overflow-hidden">
+               <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
+                     <History size={14} className="text-blue-500" />
+                     Histórico Geral
+                  </h3>
+                  <button onClick={closeModal} className="p-2 hover:bg-slate-800 rounded-lg hidden md:block"><X size={20} /></button>
+               </div>
+               <div className="flex-1 overflow-y-auto p-6 space-y-4 shadow-inner">
+                 {citizenHistory.length > 0 ? (
+                   citizenHistory.map((h) => (
+                     <div key={h.id} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl group hover:border-blue-500/30 transition-all">
+                       <div className="flex items-center justify-between mb-2">
+                         <span className="text-[9px] font-bold text-slate-500 uppercase">
+                           {h.created_at?.toDate ? format(h.created_at.toDate(), 'dd/MM/yyyy') : '...'}
+                         </span>
+                         <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[8px] font-black uppercase tracking-tighter">
+                           {h.tipo_atendimento}
+                         </span>
+                       </div>
+                       <p className="text-xs text-slate-300 font-medium line-clamp-3 leading-relaxed mb-2 italic">"{h.descricao}"</p>
+                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/50">
+                          <div className="flex items-center gap-1">
+                             <User size={10} className="text-slate-600" />
+                             <span className="text-[9px] text-slate-600 font-bold">{h.usuario_nome?.split(' ')[0]}</span>
+                          </div>
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded text-[8px] font-bold uppercase",
+                            h.status === 'Concluído' ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"
+                          )}>
+                            {h.status}
+                          </span>
+                       </div>
+                     </div>
+                   ))
+                 ) : (
+                   <div className="h-full flex flex-col items-center justify-center text-center opacity-30 px-4">
+                      <ClipboardList size={32} className="text-slate-700 mb-4" />
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
+                        Insira o CPF para consultar o histórico geral deste cidadão
+                      </p>
+                   </div>
+                 )}
+               </div>
+            </div>
+          </div>
+        </motion.div>
+      </>
         )}
       </AnimatePresence>
     </div>
