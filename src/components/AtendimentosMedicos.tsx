@@ -46,6 +46,9 @@ export default function AtendimentosMedicos() {
     nome_completo: '',
     cpf: '',
     telefone: '',
+    endereco: '',
+    bairro: '',
+    zona_rural: false,
     unidade_saude: '',
     especialidade: '',
     descricao_problema: '',
@@ -122,6 +125,9 @@ export default function AtendimentosMedicos() {
       nome_completo: item.nome_completo || '',
       cpf: item.cpf || '',
       telefone: item.telefone || '',
+      endereco: item.endereco || '',
+      bairro: item.bairro || '',
+      zona_rural: !!item.zona_rural,
       unidade_saude: item.unidade_saude || '',
       especialidade: item.especialidade || '',
       descricao_problema: item.descricao_problema || '',
@@ -249,6 +255,20 @@ export default function AtendimentosMedicos() {
                         <div className="space-y-1">
                            <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Telefone</label>
                            <input value={formData.telefone} onChange={e => setFormData({...formData, telefone: maskPhone(e.target.value)})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50" placeholder="(00) 00000-0000" />
+                        </div>
+                     </div>
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Endereço</label>
+                        <input value={formData.endereco} onChange={e => setFormData({...formData, endereco: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50" placeholder="Rua, Número, etc." />
+                     </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                           <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Bairro</label>
+                           <input value={formData.bairro} onChange={e => setFormData({...formData, bairro: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50" placeholder="Nome do bairro" />
+                        </div>
+                        <div className="space-y-1 flex items-center gap-3 pt-4">
+                           <input type="checkbox" id="zona_rural_med" checked={formData.zona_rural} onChange={e => setFormData({...formData, zona_rural: e.target.checked})} className="w-5 h-5 rounded border-slate-700 bg-slate-900 text-emerald-600 focus:ring-emerald-500" />
+                           <label htmlFor="zona_rural_med" className="text-xs font-bold uppercase text-slate-500 tracking-wider cursor-pointer">Zona Rural</label>
                         </div>
                      </div>
                      <div className="grid grid-cols-2 gap-4">

@@ -39,6 +39,8 @@ export default function Settings() {
   const [systemLocked, setSystemLocked] = useState(false);
   const [billingStatus, setBillingStatus] = useState<'regular' | 'pending' | 'suspended'>('regular');
   const [lgpdText, setLgpdText] = useState('Ao utilizar este sistema, você concorda com a coleta e processamento de dados pessoais de acordo com a LGPD para fins de gestão parlamentar.');
+  const [selectedLog, setSelectedLog] = useState<any | null>(null);
+  const [showLogModal, setShowLogModal] = useState(false);
 
   const isSuperAdmin = profile?.email === 'cleciotecnologia@gmail.com';
 
@@ -134,7 +136,7 @@ export default function Settings() {
   };
 
   const handleUpdateRole = async (userId: string, newRole: string) => {
-    if (profile?.role !== 'admin') return;
+    if (profile?.role !== 'admin' && !isSuperAdmin) return;
     try {
       const userRef = doc(db, 'users', userId);
       const userToUpdate = usersList.find(u => u.id === userId);
@@ -149,7 +151,7 @@ export default function Settings() {
   };
 
   const handleToggleAtivo = async (userId: string, currentStatus: boolean) => {
-    if (profile?.role !== 'admin') return;
+    if (profile?.role !== 'admin' && !isSuperAdmin) return;
     try {
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, { ativo: !currentStatus });
@@ -241,7 +243,7 @@ export default function Settings() {
             <History size={18} />
             Auditoria
           </button>
-          {profile?.role === 'admin' && (
+          {(profile?.role === 'admin' || isSuperAdmin) && (
             <button 
               onClick={() => setActiveSubTab('users')}
               className={cn(
@@ -459,6 +461,33 @@ export default function Settings() {
                  </div>
               </div>
               
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 mb-6">
+                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <UserPlus className="text-emerald-500" size={20} />
+                    Aprovações Pendentes
+                 </h3>
+                 <div className="space-y-3">
+                    {usersList.filter(u => !u.ativo).length === 0 ? (
+                      <p className="text-sm text-slate-500 italic">Nenhum usuário aguardando aprovação.</p>
+                    ) : (
+                      usersList.filter(u => !u.ativo).map(user => (
+                        <div key={user.id} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between">
+                           <div>
+                              <span className="block font-bold text-white">{user.nome}</span>
+                              <span className="text-xs text-slate-500">{user.email}</span>
+                           </div>
+                           <button 
+                             onClick={() => handleToggleAtivo(user.id, false)}
+                             className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-lg shadow-emerald-900/20"
+                           >
+                             Aprovar Acesso
+                           </button>
+                        </div>
+                      ))
+                    )}
+                 </div>
+              </div>
+              
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8">
                  <h3 className="text-lg font-bold text-white mb-4">Métricas de Faturamento Brutal</h3>
                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -523,7 +552,14 @@ export default function Settings() {
                         <td colSpan={4} className="py-20 text-center text-slate-500">Nenhum log encontrado.</td>
                       </tr>
                     ) : filteredLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-800/30 transition-colors">
+                      <tr 
+                        key={log.id} 
+                        onClick={() => {
+                          setSelectedLog(log);
+                          setShowLogModal(true);
+                        }}
+                        className="hover:bg-slate-800/30 border-b border-slate-800 last:border-0 transition-colors cursor-pointer group"
+                      >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-400">
@@ -556,6 +592,110 @@ export default function Settings() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Log Detail Modal */}
+              <AnimatePresence>
+                {showLogModal && selectedLog && (
+                  <>
+                    <motion.div 
+                      initial={{ opacity: 0 }} 
+                      animate={{ opacity: 1 }} 
+                      exit={{ opacity: 0 }} 
+                      onClick={() => setShowLogModal(false)}
+                      className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100]" 
+                    />
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+                      animate={{ opacity: 1, scale: 1, y: 0 }} 
+                      exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                      className="fixed inset-x-2 top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl z-[101] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+                    >
+                      <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+                        <div>
+                          <h3 className="text-xl font-bold text-white">Detalhes do Log</h3>
+                          <p className="text-xs text-slate-500 font-mono mt-1">ID: {selectedLog.id}</p>
+                        </div>
+                        <button onClick={() => setShowLogModal(false)} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 font-bold">
+                          <X size={20} />
+                        </button>
+                      </div>
+                      
+                      <div className="p-6 overflow-y-auto space-y-6 scrollbar-thin scrollbar-thumb-slate-800">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                            <span className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Executor</span>
+                            <span className="text-sm font-medium text-white">{selectedLog.usuario_nome}</span>
+                          </div>
+                          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                            <span className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Ação</span>
+                            <span className={cn(
+                              "text-xs font-bold font-mono",
+                              selectedLog.acao === 'Criar' ? 'text-emerald-400' :
+                              selectedLog.acao === 'Atualizar' ? 'text-blue-400' : 'text-red-400'
+                            )}>{selectedLog.acao}</span>
+                          </div>
+                          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                            <span className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Coleção</span>
+                            <span className="text-xs text-white font-mono">{selectedLog.colecao}</span>
+                          </div>
+                          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                            <span className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Data/Hora</span>
+                            <span className="text-xs text-white">
+                              {selectedLog.criado_em?.toDate ? format(selectedLog.criado_em.toDate(), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }) : '...'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {selectedLog.dados && (
+                          <div className="space-y-4">
+                            <h4 className="text-xs font-bold uppercase text-slate-500 tracking-widest flex items-center gap-2">
+                              {selectedLog.acao === 'Atualizar' ? 'Diferença de Dados' : 'Dados do Registro'}
+                            </h4>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Previous Data / Before */}
+                              {(selectedLog.dados.previous || selectedLog.acao === 'Excluir') && (
+                                <div className="space-y-2">
+                                  <span className="text-[10px] font-bold text-red-400 uppercase">Anterior / Removido</span>
+                                  <div className="bg-slate-950 border border-red-500/10 p-4 rounded-2xl text-[11px] font-mono whitespace-pre-wrap overflow-x-auto text-slate-400 max-h-[300px]">
+                                    {JSON.stringify(selectedLog.dados.previous || selectedLog.dados, null, 2)}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Next Data / After */}
+                              {(selectedLog.dados.next || selectedLog.acao === 'Criar') && (
+                                <div className="space-y-2">
+                                  <span className="text-[10px] font-bold text-emerald-400 uppercase">Novo / Atual</span>
+                                  <div className="bg-slate-950 border border-emerald-500/10 p-4 rounded-2xl text-[11px] font-mono whitespace-pre-wrap overflow-x-auto text-slate-200 max-h-[300px]">
+                                    {JSON.stringify(selectedLog.dados.next || selectedLog.dados, null, 2)}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Single Data View (if not previous/next split properly) */}
+                            {!selectedLog.dados.previous && !selectedLog.dados.next && selectedLog.acao !== 'Excluir' && selectedLog.acao !== 'Criar' && (
+                               <div className="space-y-2">
+                                  <span className="text-[10px] font-bold text-blue-400 uppercase">Conteúdo do Payload</span>
+                                  <div className="bg-slate-950 border border-blue-500/10 p-4 rounded-2xl text-[11px] font-mono whitespace-pre-wrap overflow-x-auto text-slate-300 max-h-[400px]">
+                                    {JSON.stringify(selectedLog.dados, null, 2)}
+                                  </div>
+                               </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        <div className="bg-blue-500/5 border border-blue-500/10 p-4 rounded-2xl">
+                          <p className="text-[11px] text-slate-400 text-center italic">
+                            Informação registrada de forma imutável pelo sistema de Auditoria.
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
           ) : activeSubTab === 'users' ? (
             <motion.div 
@@ -591,14 +731,25 @@ export default function Settings() {
                     {usersList.map((u) => (
                       <tr key={u.id} className="hover:bg-slate-800/30 transition-colors group">
                         <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-white">{u.nome}</span>
-                            <span className="text-xs text-slate-500">{u.email}</span>
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                              <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400">
+                                {u.nome?.[0] || 'U'}
+                              </div>
+                              <div className={cn(
+                                "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-slate-900",
+                                u.status === 'online' ? "bg-emerald-500" : "bg-slate-600"
+                              )} />
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-white">{u.nome}</span>
+                              <span className="text-xs text-slate-500">{u.email}</span>
+                            </div>
                           </div>
                         </td>
                         <td className="px-6 py-4">
                           <select 
-                            disabled={profile?.role !== 'admin' || u.id === auth.currentUser?.uid}
+                            disabled={(!isSuperAdmin && profile?.role !== 'admin') || u.id === auth.currentUser?.uid}
                             value={u.role}
                             onChange={(e) => handleUpdateRole(u.id, e.target.value)}
                             className="bg-slate-800 border border-slate-700 rounded-lg text-xs p-2 text-slate-200 outline-none focus:ring-1 focus:ring-blue-500"
@@ -620,7 +771,7 @@ export default function Settings() {
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button 
-                              disabled={profile?.role !== 'admin' || u.id === auth.currentUser?.uid}
+                              disabled={(!isSuperAdmin && profile?.role !== 'admin') || u.id === auth.currentUser?.uid}
                               onClick={() => handleToggleAtivo(u.id, !!u.ativo)}
                               className={cn(
                                 "text-xs font-bold px-3 py-1.5 rounded-lg transition-all",

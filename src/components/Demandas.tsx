@@ -18,13 +18,19 @@ import {
   X,
   Send,
   Flag,
-  Clock
+  Clock,
+  Paperclip,
+  Download,
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../lib/firebase';
 
 export default function Demandas() {
   const { profile } = useAuth();
@@ -38,10 +44,12 @@ export default function Demandas() {
     orgao_responsavel: '',
     prioridade: 'Média',
     status: 'Pendente',
-    descricao: ''
+    descricao: '',
+    attachments: [] as { name: string, url: string, type: string }[]
   };
 
   const [formData, setFormData] = useState(initialForm);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, 'demandas_parlamentares'), orderBy('created_at', 'desc'));
@@ -91,7 +99,8 @@ export default function Demandas() {
       orgao_responsavel: item.orgao_responsavel || '',
       prioridade: item.prioridade || 'Média',
       status: item.status || 'Pendente',
-      descricao: item.descricao || ''
+      descricao: item.descricao || '',
+      attachments: item.attachments || []
     });
     setShowModal(true);
   };
@@ -147,6 +156,25 @@ export default function Demandas() {
                    )}>{item.prioridade}</span>
                 </div>
                 <p className="text-sm text-slate-400 mb-4">{item.descricao}</p>
+                
+                {item.attachments && item.attachments.length > 0 && (
+                   <div className="flex flex-wrap gap-2 mb-4">
+                      {item.attachments.map((file: any, idx: number) => (
+                         <a 
+                           key={idx}
+                           href={file.url}
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           className="flex items-center gap-2 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg text-[10px] text-slate-300 hover:bg-slate-750 transition-colors"
+                         >
+                            <Paperclip size={12} className="text-purple-400" />
+                            <span className="truncate max-w-[150px]">{file.name}</span>
+                            <Download size={12} className="text-slate-500" />
+                         </a>
+                      ))}
+                   </div>
+                )}
+
                 <div className="flex flex-wrap gap-4 text-xs">
                    <div className="flex items-center gap-1.5 text-slate-500">
                       <Send size={14} className="text-purple-400" />
@@ -230,7 +258,86 @@ export default function Demandas() {
                      <label className="text-[10px] font-bold text-slate-500 uppercase">Descrição Detalhada</label>
                      <textarea rows={4} value={formData.descricao} onChange={e => setFormData({...formData, descricao: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none resize-none" />
                   </div>
-                  <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded-xl font-bold text-white shadow-xl shadow-purple-900/20">
+
+                  <div className="space-y-3 pt-2">
+                     <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-2">
+                       <Paperclip size={12} />
+                       Anexos e Documentos
+                     </label>
+                     
+                     <div className="grid grid-cols-1 gap-2">
+                        {formData.attachments.map((file, idx) => (
+                           <div key={idx} className="flex items-center justify-between bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
+                              <div className="flex items-center gap-3 overflow-hidden">
+                                 <div className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center shrink-0">
+                                    <FileText size={16} className="text-purple-400" />
+                                 </div>
+                                 <span className="text-xs text-slate-300 truncate">{file.name}</span>
+                              </div>
+                              <button 
+                                type="button"
+                                onClick={() => setFormData({ ...formData, attachments: formData.attachments.filter((_, i) => i !== idx) })}
+                                className="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg transition-colors"
+                              >
+                                 <Trash2 size={16} />
+                               </button>
+                           </div>
+                        ))}
+                     </div>
+
+                     <div className="relative group">
+                        <input 
+                          type="file" 
+                          multiple
+                          onChange={async (e) => {
+                             const files = e.target.files;
+                             if (!files || files.length === 0) return;
+                             
+                             setUploading(true);
+                             const newAttachments = [...formData.attachments];
+                             
+                             for (let i = 0; i < files.length; i++) {
+                                const file = files[i];
+                                const storageRef = ref(storage, `demandas/${Date.now()}_${file.name}`);
+                                try {
+                                   await uploadBytes(storageRef, file);
+                                   const url = await getDownloadURL(storageRef);
+                                   newAttachments.push({
+                                      name: file.name,
+                                      url: url,
+                                      type: file.type
+                                   });
+                                } catch (err) {
+                                   console.error("Upload error:", err);
+                                }
+                             }
+                             
+                             setFormData({ ...formData, attachments: newAttachments });
+                             setUploading(false);
+                          }}
+                          className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                          disabled={uploading}
+                        />
+                        <div className={cn(
+                          "bg-slate-800/30 border-2 border-dashed border-slate-700 rounded-2xl p-6 text-center transition-all group-hover:border-purple-500/50",
+                          uploading && "opacity-50"
+                        )}>
+                           {uploading ? (
+                              <div className="flex flex-col items-center gap-2">
+                                 <Loader2 className="animate-spin text-purple-500" size={24} />
+                                 <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">Enviando arquivos...</span>
+                              </div>
+                           ) : (
+                              <div className="flex flex-col items-center gap-2">
+                                 <Plus className="text-slate-500 group-hover:text-purple-500 transition-colors" size={24} />
+                                 <span className="text-xs text-slate-400 font-bold uppercase tracking-widest group-hover:text-slate-200 transition-colors">Anexar Documento</span>
+                              </div>
+                           )}
+                        </div>
+                     </div>
+                  </div>
+
+                  <button type="submit" disabled={uploading} className="w-full bg-purple-600 hover:bg-purple-700 py-4 rounded-xl font-bold text-white shadow-xl shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed">
                       {editingId ? 'Salvar Alterações' : 'Protocolar Demanda'}
                   </button>
                </form>

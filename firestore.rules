@@ -25,21 +25,23 @@ service cloud.firestore {
 
     match /users/{userId} {
       // O próprio usuário pode ler seu perfil e equipe, admins podem ler tudo
-      allow read: if isSignedIn() && (request.auth.uid == userId || hasRole(['admin', 'vereador']));
+      allow read: if isSignedIn() && (request.auth.uid == userId || hasRole(['admin', 'vereador']) || isSuperAdmin());
       
       // Criação: Próprio usuário (cadastro novo) ou Admin
       allow create: if isSignedIn() && (
         (request.auth.uid == userId && request.resource.data.role == 'consulta' && request.resource.data.ativo == false) ||
-        hasRole(['admin'])
+        hasRole(['admin']) || 
+        isSuperAdmin()
       );
 
       // Apenas Admin pode alterar status ativo ou trocar roles. Próprio usuário pode editar dados básicos.
       allow update: if isSignedIn() && (
         (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'ativo'])) ||
-        hasRole(['admin'])
+        hasRole(['admin']) ||
+        isSuperAdmin()
       );
       
-      allow delete: if hasRole(['admin']);
+      allow delete: if hasRole(['admin']) || isSuperAdmin();
 
       match /team/{teamId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
@@ -72,7 +74,7 @@ service cloud.firestore {
     }
 
     match /logs/{id} {
-      allow read: if hasRole(['admin', 'vereador']);
+      allow read: if hasRole(['admin', 'vereador']) || isSuperAdmin();
       allow create: if isSignedIn();
       allow update, delete: if false;
     }

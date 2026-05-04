@@ -54,27 +54,37 @@ export default function Dashboard() {
     });
 
     const fetchData = async () => {
-      // Fetch counts from various collections
       try {
-        const collections = ['atendimentos', 'atendimentos_medicos', 'malotes', 'demandas_parlamentares'];
-        await Promise.all(collections.map(async (col) => {
-          try {
-            await getDocs(query(collection(db, col), limit(1)));
-          } catch (err) {
-            console.warn(`Could not fetch limit for ${col}:`, err);
-          }
-        }));
+        const [atendSnap, medSnap, malSnap, demSnap, sugSnap] = await Promise.all([
+          getDocs(collection(db, 'atendimentos')),
+          getDocs(collection(db, 'atendimentos_medicos')),
+          getDocs(collection(db, 'malotes')),
+          getDocs(collection(db, 'demandas_parlamentares')),
+          getDocs(collection(db, 'sugestoes'))
+        ]);
 
         setStats({
-          atendimentos: 124, // Mock values for visual polish
-          medicos: 45,
-          malotes: 12,
-          demandas: 8
+          atendimentos: atendSnap.size,
+          medicos: medSnap.size,
+          malotes: malSnap.size,
+          demandas: demSnap.size
         });
 
-        const q = query(collection(db, 'atendimentos'), orderBy('created_at', 'desc'), limit(8));
-        const snap = await getDocs(q);
-        setRecent(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const atendimentos = atendSnap.docs.map(doc => doc.data());
+        
+        // Distribution Data
+        const distribution = [
+          { name: 'Geral', value: atendSnap.size },
+          { name: 'Médico', value: medSnap.size },
+          { name: 'Demanda', value: demSnap.size },
+          { name: 'Sugestão', value: sugSnap.size },
+        ];
+        setChartDataSync(distribution);
+
+        // Recent limit 8
+        const qRecent = query(collection(db, 'atendimentos'), orderBy('created_at', 'desc'), limit(8));
+        const snapRecent = await getDocs(qRecent);
+        setRecent(snapRecent.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (e) {
         console.error("Dashboard data fetch error:", e);
       }
@@ -84,12 +94,12 @@ export default function Dashboard() {
     return () => unsubSettings();
   }, []);
 
-  const chartData = [
-    { name: 'Geral', value: 400 },
-    { name: 'Médico', value: 300 },
-    { name: 'Demanda', value: 200 },
-    { name: 'Sugestão', value: 100 },
-  ];
+  const [chartDataSync, setChartDataSync] = useState([
+    { name: 'Geral', value: 0 },
+    { name: 'Médico', value: 0 },
+    { name: 'Demanda', value: 0 },
+    { name: 'Sugestão', value: 0 },
+  ]);
 
   const barData = [
     { day: 'Seg', total: 12 },
@@ -208,7 +218,7 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={chartData}
+                  data={chartDataSync}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -216,7 +226,7 @@ export default function Dashboard() {
                   paddingAngle={8}
                   dataKey="value"
                 >
-                  {chartData.map((entry, index) => (
+                  {chartDataSync.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -227,7 +237,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
           <div className="grid grid-cols-2 gap-4 mt-4">
-            {chartData.map((item, i) => (
+            {chartDataSync.map((item, i) => (
               <div key={i} className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i] }} />
                 <span className="text-xs text-slate-400">{item.name}</span>

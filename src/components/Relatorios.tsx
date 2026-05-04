@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   FileDown, 
   Table as TableIcon, 
@@ -17,23 +17,75 @@ import { ptBR } from 'date-fns/locale';
 
 export default function Relatorios() {
   const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<any[]>([]);
+  const [filteredData, setFilteredData] = useState<any[]>([]);
   const [filterType, setFilterType] = useState('atendimentos');
   const [status, setStatus] = useState('Todos');
+  const [tipoAtendimento, setTipoAtendimento] = useState('Todos');
+  const [bairro, setBairro] = useState('');
+  const [zonaRural, setZonaRural] = useState<'Todos' | 'Sim' | 'Não'>('Todos');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
-  const exportPDF = async () => {
-    setLoading(true);
-    try {
-      let q = query(collection(db, filterType), orderBy('created_at', 'desc'));
-      
-      const snap = await getDocs(q);
-      let data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      // Client side filtering for the demo/simplicity if needed
-      if (status !== 'Todos') {
-        data = data.filter((item: any) => item.status === status);
+  // Load all data from selected collection to filter locally for live preview
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const q = query(collection(db, filterType), orderBy('created_at', 'desc'));
+        const snap = await getDocs(q);
+        setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) {
+        console.error("Error fetching report data:", err);
+      } finally {
+        setLoading(false);
       }
+    };
+    fetchData();
+  }, [filterType]);
 
+  // Apply filters locally
+  useEffect(() => {
+    let result = [...data];
+
+    if (status !== 'Todos') {
+      result = result.filter((item: any) => item.status === status);
+    }
+
+    if (filterType === 'atendimentos' && tipoAtendimento !== 'Todos') {
+      result = result.filter((item: any) => item.tipo_atendimento === tipoAtendimento);
+    }
+
+    if (bairro.trim() !== '') {
+      const search = bairro.toLowerCase();
+      result = result.filter((item: any) => item.bairro?.toLowerCase().includes(search));
+    }
+
+    if (zonaRural !== 'Todos') {
+      const isRural = zonaRural === 'Sim';
+      result = result.filter((item: any) => item.zona_rural === isRural);
+    }
+
+    if (dateRange.start) {
+      const start = new Date(dateRange.start + 'T00:00:00');
+      result = result.filter((item: any) => {
+        const createdAt = item.created_at?.toDate ? item.created_at.toDate() : null;
+        return createdAt && createdAt >= start;
+      });
+    }
+
+    if (dateRange.end) {
+      const end = new Date(dateRange.end + 'T23:59:59');
+      result = result.filter((item: any) => {
+        const createdAt = item.created_at?.toDate ? item.created_at.toDate() : null;
+        return createdAt && createdAt <= end;
+      });
+    }
+
+    setFilteredData(result);
+  }, [data, status, tipoAtendimento, bairro, zonaRural, dateRange]);
+
+  const exportPDF = async () => {
+    try {
       const doc = new jsPDF();
       doc.setFontSize(22);
       doc.text(`Relatório de ${filterType.charAt(0).toUpperCase() + filterType.slice(1).replace('_', ' ')}`, 14, 20);
@@ -46,7 +98,7 @@ export default function Relatorios() {
           case 'demandas_parlamentares':
             return {
               head: [['Assunto', 'Órgão Resp.', 'Prioridade', 'Status', 'Data']],
-              body: data.map((item: any) => [
+              body: filteredData.map((item: any) => [
                 item.assunto || '-',
                 item.orgao_responsavel || '-',
                 item.prioridade || '-',
@@ -57,7 +109,7 @@ export default function Relatorios() {
           case 'atendimentos_medicos':
             return {
               head: [['Paciente', 'Serviço', 'Status', 'Data']],
-              body: data.map((item: any) => [
+              body: filteredData.map((item: any) => [
                 item.nome_completo || '-',
                 item.tipo_servico || '-',
                 item.status || '-',
@@ -67,7 +119,7 @@ export default function Relatorios() {
           default:
             return {
               head: [['Nome/Assunto', 'Tipo/Prioridade', 'Data', 'Status']],
-              body: data.map((item: any) => [
+              body: filteredData.map((item: any) => [
                 item.nome_completo || item.assunto || '-',
                 item.tipo_atendimento || item.prioridade || '-',
                 item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-',
@@ -90,8 +142,6 @@ export default function Relatorios() {
       doc.save(`relatorio_${filterType}_${format(new Date(), "yyyyMMdd")}.pdf`);
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -134,10 +184,60 @@ export default function Relatorios() {
                       className="w-full bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500/50"
                     >
                        <option>Todos</option>
-                       <option>Concluídos</option>
-                       <option>Pendentes</option>
-                       <option>Encaminhados</option>
+                       <option>Novo</option>
+                       <option>Em Andamento</option>
+                       <option>Concluído</option>
+                       <option>Cancelado</option>
                     </select>
+                 </div>
+
+                 {filterType === 'atendimentos' && (
+                   <div>
+                     <label className="text-xs font-medium text-slate-400 mb-2 block">Tipo de Atendimento</label>
+                     <select 
+                       value={tipoAtendimento} 
+                       onChange={e => setTipoAtendimento(e.target.value)}
+                       className="w-full bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500/50"
+                     >
+                        <option>Todos</option>
+                        <option>Geral</option>
+                        <option>Médico</option>
+                        <option>Jurídico</option>
+                        <option>Social</option>
+                        <option>Outros</option>
+                     </select>
+                   </div>
+                 )}
+
+                 <div>
+                    <label className="text-xs font-medium text-slate-400 mb-2 block">Bairro</label>
+                    <input 
+                      type="text"
+                      value={bairro}
+                      onChange={e => setBairro(e.target.value)}
+                      placeholder="Filtrar por bairro..."
+                      className="w-full bg-slate-800 border-none rounded-xl p-3 text-xs placeholder:text-slate-600 focus:ring-2 focus:ring-blue-500/50"
+                    />
+                 </div>
+
+                 <div>
+                    <label className="text-xs font-medium text-slate-400 mb-2 block">Zona Rural</label>
+                    <div className="grid grid-cols-3 gap-2">
+                       {['Todos', 'Sim', 'Não'].map((opt) => (
+                         <button
+                           key={opt}
+                           type="button"
+                           onClick={() => setZonaRural(opt as any)}
+                           className={`py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                             zonaRural === opt 
+                               ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" 
+                               : "bg-slate-800 text-slate-500 hover:bg-slate-700"
+                           }`}
+                         >
+                           {opt}
+                         </button>
+                       ))}
+                    </div>
                  </div>
 
                  <div className="grid grid-cols-2 gap-2">
@@ -186,28 +286,53 @@ export default function Relatorios() {
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl">
                  <div className="flex items-center gap-3 mb-4">
                     <CheckCircle2 className="text-emerald-500" size={24} />
-                    <span className="text-slate-400 font-medium">Relatórios Gerados</span>
+                    <span className="text-slate-400 font-medium">Registros Encontrados</span>
                  </div>
-                 <p className="text-4xl font-bold">12</p>
+                 <p className="text-4xl font-bold">{loading ? '...' : filteredData.length}</p>
               </div>
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl">
                  <div className="flex items-center gap-3 mb-4">
                     <Calendar className="text-blue-500" size={24} />
                     <span className="text-slate-400 font-medium">Último Fechamento</span>
                  </div>
-                 <p className="text-xl font-bold">Abril / 2024</p>
+                 <p className="text-xl font-bold">Maio / 2026</p>
               </div>
            </div>
 
-           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 flex flex-col items-center justify-center text-center space-y-4">
-              <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center">
-                 <BarChart className="text-slate-600" size={32} />
+           <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+              <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+                 <h3 className="font-bold text-white uppercase tracking-wider text-xs">Prévia dos Dados</h3>
+                 <span className="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-500 font-mono">
+                   Limitado a 5 registros
+                 </span>
               </div>
-              <div>
-                 <h3 className="text-lg font-bold">Geração Automática</h3>
-                 <p className="text-sm text-slate-500 max-w-xs mx-auto">
-                    Os relatórios são gerados dinamicamente com base nos dados reais do seu banco de dados no Firestore.
-                 </p>
+              <div className="overflow-x-auto">
+                 <table className="w-full text-left">
+                    <thead>
+                       <tr className="text-[10px] uppercase text-slate-500 bg-slate-950/50">
+                          <th className="px-6 py-3">Nome / Assunto</th>
+                          <th className="px-6 py-3">Status</th>
+                          <th className="px-6 py-3">Bairro</th>
+                       </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                       {loading ? (
+                         <tr><td colSpan={3} className="px-6 py-10 text-center text-slate-600 text-sm italic">Carregando dados...</td></tr>
+                       ) : filteredData.length === 0 ? (
+                         <tr><td colSpan={3} className="px-6 py-10 text-center text-slate-600 text-sm italic">Nenhum registro para os filtros selecionados.</td></tr>
+                       ) : filteredData.slice(0, 5).map((item, i) => (
+                          <tr key={i} className="hover:bg-slate-800/20">
+                             <td className="px-6 py-4 text-xs text-slate-300 font-medium">{item.nome_completo || item.assunto || '-'}</td>
+                             <td className="px-6 py-4">
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                                   {item.status}
+                                </span>
+                             </td>
+                             <td className="px-6 py-4 text-xs text-slate-500">{item.bairro || '-'}</td>
+                          </tr>
+                       ))}
+                    </tbody>
+                 </table>
               </div>
            </div>
         </div>

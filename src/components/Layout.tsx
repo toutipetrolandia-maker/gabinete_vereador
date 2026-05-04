@@ -13,7 +13,10 @@ import {
   X,
   FileDown,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Wifi,
+  WifiOff,
+  CheckCircle2
 } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -28,7 +31,7 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
-  const { profile } = useAuth();
+  const { profile, isOnline } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [appName, setAppName] = useState('Gabinete Digital');
   const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
@@ -36,8 +39,17 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
   const [systemLocked, setSystemLocked] = useState(false);
   const [billingStatus, setBillingStatus] = useState<'regular' | 'pending' | 'suspended'>('regular');
   const [isMobile, setIsMobile] = useState(false);
+  const [showStatusToast, setShowStatusToast] = useState(false);
 
   const isSuperAdmin = profile?.email === 'cleciotecnologia@gmail.com';
+
+  React.useEffect(() => {
+    if (isOnline) {
+      setShowStatusToast(true);
+      const timer = setTimeout(() => setShowStatusToast(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [isOnline]);
 
   React.useEffect(() => {
     const checkMobile = () => {
@@ -231,12 +243,21 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
 
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center gap-3 mb-4 px-2 overflow-hidden">
-            <div className="w-8 h-8 rounded-full bg-slate-700 shrink-0 uppercase flex items-center justify-center font-bold text-xs">
-              {profile?.nome?.[0] || 'U'}
+            <div className="relative shrink-0">
+              <div className="w-8 h-8 rounded-full bg-slate-700 uppercase flex items-center justify-center font-bold text-xs ring-2 ring-slate-800/50">
+                {profile?.nome?.[0] || 'U'}
+              </div>
+              <div className={cn(
+                "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-900 transition-colors",
+                isOnline ? "bg-emerald-500" : "bg-red-500"
+              )} />
             </div>
             {(isSidebarOpen || isMobile) && (
               <div className="flex flex-col overflow-hidden">
-                <span className="text-sm font-medium truncate">{profile?.nome || 'Usuário'}</span>
+                <div className="flex items-center gap-1.5 overflow-hidden">
+                  <span className="text-sm font-medium truncate">{profile?.nome || 'Usuário'}</span>
+                  {isOnline ? <Wifi size={10} className="text-emerald-500" /> : <WifiOff size={10} className="text-red-500" />}
+                </div>
                 <span className="text-[10px] text-slate-500 uppercase tracking-tighter">{profile?.role || 'Consulta'}</span>
               </div>
             )}
@@ -253,6 +274,30 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto relative p-4 md:p-6 lg:p-10">
+        <AnimatePresence>
+          {showStatusToast && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl shadow-emerald-900/30 font-bold text-sm"
+            >
+              <CheckCircle2 size={18} />
+              Conectado ao Gabinete Digital
+            </motion.div>
+          )}
+          {!isOnline && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-red-600 text-white px-6 py-3 rounded-2xl shadow-2xl shadow-red-900/30 font-bold text-sm"
+            >
+              <WifiOff size={18} />
+              Você está offline
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="max-w-7xl mx-auto h-full pt-12 lg:pt-0">
           {children}
         </div>
