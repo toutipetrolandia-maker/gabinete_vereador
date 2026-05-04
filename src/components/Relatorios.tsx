@@ -14,6 +14,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { cn } from '../lib/utils';
 
 export default function Relatorios() {
   const [loading, setLoading] = useState(false);
@@ -108,12 +109,13 @@ export default function Relatorios() {
             };
           case 'atendimentos_medicos':
             return {
-              head: [['Paciente', 'Serviço', 'Status', 'Data']],
+              head: [['Paciente', 'Especialidade', 'Status', 'Data', 'Profissional']],
               body: filteredData.map((item: any) => [
                 item.nome_completo || '-',
-                item.tipo_servico || '-',
+                item.especialidade || '-',
                 item.status || '-',
-                item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-'
+                item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-',
+                item.usuario_nome?.split(' ')[0] || '-'
               ])
             };
           default:
@@ -308,27 +310,64 @@ export default function Relatorios() {
               </div>
               <div className="overflow-x-auto">
                  <table className="w-full text-left">
-                    <thead>
-                       <tr className="text-[10px] uppercase text-slate-500 bg-slate-950/50">
-                          <th className="px-6 py-3">Nome / Assunto</th>
-                          <th className="px-6 py-3">Status</th>
-                          <th className="px-6 py-3">Bairro</th>
-                       </tr>
-                    </thead>
+                     <thead>
+                        <tr className="text-[10px] uppercase text-slate-500 bg-slate-950/50">
+                           {filterType === 'atendimentos_medicos' ? (
+                             <>
+                               <th className="px-6 py-3">Paciente</th>
+                               <th className="px-6 py-3">Especialidade</th>
+                               <th className="px-6 py-3">Status</th>
+                               <th className="px-6 py-3">Data</th>
+                               <th className="px-6 py-3">Profissional</th>
+                             </>
+                           ) : (
+                             <>
+                               <th className="px-6 py-3">Nome / Assunto</th>
+                               <th className="px-6 py-3">Status</th>
+                               <th className="px-6 py-3">Bairro</th>
+                               <th className="px-6 py-3">Data</th>
+                             </>
+                           )}
+                        </tr>
+                     </thead>
                     <tbody className="divide-y divide-slate-800">
                        {loading ? (
-                         <tr><td colSpan={3} className="px-6 py-10 text-center text-slate-600 text-sm italic">Carregando dados...</td></tr>
+                         <tr><td colSpan={filterType === 'atendimentos_medicos' ? 5 : 4} className="px-6 py-10 text-center text-slate-600 text-sm italic">Carregando dados...</td></tr>
                        ) : filteredData.length === 0 ? (
-                         <tr><td colSpan={3} className="px-6 py-10 text-center text-slate-600 text-sm italic">Nenhum registro para os filtros selecionados.</td></tr>
+                         <tr><td colSpan={filterType === 'atendimentos_medicos' ? 5 : 4} className="px-6 py-10 text-center text-slate-600 text-sm italic">Nenhum registro para os filtros selecionados.</td></tr>
                        ) : filteredData.slice(0, 5).map((item, i) => (
                           <tr key={i} className="hover:bg-slate-800/20">
-                             <td className="px-6 py-4 text-xs text-slate-300 font-medium">{item.nome_completo || item.assunto || '-'}</td>
-                             <td className="px-6 py-4">
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
-                                   {item.status}
-                                </span>
-                             </td>
-                             <td className="px-6 py-4 text-xs text-slate-500">{item.bairro || '-'}</td>
+                             {filterType === 'atendimentos_medicos' ? (
+                               <>
+                                 <td className="px-6 py-4 text-xs text-slate-300 font-medium">{item.nome_completo || '-'}</td>
+                                 <td className="px-6 py-4 text-xs text-slate-400">{item.especialidade || '-'}</td>
+                                 <td className="px-6 py-4">
+                                    <span className={cn(
+                                      "text-[10px] px-2 py-0.5 rounded-full border",
+                                      item.status === 'Concluído' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-slate-800 text-slate-400 border-slate-700"
+                                    )}>
+                                       {item.status}
+                                    </span>
+                                 </td>
+                                 <td className="px-6 py-4 text-[10px] text-slate-500 font-mono">
+                                   {item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-'}
+                                 </td>
+                                 <td className="px-6 py-4 text-xs text-slate-400 font-medium">{item.usuario_nome?.split(' ')[0] || '-'}</td>
+                               </>
+                             ) : (
+                               <>
+                                 <td className="px-6 py-4 text-xs text-slate-300 font-medium">{item.nome_completo || item.assunto || '-'}</td>
+                                 <td className="px-6 py-4">
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                                       {item.status}
+                                    </span>
+                                 </td>
+                                 <td className="px-6 py-4 text-xs text-slate-500">{item.bairro || '-'}</td>
+                                 <td className="px-6 py-4 text-[10px] text-slate-500 font-mono">
+                                   {item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-'}
+                                 </td>
+                               </>
+                             )}
                           </tr>
                        ))}
                     </tbody>

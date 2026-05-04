@@ -13,7 +13,10 @@ import {
   UserPlus,
   X,
   Settings as SettingsIcon,
-  Link as LinkIcon
+  Link as LinkIcon,
+  BookOpen,
+  ShieldCheck,
+  CheckCircle2
 } from 'lucide-react';
 import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, addDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -28,7 +31,7 @@ export default function Settings() {
   const { profile } = useAuth();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'users' | 'general' | 'super'>('audit');
+  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'users' | 'general' | 'super' | 'manual'>('audit');
   const [usersList, setUsersList] = useState<any[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
   const [newUser, setNewUser] = useState({ nome: '', email: '', role: 'atendente', ativo: false });
@@ -154,9 +157,12 @@ export default function Settings() {
     if (profile?.role !== 'admin' && !isSuperAdmin) return;
     try {
       const userRef = doc(db, 'users', userId);
+      const userToUpdate = usersList.find(u => u.id === userId);
+      const actionLabel = currentStatus ? 'Desligamento (Desativação)' : 'Ativação de Usuário';
+      
       await updateDoc(userRef, { ativo: !currentStatus });
-      await logAction('Alterar Status', 'users', userId, { 
-        previous: { ativo: currentStatus }, 
+      await logAction(actionLabel, 'users', userId, { 
+        previous: { ativo: currentStatus, nome: userToUpdate?.nome }, 
         next: { ativo: !currentStatus } 
       });
     } catch (error) {
@@ -172,7 +178,7 @@ export default function Settings() {
         ...newUser,
         criado_em: serverTimestamp(),
       });
-      await logAction('Criar', 'users', 'novo', { next: newUser });
+      await logAction('Criar Usuário', 'users', 'novo', { next: newUser });
       setShowUserModal(false);
       setNewUser({ nome: '', email: '', role: 'atendente', ativo: true });
     } catch (err) {
@@ -182,11 +188,13 @@ export default function Settings() {
 
   const handleDeleteUser = async (id: string, nome: string) => {
     if (id === auth.currentUser?.uid) return alert("Você não pode excluir a si mesmo.");
-    if (!window.confirm(`Tem certeza que deseja excluir permanentemente o usuário ${nome}?`)) return;
+    if (!window.confirm(`ATENÇÃO: Você está prestes a EXCLUIR PERMANENTEMENTE o usuário ${nome}.\n\nEsta ação será registrada na auditoria como Desligamento Definitivo. Deseja continuar?`)) return;
     
     try {
       await deleteDoc(doc(db, 'users', id));
-      await logAction('Excluir', 'users', id, { previous: { nome } });
+      await logAction('Desligamento (Exclusão)', 'users', id, { 
+        previous: { nome, status: 'Removido Permanentemente' } 
+      });
     } catch (err) {
       console.error("Erro ao excluir usuário:", err);
     }
@@ -252,9 +260,20 @@ export default function Settings() {
               )}
             >
               <User size={18} />
-              Usuários
+              Usuários / Assessores
             </button>
           )}
+
+          <button 
+            onClick={() => setActiveSubTab('manual')}
+            className={cn(
+              "whitespace-nowrap px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
+              activeSubTab === 'manual' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-slate-400 hover:bg-slate-900"
+            )}
+          >
+            <BookOpen size={18} />
+            Manual do Sistema
+          </button>
         </div>
 
         <div className="flex-1 space-y-6 min-w-0">
@@ -570,9 +589,10 @@ export default function Settings() {
                         </td>
                         <td className="px-6 py-4">
                           <span className={`text-[11px] font-bold py-1 px-2 rounded font-mono ${
-                            log.acao === 'Criar' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                            log.acao === 'Atualizar' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
-                            'bg-red-500/10 text-red-400 border border-red-500/20'
+                            log.acao?.includes('Criar') ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                            log.acao?.includes('Atualizar') ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                            log.acao?.includes('Desligamento') ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                            'bg-slate-500/10 text-slate-400 border border-slate-500/20'
                           }`}>
                             {log.acao}
                           </span>
@@ -630,8 +650,9 @@ export default function Settings() {
                             <span className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Ação</span>
                             <span className={cn(
                               "text-xs font-bold font-mono",
-                              selectedLog.acao === 'Criar' ? 'text-emerald-400' :
-                              selectedLog.acao === 'Atualizar' ? 'text-blue-400' : 'text-red-400'
+                              selectedLog.acao?.includes('Criar') ? 'text-emerald-400' :
+                              selectedLog.acao?.includes('Atualizar') ? 'text-blue-400' : 
+                              selectedLog.acao?.includes('Desligamento') ? 'text-red-400' : 'text-slate-400'
                             )}>{selectedLog.acao}</span>
                           </div>
                           <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
@@ -755,7 +776,7 @@ export default function Settings() {
                             className="bg-slate-800 border border-slate-700 rounded-lg text-xs p-2 text-slate-200 outline-none focus:ring-1 focus:ring-blue-500"
                           >
                             <option value="admin">Administrador</option>
-                            <option value="atendente">Atendente</option>
+                            <option value="atendente">Assessor Parlamentar</option>
                             <option value="vereador">Vereador</option>
                             <option value="consulta">Apenas Consulta</option>
                           </select>
@@ -851,7 +872,7 @@ export default function Settings() {
                             className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
                           >
                             <option value="admin">Administrador</option>
-                            <option value="atendente">Atendente</option>
+                            <option value="atendente">Assessor Parlamentar</option>
                             <option value="vereador">Vereador</option>
                             <option value="consulta">Apenas Consulta</option>
                           </select>
@@ -867,6 +888,90 @@ export default function Settings() {
                   </>
                 )}
               </AnimatePresence>
+            </motion.div>
+          ) : activeSubTab === 'manual' ? (
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-8"
+            >
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl">
+                 <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-3">
+                    <BookOpen className="text-blue-500" size={24} />
+                    Manual do Sistema
+                 </h2>
+                 <p className="text-slate-400 mb-8 border-b border-slate-800 pb-6">
+                    Guia rápido de utilização e definição de perfis de acesso para o Gabinete Digital.
+                 </p>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <section className="space-y-4">
+                       <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                          <ShieldCheck className="text-emerald-500" size={20} />
+                          Perfis de Acesso
+                       </h3>
+                       <div className="space-y-4">
+                          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                             <span className="text-xs font-black uppercase text-emerald-500 tracking-widest block mb-1">Administrador</span>
+                             <p className="text-xs text-slate-400 leading-relaxed">
+                                Acesso total ao sistema. Pode gerenciar usuários, visualizar auditoria, alterar configurações do gabinete e excluir registros sensíveis.
+                             </p>
+                          </div>
+                          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                             <span className="text-xs font-black uppercase text-blue-500 tracking-widest block mb-1">Assessor Parlamentar</span>
+                             <p className="text-xs text-slate-400 leading-relaxed">
+                                Perfil operacional. Realiza cadastros de atendimentos, demandas, malotes e gerencia a agenda. Não possui acesso às configurações críticas ou auditoria.
+                             </p>
+                          </div>
+                          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                             <span className="text-xs font-black uppercase text-amber-500 tracking-widest block mb-1">Vereador</span>
+                             <p className="text-xs text-slate-400 leading-relaxed">
+                                Acesso analítico e estratégico. Pode visualizar todos os relatórios, auditoria e agenda, mas tem restrições em alterações de configurações de sistema.
+                             </p>
+                          </div>
+                          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                             <span className="text-xs font-black uppercase text-slate-500 tracking-widest block mb-1">Apenas Consulta</span>
+                             <p className="text-xs text-slate-400 leading-relaxed">
+                                Acesso restrito apenas para visualização de dados. Não pode criar, editar ou excluir nenhuma informação no sistema.
+                             </p>
+                          </div>
+                       </div>
+                    </section>
+
+                    <section className="space-y-6">
+                       <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                          <CheckCircle2 className="text-blue-500" size={20} />
+                          Instruções de Uso
+                       </h3>
+                       <div className="space-y-6">
+                          <div>
+                             <h4 className="text-xs font-bold text-slate-300 uppercase mb-2">1. Cadastro de Cidadãos</h4>
+                             <p className="text-xs text-slate-500 leading-relaxed px-2 border-l border-slate-800">
+                                Sempre solicite o CPF. O sistema faz o cruzamento automático com o histórico médico para fornecer insights aos assessores no momento do atendimento.
+                             </p>
+                          </div>
+                          <div>
+                             <h4 className="text-xs font-bold text-slate-300 uppercase mb-2">2. Gestão de Demandas</h4>
+                             <p className="text-xs text-slate-500 leading-relaxed px-2 border-l border-slate-800">
+                                Utilize o status 'Concluído' apenas quando o ofício ou solicitação tiver um retorno definitivo do órgão responsável.
+                             </p>
+                          </div>
+                          <div>
+                             <h4 className="text-xs font-bold text-slate-300 uppercase mb-2">3. Segurança e LGPD</h4>
+                             <p className="text-xs text-slate-500 leading-relaxed px-2 border-l border-slate-800">
+                                No cadastro de atendimentos, certifique-se de marcar o consentimento de dados. O sistema registra quem acessou e quem alterou cada documento (Auditoria).
+                             </p>
+                          </div>
+                          <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl">
+                             <h4 className="text-xs font-bold text-blue-400 uppercase mb-1">Suporte Técnico</h4>
+                             <p className="text-[10px] text-blue-300/70 italic">
+                                Para problemas técnicos ou solicitações de novas funcionalidades, entre em contato com o suporte da Clécio Tecnologia.
+                             </p>
+                          </div>
+                       </div>
+                    </section>
+                 </div>
+              </div>
             </motion.div>
           ) : (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 space-y-6">
