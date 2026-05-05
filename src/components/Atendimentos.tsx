@@ -85,10 +85,13 @@ export default function Atendimentos() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [searchCPF, setSearchCPF] = useState('');
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [activeTypeFilter, setActiveTypeFilter] = useState('Todos');
+  const [protocolError, setProtocolError] = useState<string | null>(null);
+  const [validatingProtocol, setValidatingProtocol] = useState(false);
 
   // States for cross-data
   const [medicalHistory, setMedicalHistory] = useState<any[]>([]);
@@ -130,6 +133,8 @@ export default function Atendimentos() {
       .replace(/(-\d{4})\d+?$/, '$1');
   };
 
+  const normalizeCPF = (val: string) => val.replace(/\D/g, '');
+
   // Form State
   const [formData, setFormData] = useState(initialForm);
 
@@ -153,6 +158,19 @@ export default function Atendimentos() {
     }
   };
 
+  const generateProtocol = () => {
+    const year = new Date().getFullYear();
+    const random = Math.floor(1000 + Math.random() * 9000);
+    const prot = `PROT-${year}-${random}`;
+    setFormData(prev => ({ ...prev, protocolo: prot }));
+    setProtocolError(null);
+  };
+
+  const validateProtocolPattern = (prot: string) => {
+    const pattern = /^PROT-\d{4}-\d{4}$/;
+    return pattern.test(prot);
+  };
+
   useEffect(() => {
     const q = query(collection(db, 'atendimentos'), orderBy('created_at', 'desc'));
     const unsubscribe = onSnapshot(q, (snap) => {
@@ -171,6 +189,30 @@ export default function Atendimentos() {
       alert("O cidadão deve consentir com a LGPD para realizar o cadastro.");
       return;
     }
+
+    if (formData.protocolo) {
+      if (!validateProtocolPattern(formData.protocolo)) {
+        setProtocolError("O protocolo deve seguir o padrão PROT-AAAA-NNNN (Ex: PROT-2024-0015)");
+        return;
+      }
+
+      setValidatingProtocol(true);
+      try {
+        const q = query(collection(db, 'atendimentos'), where('protocolo', '==', formData.protocolo));
+        const snap = await getDocs(q);
+        const exists = snap.docs.some(doc => doc.id !== editingId);
+        if (exists) {
+          setProtocolError("Este número de protocolo já está em uso. Por favor, utilize outro.");
+          setValidatingProtocol(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Erro ao validar protocolo:", err);
+      } finally {
+        setValidatingProtocol(false);
+      }
+    }
+
     try {
       if (editingId) {
         const existing = data.find(i => i.id === editingId);
@@ -213,6 +255,7 @@ export default function Atendimentos() {
     setEditingId(null);
     setFormData(initialForm);
     setMedicalHistory([]);
+    setProtocolError(null);
   };
 
   const handleEdit = (item: any) => {
@@ -254,9 +297,11 @@ export default function Atendimentos() {
       item.cpf?.includes(search) ||
       item.descricao?.toLowerCase().includes(search.toLowerCase());
     
+    const matchesCPF = !searchCPF || normalizeCPF(item.cpf || '').includes(normalizeCPF(searchCPF));
+    
     const matchesType = activeTypeFilter === 'Todos' || item.tipo_atendimento === activeTypeFilter;
     
-    return matchesSearch && matchesType;
+    return matchesSearch && matchesCPF && matchesType;
   });
 
   return (
@@ -325,10 +370,20 @@ export default function Atendimentos() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
               type="text" 
-              placeholder="Buscar por nome, CPF ou descrição..."
+              placeholder="Buscar por nome ou descrição..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 md:py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all text-sm md:text-base"
+            />
+          </div>
+          <div className="relative flex-1 max-w-xs">
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+            <input 
+              type="text" 
+              placeholder="Buscar por CPF..."
+              value={searchCPF}
+              onChange={(e) => setSearchCPF(maskCPF(e.target.value))}
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 md:py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all text-sm md:text-base font-mono"
             />
           </div>
           {viewMode === 'calendar' && (
@@ -584,14 +639,44 @@ export default function Atendimentos() {
                     <form onSubmit={handleSubmit} className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2 col-span-2">
-                          <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Número do Protocolo</label>
-                          <input 
-                            type="text" 
-                            value={formData.protocolo}
-                            onChange={e => setFormData({...formData, protocolo: e.target.value})}
-                            className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors"
-                            placeholder="Ex: PROT-2024-001"
-                          />
+                          <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider flex items-center justify-between">
+                            <span>Número do Protocolo</span>
+                            {!editingId && (
+                              <button 
+                                type="button"
+                                onClick={generateProtocol}
+                                className="text-[10px] text-blue-400 hover:text-blue-300 font-bold uppercase transition-colors"
+                              >
+                                [ Gerar Automático ]
+                              </button>
+                            )}
+                          </label>
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              value={formData.protocolo}
+                              onChange={e => {
+                                setFormData({...formData, protocolo: e.target.value.toUpperCase()});
+                                if (protocolError) setProtocolError(null);
+                              }}
+                              className={cn(
+                                "w-full bg-slate-800 border rounded-xl py-3 px-4 focus:outline-none transition-colors font-mono",
+                                protocolError ? "border-red-500 focus:border-red-500" : "border-slate-700 focus:border-blue-500"
+                              )}
+                              placeholder="PROT-2024-0001"
+                            />
+                            {validatingProtocol && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                              </div>
+                            )}
+                          </div>
+                          {protocolError && (
+                            <p className="text-[10px] text-red-400 font-medium mt-1 flex items-center gap-1">
+                              <AlertCircle size={10} />
+                              {protocolError}
+                            </p>
+                          )}
                         </div>
                         <div className="space-y-2 col-span-2 md:col-span-1">
                           <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Nome Completo</label>

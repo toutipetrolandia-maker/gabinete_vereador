@@ -39,6 +39,14 @@ export default function Dashboard() {
   const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
   const [perfilLink, setPerfilLink] = useState('https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
   const [billingStatus, setBillingStatus] = useState<'regular' | 'pending' | 'suspended'>('regular');
+  const [officeHours, setOfficeHours] = useState({ inicio: '08:00', fim: '13:00' });
+  const [isOfficeOpen, setIsOfficeOpen] = useState(false);
+
+  const checkOfficeStatus = (inicio: string, fim: string) => {
+    const now = new Date();
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    return currentTime >= inicio && currentTime <= fim;
+  };
 
   useEffect(() => {
     const unsubSettings = onSnapshot(doc(db, 'app_settings', 'global'), (snap) => {
@@ -48,6 +56,10 @@ export default function Dashboard() {
         setVereadorPhoto(data.vereador_photo || null);
         setPerfilLink(data.perfil_link || 'https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
         setBillingStatus(data.billing_status || 'regular');
+        const start = data.atendimento_inicio || '08:00';
+        const end = data.atendimento_fim || '13:00';
+        setOfficeHours({ inicio: start, fim: end });
+        setIsOfficeOpen(checkOfficeStatus(start, end));
       }
     }, (error) => {
       console.error("Error listening to settings in Dashboard:", error);
@@ -131,7 +143,18 @@ export default function Dashboard() {
 
       <header className="px-1 md:px-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white mb-2">Visão Geral</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white">Visão Geral</h1>
+            <div className={cn(
+              "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 border",
+              isOfficeOpen 
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                : "bg-red-500/10 text-red-400 border-red-500/20"
+            )}>
+              <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isOfficeOpen ? "bg-emerald-400" : "bg-red-400")} />
+              {isOfficeOpen ? 'Gabinete Aberto' : 'Gabinete Fechado'}
+            </div>
+          </div>
           <p className="text-slate-400 text-sm md:text-base">Bem-vindo ao painel de controle do {appName}.</p>
         </div>
         {vereadorPhoto && (

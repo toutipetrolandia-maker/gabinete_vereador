@@ -10,7 +10,9 @@ import {
   X,
   Edit2,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2,
+  History
 } from 'lucide-react';
 import { 
   format, 
@@ -55,13 +57,14 @@ export default function Agenda() {
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [officeHours, setOfficeHours] = useState({ inicio: '08:00', fim: '13:00' });
   
   const initialForm = {
     titulo: '',
     tipo: 'Compromisso',
     data: format(new Date(), 'yyyy-MM-dd'),
-    hora_inicio: '09:00',
-    hora_fim: '10:00',
+    hora_inicio: officeHours.inicio,
+    hora_fim: officeHours.fim,
     local: '',
     descricao: '',
     contato_nome: '',
@@ -83,6 +86,29 @@ export default function Agenda() {
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    const unsubSettings = onSnapshot(doc(db, 'app_settings', 'global'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setOfficeHours({
+          inicio: data.atendimento_inicio || '08:00',
+          fim: data.atendimento_fim || '13:00'
+        });
+      }
+    });
+    return () => unsubSettings();
+  }, []);
+
+  useEffect(() => {
+    if (!editingId) {
+      setFormData(prev => ({
+        ...prev,
+        hora_inicio: officeHours.inicio,
+        hora_fim: officeHours.fim
+      }));
+    }
+  }, [officeHours, editingId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,6 +166,29 @@ export default function Agenda() {
     setShowModal(true);
   };
 
+  const handleToggleComplete = async (event: any) => {
+    try {
+      const newStatus = event.status === 'realizado' ? 'pendente' : 'realizado';
+      await updateDoc(doc(db, 'agenda_vereador', event.id), {
+        status: newStatus,
+        updated_at: serverTimestamp()
+      });
+      
+      await logAction(
+        newStatus === 'realizado' ? 'Concluir Compromisso' : 'Reabrir Compromisso', 
+        'agenda_vereador', 
+        event.id, 
+        { 
+          previous: { status: event.status || 'pendente' },
+          next: { status: newStatus }
+        }
+      );
+    } catch (err: any) {
+      console.error("Erro ao alterar status:", err);
+      alert("Erro ao alterar status: " + (err.message || String(err)));
+    }
+  };
+
   const handlePostpone = async (event: any) => {
     try {
       const currentDate = parse(event.data, 'yyyy-MM-dd', new Date());
@@ -149,14 +198,17 @@ export default function Agenda() {
 
       await updateDoc(doc(db, 'agenda_vereador', event.id), {
         data: nextDateStr,
+        status: 'pendente', // Reset status when postponing
         updated_at: serverTimestamp()
       });
       await logAction('Adiar Compromisso', 'agenda_vereador', event.id, { 
-        previous: { data: event.data },
-        next: { data: nextDateStr }
+        previous: { data: event.data, status: event.status || 'pendente' },
+        next: { data: nextDateStr, status: 'pendente' }
       });
-    } catch (err) {
+      alert(`Compromisso adiado para ${format(nextDate, 'dd/MM/yyyy')}`);
+    } catch (err: any) {
       console.error("Erro ao adiar:", err);
+      alert("Erro ao adiar compromisso: " + (err.message || String(err)));
     }
   };
 
@@ -167,8 +219,10 @@ export default function Agenda() {
         await logAction('Excluir Compromisso', 'agenda_vereador', id, { 
           previous: { titulo } 
         });
-      } catch (err) {
+        alert(`Compromisso "${titulo}" excluído com sucesso.`);
+      } catch (err: any) {
         handleFirestoreError(err, OperationType.DELETE, `agenda_vereador/${id}`);
+        alert("Erro ao excluir: " + (err.message || String(err)));
       }
     }
   };
@@ -281,17 +335,26 @@ export default function Agenda() {
                       onClick={() => handleEdit(event)}
                       className={cn(
                         "p-1.5 rounded-lg text-[10px] font-medium cursor-pointer border transition-all hover:scale-[1.02]",
+                        event.status === 'realizado' ? "bg-slate-950/50 border-emerald-500/10 text-slate-500 opacity-60" :
                         event.tipo === 'Sessão' ? "bg-purple-500/10 border-purple-500/20 text-purple-400" :
                         event.tipo === 'Compromisso' ? "bg-blue-500/10 border-blue-500/20 text-blue-400" :
                         event.tipo === 'Gabinete' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" :
                         "bg-slate-500/10 border-slate-500/20 text-slate-400"
                       )}
                     >
-                      <div className="flex items-center gap-1 mb-0.5">
-                        <Clock size={8} />
-                        <span>{event.hora_inicio}</span>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <div className="flex items-center gap-1">
+                          <Clock size={8} />
+                          <span>{event.hora_inicio}</span>
+                        </div>
+                        {event.status === 'realizado' && (
+                          <CheckCircle2 size={8} className="text-emerald-500" />
+                        )}
                       </div>
-                      <div className="truncate font-bold uppercase tracking-tight">{event.titulo}</div>
+                      <div className={cn(
+                        "truncate font-bold uppercase tracking-tight",
+                        event.status === 'realizado' && "line-through decoration-slate-600"
+                      )}>{event.titulo}</div>
                     </div>
                   ))}
                 </div>
@@ -309,19 +372,36 @@ export default function Agenda() {
            </h3>
            <div className="space-y-3">
               {events.slice(0, 5).map(event => (
-                <div key={event.id} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between group hover:border-blue-500/30 transition-all">
+                <div key={event.id} className={cn(
+                  "bg-slate-900 border p-4 rounded-2xl flex items-center justify-between group transition-all",
+                  event.status === 'realizado' 
+                    ? "border-emerald-500/20 opacity-70" 
+                    : "border-slate-800 hover:border-blue-500/30"
+                )}>
                   <div className="flex items-center gap-4">
                     <div className={cn(
                       "w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 border",
+                      event.status === 'realizado' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" :
                       event.tipo === 'Sessão' ? "bg-purple-500/10 border-purple-500/20 text-purple-400" :
                       event.tipo === 'Compromisso' ? "bg-blue-500/10 border-blue-500/20 text-blue-400" :
                       "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
                     )}>
-                      <span className="text-[10px] font-black uppercase">{format(parse(event.data, 'yyyy-MM-dd', new Date()), 'MMM', { locale: ptBR })}</span>
+                      <span className="text-[10px] font-black uppercase leading-none">{format(parse(event.data, 'yyyy-MM-dd', new Date()), 'MMM', { locale: ptBR })}</span>
                       <span className="text-lg font-bold leading-tight">{format(parse(event.data, 'yyyy-MM-dd', new Date()), 'dd')}</span>
                     </div>
                     <div>
-                      <h4 className="font-bold text-slate-200">{event.titulo}</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className={cn(
+                          "font-bold transition-all",
+                          event.status === 'realizado' ? "text-slate-500 line-through decoration-slate-600" : "text-slate-200"
+                        )}>{event.titulo}</h4>
+                        {event.status === 'realizado' && (
+                          <span className="flex items-center gap-1 text-[9px] font-black uppercase text-emerald-400 bg-emerald-500/5 px-2 py-0.5 rounded-full border border-emerald-500/10">
+                            <CheckCircle2 size={10} />
+                            Realizado
+                          </span>
+                        )}
+                      </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-slate-500">
                         <div className="flex items-center gap-1.5">
                           <Clock size={12} />
@@ -350,11 +430,24 @@ export default function Agenda() {
                   </div>
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
                     <button 
+                      onClick={() => handleToggleComplete(event)} 
+                      title={event.status === 'realizado' ? "Marcar como pendente" : "Marcar como realizado"}
+                      className={cn(
+                        "p-2 rounded-lg flex flex-col items-center gap-0.5 transition-colors",
+                        event.status === 'realizado'
+                          ? "bg-emerald-500/10 text-emerald-400"
+                          : "hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400"
+                      )}
+                    >
+                      <CheckCircle2 size={16} />
+                      <span className="text-[8px] font-black uppercase">{event.status === 'realizado' ? 'Concluir' : 'Cumprir'}</span>
+                    </button>
+                    <button 
                       onClick={() => handlePostpone(event)} 
                       title="Adiar para amanhã"
-                      className="p-2 hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400 rounded-lg flex flex-col items-center gap-0.5"
+                      className="p-2 hover:bg-amber-500/10 text-slate-500 hover:text-amber-400 rounded-lg flex flex-col items-center gap-0.5"
                     >
-                      <Plus size={16} />
+                      <History size={16} />
                       <span className="text-[8px] font-black uppercase">Adiar</span>
                     </button>
                     <button 
@@ -395,11 +488,11 @@ export default function Agenda() {
                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-4">Gabinete Oficial</span>
                 <div className="space-y-4">
                   {[
-                    { day: 'Segunda-feira', hours: '08:00 - 18:00' },
-                    { day: 'Terça-feira', hours: '08:00 - 18:00' },
-                    { day: 'Quarta-feira', hours: '08:00 - 18:00' },
-                    { day: 'Quinta-feira', hours: '08:00 - 18:00' },
-                    { day: 'Sexta-feira', hours: '08:00 - 14:00' },
+                    { day: 'Segunda-feira', hours: `${officeHours.inicio} - ${officeHours.fim}` },
+                    { day: 'Terça-feira', hours: `${officeHours.inicio} - ${officeHours.fim}` },
+                    { day: 'Quarta-feira', hours: `${officeHours.inicio} - ${officeHours.fim}` },
+                    { day: 'Quinta-feira', hours: `${officeHours.inicio} - ${officeHours.fim}` },
+                    { day: 'Sexta-feira', hours: `${officeHours.inicio} - ${officeHours.fim}` },
                   ].map((d, i) => (
                     <div key={i} className="flex justify-between items-center pb-3 border-b border-slate-800 last:border-0 last:pb-0">
                       <span className="text-sm text-slate-300 font-medium">{d.day}</span>
