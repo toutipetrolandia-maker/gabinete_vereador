@@ -30,6 +30,7 @@ interface NotificationItem {
   date: string;
   time?: string;
   description: string;
+  userId?: string;
 }
 
 export default function NotificationCenter() {
@@ -37,6 +38,10 @@ export default function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [hasNew, setHasNew] = useState(false);
+  const [readIds, setReadIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('read_notifications');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   useEffect(() => {
     if (!profile) return;
@@ -113,11 +118,39 @@ export default function NotificationCenter() {
       updateNotifications(items, 'suggestion');
     });
 
+    let unsubLogs = () => {};
+    if (profile.role === 'admin' || profile.role === 'vereador' || profile.email === 'cleciotecnologia@gmail.com') {
+      const qLogs = query(
+        collection(db, 'logs'),
+        where('acao', '==', 'Primeiro Acesso'),
+        orderBy('criado_em', 'desc'),
+        limit(5)
+      );
+      unsubLogs = onSnapshot(qLogs, (snap) => {
+        const items = snap.docs.map(doc => {
+          const data = doc.data();
+          const date = data.criado_em?.toDate ? format(data.criado_em.toDate(), 'yyyy-MM-dd') : todayStr;
+          const time = data.criado_em?.toDate ? format(data.criado_em.toDate(), 'HH:mm') : '';
+          return {
+            id: doc.id,
+            title: `Novo Acesso: ${data.usuario_nome}`,
+            type: 'suggestion' as const, // Reusing suggestion type for styling or could add 'log'
+            date,
+            time,
+            description: `O usuário ${data.usuario_nome} realizou seu primeiro acesso ao sistema.`,
+            userId: data.usuario_id
+          };
+        });
+        updateNotifications(items, 'primeiro_acesso');
+      });
+    }
+
     return () => {
       unsubAgenda();
       unsubAgendaReminders();
       unsubMedical();
       unsubSuggestions();
+      unsubLogs();
     };
   }, [profile]);
 
@@ -127,17 +160,36 @@ export default function NotificationCenter() {
       const otherTypes = prev.filter(n => {
         if (type === 'agenda') return n.type !== 'agenda' || n.title.startsWith('Lembrete:');
         if (type === 'agenda_rem') return n.type !== 'agenda' || !n.title.startsWith('Lembrete:');
+        if (type === 'primeiro_acesso') return !n.title.startsWith('Novo Acesso:');
         return n.type !== type;
       });
       
-      const combined = [...otherTypes, ...newItems].sort((a, b) => {
+      const filteredNew = newItems.filter(item => !readIds.includes(item.id));
+      const combined = [...otherTypes.filter(item => !readIds.includes(item.id)), ...filteredNew].sort((a, b) => {
         if (a.date !== b.date) return a.date.localeCompare(b.date);
         return (a.time || '').localeCompare(b.time || '');
       });
       
-      if (combined.length > prev.length) setHasNew(true);
+      const trulyNew = filteredNew.filter(n => !otherTypes.find(o => o.id === n.id));
+      if (trulyNew.length > 0) setHasNew(true);
       return combined;
     });
+  };
+
+  const handleMarkAsRead = (id: string) => {
+    const newReadIds = [...new Set([...readIds, id])];
+    setReadIds(newReadIds);
+    localStorage.setItem('read_notifications', JSON.stringify(newReadIds));
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const handleMarkAllAsRead = () => {
+    const allIds = notifications.map(n => n.id);
+    const newReadIds = [...new Set([...readIds, ...allIds])];
+    setReadIds(newReadIds);
+    localStorage.setItem('read_notifications', JSON.stringify(newReadIds));
+    setNotifications([]);
+    setHasNew(false);
   };
 
   return (
@@ -201,13 +253,21 @@ export default function NotificationCenter() {
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start">
                           <h4 className="text-xs font-bold text-slate-200 truncate">{notif.title}</h4>
-                          <span className={cn(
-                             "text-[9px] font-black uppercase whitespace-nowrap ml-2",
-                             isToday(new Date(notif.date + 'T12:00:00')) ? "text-blue-400" : "text-slate-500"
-                          )}>
-                             {isToday(new Date(notif.date + 'T12:00:00')) ? 'HOJE' : format(new Date(notif.date + 'T12:00:00'), 'dd/MM')}
-                             {notif.time && ` • ${notif.time}`}
-                          </span>
+                          <div className="flex items-center gap-2">
+                             <span className={cn(
+                                "text-[9px] font-black uppercase whitespace-nowrap",
+                                isToday(new Date(notif.date + 'T12:00:00')) ? "text-blue-400" : "text-slate-500"
+                             )}>
+                                {isToday(new Date(notif.date + 'T12:00:00')) ? 'HOJE' : format(new Date(notif.date + 'T12:00:00'), 'dd/MM')}
+                                {notif.time && ` • ${notif.time}`}
+                             </span>
+                             <button 
+                               onClick={() => handleMarkAsRead(notif.id)}
+                               className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-800 rounded text-slate-500 hover:text-white transition-all"
+                             >
+                               <X size={12} />
+                             </button>
+                          </div>
                         </div>
                         <p className="text-[10px] text-slate-500 mt-1 truncate leading-relaxed">{notif.description}</p>
                       </div>
@@ -217,7 +277,10 @@ export default function NotificationCenter() {
               </div>
 
               <div className="mt-6 pt-4 border-t border-slate-800">
-                <button className="w-full py-2.5 text-[10px] font-black uppercase text-slate-500 hover:text-white transition-all tracking-widest text-center">
+                <button 
+                  onClick={handleMarkAllAsRead}
+                  className="w-full py-2.5 text-[10px] font-black uppercase text-slate-500 hover:text-white transition-all tracking-widest text-center"
+                >
                    Marcar todos como lidos
                 </button>
               </div>

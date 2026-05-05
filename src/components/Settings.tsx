@@ -563,6 +563,7 @@ export default function Settings() {
                             log.acao?.includes('Adiar') ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
                             log.acao?.includes('Excluir') ? 'bg-red-500/10 text-red-400 border-red-500/20' :
                             log.acao?.includes('Desligamento') ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                            log.acao === 'Primeiro Acesso' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
                             'bg-slate-500/10 text-slate-400 border-slate-500/20'
                           )}>
                             {log.acao}

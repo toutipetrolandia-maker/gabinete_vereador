@@ -53,9 +53,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const docSnap = await getDoc(docRef);
           
           if (docSnap.exists()) {
-            const data = docSnap.data() as UserProfile;
+            const data = docSnap.data() as UserProfile & { primeiro_acesso_concluido?: boolean };
             setProfile(data);
             
+            // Check for First Access
+            if (!data.primeiro_acesso_concluido) {
+              const { logAction } = await import('../lib/audit');
+              await logAction('Primeiro Acesso', 'users', user.uid, { 
+                next: { 
+                  mensagem: 'Usuário realizou o primeiro acesso ao sistema.',
+                  timestamp: new Date().toISOString()
+                } 
+              });
+              await updateDoc(docRef, { primeiro_acesso_concluido: true });
+            }
+
             // Update online status
             await updateDoc(docRef, {
               status: 'online',
