@@ -26,7 +26,10 @@ import {
   MessageCircle,
   History,
   User,
-  ExternalLink
+  ExternalLink,
+  Glasses,
+  Printer,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -68,7 +71,13 @@ export default function AtendimentosMedicos() {
     necessita_exame: false,
     lembrete_exame: '',
     status: 'Novo',
-    prioridade: 'Média'
+    prioridade: 'Média',
+    // Novos campos para Óculos
+    tem_doacao_oculos: false,
+    grau_od: '',
+    grau_oe: '',
+    status_oculos: 'não solicitado', // 'solicitado', 'em produção', 'pronto', 'entregue'
+    data_entrega_oculos: ''
   };
 
   // Masks
@@ -176,6 +185,83 @@ export default function AtendimentosMedicos() {
     setCitizenHistory([]);
   };
 
+  const handlePrintReceipt = (atendimento: any) => {
+    const win = window.open('', '_blank');
+    if (!win) return;
+
+    const html = `
+      <html>
+        <head>
+          <title>Recibo de Entrega - Gabinete Digital</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; color: #333; }
+            .header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 40px; }
+            .content { line-height: 1.6; }
+            .field { margin-bottom: 15px; }
+            .label { font-weight: bold; text-transform: uppercase; font-size: 10px; color: #666; letter-spacing: 1px; }
+            .value { font-size: 16px; border-bottom: 1px solid #eee; display: block; padding: 5px 0; margin-top: 4px; min-height: 24px; }
+            .signature { margin-top: 100px; text-align: center; }
+            .signature-line { border-top: 1px solid #333; width: 350px; margin: 0 auto; padding-top: 10px; }
+            .footer { margin-top: 50px; font-size: 10px; text-align: center; color: #999; }
+            @media print { .no-print { display: none; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 style="margin: 0; font-size: 24px;">RECIBO DE ENTREGA DE ÓCULOS</h1>
+            <p style="margin: 5px 0 0; color: #666;">Sistema Gestor Parlamentar - Ações de Saúde</p>
+          </div>
+          <div class="content">
+            <div class="field">
+              <span class="label">Beneficiário</span>
+              <span class="value">${atendimento.nome_completo}</span>
+            </div>
+            <div class="field" style="display: flex; gap: 40px;">
+              <div style="flex: 1;">
+                 <span class="label">CPF</span>
+                 <span class="value">${atendimento.cpf || '---'}</span>
+              </div>
+              <div style="flex: 1;">
+                 <span class="label">Data de Entrega</span>
+                 <span class="value">${atendimento.data_entrega_oculos ? format(new Date(atendimento.data_entrega_oculos + 'T12:00:00'), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</span>
+              </div>
+            </div>
+            <div class="field" style="display: flex; gap: 40px; margin-top: 20px;">
+              <div style="flex: 1; background: #f9f9f9; padding: 15px; border-radius: 8px;">
+                <span class="label">Grau Olho Direito (OD)</span>
+                <span class="value" style="border: none;">${atendimento.grau_od || 'Não informado'}</span>
+              </div>
+              <div style="flex: 1; background: #f9f9f9; padding: 15px; border-radius: 8px;">
+                <span class="label">Grau Olho Esquerdo (OE)</span>
+                <span class="value" style="border: none;">${atendimento.grau_oe || 'Não informado'}</span>
+              </div>
+            </div>
+            <div class="field" style="margin-top: 20px;">
+              <span class="label">Observações Clínicas / Especialidade</span>
+              <span class="value">${atendimento.especialidade} - ${atendimento.unidade_saude}</span>
+            </div>
+
+            <p style="margin-top: 60px; font-size: 14px;">Declaro para os devidos fins que recebi nesta data o óculos completo, com armação e lentes conforme prescrição médica, em perfeitas condições de uso.</p>
+
+            <div class="signature">
+              <div class="signature-line">Assinatura do Beneficiário</div>
+              <p style="font-size: 13px; font-weight: bold; margin-top: 5px;">${atendimento.nome_completo}</p>
+              <p style="font-size: 11px; color: #777;">${atendimento.cpf || ''}</p>
+            </div>
+          </div>
+          <div class="footer">
+            Documento emitido digitalmente em ${format(new Date(), 'dd/MM/yyyy HH:mm')}
+          </div>
+          <div class="no-print" style="margin-top: 60px; text-align: center;">
+            <button onclick="window.print()" style="padding: 12px 30px; cursor: pointer; background: #10b981; color: white; border: none; border-radius: 6px; font-weight: bold;">IMPRIMIR RECIBO AGORA</button>
+          </div>
+        </body>
+      </html>
+    `;
+    win.document.write(html);
+    win.document.close();
+  };
+
   const handleEdit = (item: any) => {
     setEditingId(item.id);
     setFormData({
@@ -192,7 +278,12 @@ export default function AtendimentosMedicos() {
       necessita_exame: !!item.necessita_exame,
       lembrete_exame: item.lembrete_exame || '',
       status: item.status || 'Novo',
-      prioridade: item.prioridade || 'Média'
+      prioridade: item.prioridade || 'Média',
+      tem_doacao_oculos: !!item.tem_doacao_oculos,
+      grau_od: item.grau_od || '',
+      grau_oe: item.grau_oe || '',
+      status_oculos: item.status_oculos || 'não solicitado',
+      data_entrega_oculos: item.data_entrega_oculos || ''
     });
     if (item.cpf) searchCitizenData(item.cpf);
     setShowModal(true);
@@ -268,9 +359,20 @@ export default function AtendimentosMedicos() {
                 </span>
               </div>
             </div>
-            <h3 className="text-lg font-bold text-slate-100 mb-1">{item.nome_completo}</h3>
+             <h3 className="text-lg font-bold text-slate-100 mb-1">{item.nome_completo}</h3>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-2">
               <p className="text-xs text-blue-400 font-medium uppercase tracking-tighter">{item.especialidade} • {item.unidade_saude}</p>
+              {item.status_oculos && item.status_oculos !== 'não solicitado' && (
+                <div className={cn(
+                  "flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded border",
+                  item.status_oculos === 'entregue' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                  item.status_oculos === 'pronto' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                  "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                )}>
+                   <Glasses size={10} />
+                   {item.status_oculos}
+                </div>
+              )}
               {item.telefone && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[10px] text-slate-500">{item.telefone}</span>
@@ -302,9 +404,23 @@ export default function AtendimentosMedicos() {
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-slate-800">
-              <span className="text-[10px] text-slate-500 font-mono">
-                {item.created_at?.toDate ? format(item.created_at.toDate(), 'dd MMM, HH:mm', { locale: ptBR }) : '...'}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-slate-500 font-mono">
+                  {item.created_at?.toDate ? format(item.created_at.toDate(), 'dd MMM, HH:mm', { locale: ptBR }) : '...'}
+                </span>
+                {item.status_oculos === 'entregue' && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePrintReceipt(item);
+                    }}
+                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 rounded-lg transition-all"
+                    title="Imprimir Recibo de Entrega"
+                  >
+                    <Printer size={14} />
+                  </button>
+                )}
+              </div>
               <span className="text-xs font-semibold text-emerald-400 group-hover:underline">Ver detalhes</span>
             </div>
           </motion.div>
@@ -384,10 +500,22 @@ export default function AtendimentosMedicos() {
                            <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Cartão SUS</label>
                            <input value={formData.cartao_sus} onChange={e => setFormData({...formData, cartao_sus: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50" placeholder="000 0000 0000 0000" />
                         </div>
-                        <div className="space-y-1">
-                           <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Especialidade</label>
-                           <input value={formData.especialidade} onChange={e => setFormData({...formData, especialidade: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50" />
-                        </div>
+                         <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Especialidade</label>
+                            <input 
+                              value={formData.especialidade} 
+                              onChange={e => {
+                                const val = e.target.value;
+                                setFormData(prev => ({
+                                  ...prev, 
+                                  especialidade: val,
+                                  tem_doacao_oculos: prev.tem_doacao_oculos || val.toLowerCase().includes('oftalmo') || val.toLowerCase().includes('vista') || val.toLowerCase().includes('oculos')
+                                }));
+                              }} 
+                              className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50" 
+                              placeholder="Ex: Oftalmologia, Clínica Médica"
+                            />
+                         </div>
                         <div className="space-y-1">
                             <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Prioridade</label>
                             <select value={formData.prioridade} onChange={e => setFormData({...formData, prioridade: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50 appearance-none">
@@ -409,6 +537,72 @@ export default function AtendimentosMedicos() {
                         <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Relato do Problema</label>
                         <textarea rows={4} value={formData.descricao_problema} onChange={e => setFormData({...formData, descricao_problema: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50 resize-none" />
                      </div>
+
+                     {/* Controle de Óculos */}
+                     {(formData.tem_doacao_oculos || formData.especialidade.toLowerCase().includes('oftalmo')) && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-6 space-y-4 shadow-inner"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-blue-400 font-bold text-[10px] uppercase tracking-widest">
+                               <Glasses size={16} />
+                               Controle de Óculos e Doação
+                            </div>
+                            <div className="flex items-center gap-2">
+                               <input 
+                                 type="checkbox" 
+                                 id="tem_doacao" 
+                                 checked={formData.tem_doacao_oculos} 
+                                 onChange={e => setFormData({...formData, tem_doacao_oculos: e.target.checked})}
+                                 className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-blue-500" 
+                               />
+                               <label htmlFor="tem_doacao" className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Doação de Óculos</label>
+                            </div>
+                          </div>
+
+                          {formData.tem_doacao_oculos && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+                               <div className="space-y-1">
+                                  <label className="text-[9px] font-bold text-slate-500 uppercase">Grau OD</label>
+                                  <input value={formData.grau_od} onChange={e => setFormData({...formData, grau_od: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-white" placeholder="+1.25" />
+                               </div>
+                               <div className="space-y-1">
+                                  <label className="text-[9px] font-bold text-slate-500 uppercase">Grau OE</label>
+                                  <input value={formData.grau_oe} onChange={e => setFormData({...formData, grau_oe: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-white" placeholder="+1.25" />
+                               </div>
+                               <div className="space-y-1">
+                                  <label className="text-[9px] font-bold text-slate-500 uppercase">Status</label>
+                                  <select value={formData.status_oculos} onChange={e => setFormData({...formData, status_oculos: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-white appearance-none">
+                                     <option value="não solicitado">Não Solicitado</option>
+                                     <option value="solicitado">Solicitado</option>
+                                     <option value="em produção">Em Produção</option>
+                                     <option value="pronto">Pronto p/ Entrega</option>
+                                     <option value="entregue">Entregue</option>
+                                  </select>
+                               </div>
+                               <div className="space-y-1">
+                                  <label className="text-[9px] font-bold text-slate-500 uppercase">Previsão Entrega</label>
+                                  <input type="date" value={formData.data_entrega_oculos} onChange={e => setFormData({...formData, data_entrega_oculos: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-white [color-scheme:dark]" />
+                               </div>
+                            </div>
+                          )}
+
+                          {formData.status_oculos === 'entregue' && editingId && (
+                             <div className="pt-2">
+                               <button 
+                                 type="button"
+                                 onClick={() => handlePrintReceipt({...formData, id: editingId})}
+                                 className="w-full bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/20 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all"
+                               >
+                                 <Printer size={16} />
+                                 GERAR RECIBO DE ENTREGA
+                               </button>
+                             </div>
+                          )}
+                        </motion.div>
+                      )}
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="flex items-center gap-3 bg-slate-800/50 p-4 rounded-xl border border-slate-800">
                            <input type="checkbox" id="necessita_exame" checked={formData.necessita_exame} onChange={e => setFormData({...formData, necessita_exame: e.target.checked})} className="w-5 h-5 rounded border-slate-700 bg-slate-900 text-emerald-600 focus:ring-emerald-500" />
