@@ -224,7 +224,7 @@ export default function Atendimentos() {
       } else {
         const docRef = await addDoc(collection(db, 'atendimentos'), {
           ...formData,
-          atendente_id: user?.uid,
+          assessor_id: user?.uid,
           created_at: serverTimestamp(),
           updated_at: serverTimestamp(),
         });

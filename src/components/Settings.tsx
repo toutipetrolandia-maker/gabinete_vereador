@@ -19,7 +19,9 @@ import {
   ShieldCheck,
   CheckCircle2,
   Download,
-  Save
+  Save,
+  Fingerprint,
+  ShieldAlert
 } from 'lucide-react';
 import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, addDoc, setDoc, deleteDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -34,10 +36,54 @@ export default function Settings() {
   const { profile } = useAuth();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'users' | 'general' | 'super' | 'manual' | 'backup'>('audit');
+  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'users' | 'general' | 'super' | 'manual' | 'backup' | 'security'>('audit');
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(localStorage.getItem('biometric_enabled') === 'true');
+  const [biometricLoading, setBiometricLoading] = useState(false);
+
+  useEffect(() => {
+    const checkSupport = async () => {
+      const { isBiometricSupported } = await import('../lib/webauthn');
+      const supported = await isBiometricSupported();
+      setBiometricSupported(supported);
+    };
+    checkSupport();
+  }, []);
+
+  const handleToggleBiometrics = async () => {
+    if (!biometricSupported) return;
+    
+    setBiometricLoading(true);
+    try {
+      const { registerBiometrics } = await import('../lib/webauthn');
+      
+      if (!biometricEnabled) {
+        // Ativando: precisa registrar
+        const success = await registerBiometrics(auth.currentUser?.uid || 'user', auth.currentUser?.email || 'user@example.com');
+        if (success) {
+          localStorage.setItem('biometric_enabled', 'true');
+          setBiometricEnabled(true);
+          alert("Segurança biométrica ativada com sucesso neste dispositivo!");
+        }
+      } else {
+        // Desativando
+        localStorage.removeItem('biometric_enabled');
+        localStorage.removeItem('biometric_registered');
+        setBiometricEnabled(false);
+        alert("Segurança biométrica desativada.");
+      }
+    } catch (err: any) {
+      console.error("Erro ao configurar biometria:", err);
+      if (err.name !== 'NotAllowedError') {
+        alert("Erro ao configurar biometria. Certifique-se que seu dispositivo possui bloqueio de tela ativo.");
+      }
+    } finally {
+      setBiometricLoading(false);
+    }
+  };
   const [usersList, setUsersList] = useState<any[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
-  const [newUser, setNewUser] = useState({ nome: '', email: '', role: 'atendente', ativo: false });
+  const [newUser, setNewUser] = useState({ nome: '', email: '', role: 'assessor', ativo: false });
   const [appName, setAppName] = useState('Gabinete Digital');
   const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
   const [perfilLink, setPerfilLink] = useState('https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
@@ -59,7 +105,7 @@ export default function Settings() {
     let unsubLogs = () => {};
     let unsubUsers = () => {};
 
-    if (profile.role === 'admin' || profile.role === 'vereador') {
+    if (profile.role === 'admin' || profile.role === 'vereador' || isSuperAdmin) {
       const qLogs = query(collection(db, 'logs'), orderBy('criado_em', 'desc'), limit(50));
       unsubLogs = onSnapshot(qLogs, (snap) => {
         setLogs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -69,7 +115,7 @@ export default function Settings() {
       });
     }
 
-    if (profile.role === 'admin' || profile.role === 'vereador') {
+    if (profile.role === 'admin' || profile.role === 'vereador' || profile.role === 'assessor' || isSuperAdmin) {
       const qUsers = query(collection(db, 'users'), orderBy('nome', 'asc'));
       unsubUsers = onSnapshot(qUsers, (snap) => {
         setUsersList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -190,7 +236,7 @@ export default function Settings() {
       });
       await logAction('Criar Usuário', 'users', 'novo', { next: newUser });
       setShowUserModal(false);
-      setNewUser({ nome: '', email: '', role: 'atendente', ativo: true });
+      setNewUser({ nome: '', email: '', role: 'assessor', ativo: true });
     } catch (err) {
       console.error("Erro ao criar usuário:", err);
     }
@@ -309,17 +355,19 @@ export default function Settings() {
               Super Admin
             </button>
           )}
-          <button 
-            onClick={() => setActiveSubTab('audit')}
-            className={cn(
-              "whitespace-nowrap px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
-              activeSubTab === 'audit' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-slate-400 hover:bg-slate-900"
-            )}
-          >
-            <History size={18} />
-            Auditoria
-          </button>
           {(profile?.role === 'admin' || profile?.role === 'vereador' || isSuperAdmin) && (
+            <button 
+              onClick={() => setActiveSubTab('audit')}
+              className={cn(
+                "whitespace-nowrap px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
+                activeSubTab === 'audit' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-slate-400 hover:bg-slate-900"
+              )}
+            >
+              <History size={18} />
+              Auditoria
+            </button>
+          )}
+          {(profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'assessor' || isSuperAdmin) && (
             <button 
               onClick={() => setActiveSubTab('users')}
               className={cn(
@@ -332,15 +380,28 @@ export default function Settings() {
             </button>
           )}
 
+          {(profile?.role === 'admin' || profile?.role === 'vereador' || isSuperAdmin) && (
+            <button 
+              onClick={() => setActiveSubTab('backup')}
+              className={cn(
+                "whitespace-nowrap px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
+                activeSubTab === 'backup' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20" : "text-slate-400 hover:bg-slate-900"
+              )}
+            >
+              <Save size={18} />
+              Cópia de Segurança
+            </button>
+          )}
+
           <button 
-            onClick={() => setActiveSubTab('backup')}
+            onClick={() => setActiveSubTab('security')}
             className={cn(
               "whitespace-nowrap px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
-              activeSubTab === 'backup' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20" : "text-slate-400 hover:bg-slate-900"
+              activeSubTab === 'security' ? "bg-purple-600 text-white shadow-lg shadow-purple-900/20" : "text-slate-400 hover:bg-slate-900"
             )}
           >
-            <Save size={18} />
-            Cópia de Segurança
+            <ShieldCheck size={18} />
+            Privacidade e Mobile
           </button>
 
           <button 
@@ -643,38 +704,75 @@ export default function Settings() {
                           </div>
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="space-y-6">
                           <h4 className="text-xs font-bold uppercase text-slate-500 tracking-widest flex items-center gap-2">
                              Detalhamento de Dados
                           </h4>
                           
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Previous Data */}
-                            {(selectedLog.dados_anteriores || selectedLog.acao?.includes('Excluir')) && (
-                              <div className="space-y-2">
-                                <span className="text-[10px] font-bold text-red-400 uppercase">Anterior / Removido</span>
-                                <div className="bg-slate-950 border border-red-500/10 p-4 rounded-2xl text-[11px] font-mono whitespace-pre-wrap overflow-x-auto text-slate-400 max-h-[300px]">
-                                  {JSON.stringify(selectedLog.dados_anteriores || {}, null, 2)}
+                          <div className="grid grid-cols-1 gap-6">
+                            {/* Comparison View */}
+                            {selectedLog.dados_anteriores && selectedLog.dados_novos ? (
+                              <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4 text-[10px] uppercase font-black tracking-widest px-4">
+                                   <div className="text-red-400">Estado Anterior</div>
+                                   <div className="text-emerald-400">Estado Atualizado</div>
+                                </div>
+                                <div className="bg-slate-950 border border-slate-800 rounded-2xl divide-y divide-slate-900 overflow-hidden">
+                                  {Object.keys({ ...selectedLog.dados_anteriores, ...selectedLog.dados_novos }).map(key => {
+                                    const prev = selectedLog.dados_anteriores[key];
+                                    const next = selectedLog.dados_novos[key];
+                                    const isChanged = JSON.stringify(prev) !== JSON.stringify(next);
+                                    
+                                    if (key === 'updated_at' || key === 'id' || key === 'criado_em') return null;
+
+                                    return (
+                                      <div key={key} className={cn(
+                                        "grid grid-cols-2 gap-4 p-4",
+                                        isChanged ? "bg-blue-500/[0.02]" : "opacity-50"
+                                      )}>
+                                        <div className="space-y-1">
+                                          <div className="text-[10px] font-bold text-slate-600 uppercase mb-1">{key.replace(/_/g, ' ')}</div>
+                                          <div className="text-xs text-slate-400 break-all">
+                                            {prev ? String(prev) : <span className="text-slate-800 italic">vazio</span>}
+                                          </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <div className="text-[10px] font-bold text-slate-600 uppercase mb-1">{key.replace(/_/g, ' ')}</div>
+                                          <div className={cn(
+                                            "text-xs break-all",
+                                            isChanged ? "text-emerald-400 font-bold" : "text-slate-400"
+                                          )}>
+                                            {next ? String(next) : <span className="text-slate-800 italic">vazio</span>}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
-                            )}
-                            
-                            {/* Next Data */}
-                            {(selectedLog.dados_novos || selectedLog.acao?.includes('Criar') || selectedLog.acao?.includes('Adiar')) && (
-                              <div className="space-y-2">
-                                <span className="text-[10px] font-bold text-emerald-400 uppercase">Novo / Atual</span>
-                                <div className="bg-slate-950 border border-emerald-500/10 p-4 rounded-2xl text-[11px] font-mono whitespace-pre-wrap overflow-x-auto text-slate-200 max-h-[300px]">
-                                  {JSON.stringify(selectedLog.dados_novos || {}, null, 2)}
-                                </div>
+                            ) : (
+                              <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden">
+                                {selectedLog.dados_anteriores || selectedLog.dados_novos ? (
+                                  Object.entries(selectedLog.dados_anteriores || selectedLog.dados_novos).map(([key, val]) => (
+                                    <div key={key} className="p-4 border-b border-slate-900 last:border-0 hover:bg-slate-900/50 transition-colors">
+                                      <div className="text-[10px] font-bold text-slate-600 uppercase mb-1">{key.replace(/_/g, ' ')}</div>
+                                      <div className={cn(
+                                        "text-xs break-all",
+                                        selectedLog.acao?.includes('Criar') ? "text-emerald-400 font-medium" : 
+                                        selectedLog.acao?.includes('Excluir') ? "text-red-400" : "text-slate-300"
+                                      )}>
+                                        {val ? String(val) : <span className="text-slate-800 italic">nulo/vazio</span>}
+                                      </div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="p-10 text-center text-slate-600 italic text-xs">
+                                    Nenhum detalhe adicional disponível para este registro meta-data.
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
-
-                          {!selectedLog.dados_anteriores && !selectedLog.dados_novos && (
-                            <div className="bg-slate-950 border border-slate-800 p-4 rounded-2xl text-[11px] text-slate-500 italic">
-                               Sem detalhes adicionais registrados para esta ação.
-                            </div>
-                          )}
                         </div>
                         
                         <div className="bg-blue-500/5 border border-blue-500/10 p-4 rounded-2xl">
@@ -721,7 +819,14 @@ export default function Settings() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {usersList.map((user) => (
+                    {usersList
+                      .filter(user => {
+                        if (profile?.role === 'assessor') {
+                          return user.role === 'admin' || user.role === 'vereador';
+                        }
+                        return true;
+                      })
+                      .map((user) => (
                       <tr key={user.id} className="hover:bg-slate-800/30 transition-colors">
                         <td className="px-6 py-4">
                           <div>
@@ -736,7 +841,7 @@ export default function Settings() {
                             disabled={profile?.role !== 'admin' && !isSuperAdmin}
                             className="bg-slate-800 border border-slate-700 rounded-lg text-xs p-1 text-slate-300 outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
                           >
-                            <option value="atendente">Atendente</option>
+                            <option value="assessor">Assessor</option>
                             <option value="vereador">Vereador</option>
                             <option value="admin">Administrador</option>
                             <option value="consulta">Apenas Consulta</option>
@@ -823,6 +928,81 @@ export default function Settings() {
                    </p>
                 </div>
               </div>
+            </motion.div>
+          ) : activeSubTab === 'security' ? (
+            <motion.div 
+               initial={{ opacity: 0, y: 20 }}
+               animate={{ opacity: 1, y: 0 }}
+               className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl space-y-8"
+            >
+               <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">Privacidade e Mobile</h2>
+                  <p className="text-slate-400">Gerencie a segurança local e o comportamento do sistema em dispositivos móveis.</p>
+               </div>
+
+               <div className="space-y-6 max-w-xl">
+                  <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-6">
+                     <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1">
+                           <div className="flex items-center gap-2">
+                              <Fingerprint className="text-purple-400" size={20} />
+                              <h3 className="font-bold text-slate-200">Acesso por Biometria / PIN</h3>
+                           </div>
+                           <p className="text-xs text-slate-500 leading-relaxed">
+                              Utiliza o bloqueio padrão do seu celular (iOS ou Android) para proteger o acesso aos dados do gabinete. Recomendado se você costuma deixar o app logado.
+                           </p>
+                        </div>
+                        <button 
+                           onClick={handleToggleBiometrics}
+                           disabled={biometricLoading || !biometricSupported}
+                           className={cn(
+                              "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-30",
+                              biometricEnabled ? "bg-purple-600" : "bg-slate-700"
+                           )}
+                        >
+                           <span className={cn(
+                              "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                              biometricEnabled ? "translate-x-6" : "translate-x-1"
+                           )} />
+                        </button>
+                     </div>
+
+                     {!biometricSupported && (
+                        <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl flex items-center gap-3">
+                           <ShieldAlert className="text-amber-500 shrink-0" size={18} />
+                           <p className="text-[10px] text-amber-500 font-medium">
+                              Seu navegador ou dispositivo não suporta o padrão WebAuthn necessário para biometria nativa. Tente usar o Chrome ou Safari atualizados.
+                           </p>
+                        </div>
+                     )}
+
+                     {biometricEnabled && (
+                        <div className="bg-emerald-500/5 border border-emerald-500/10 p-4 rounded-xl">
+                           <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest text-center">
+                              Dispositivo Protegido
+                           </p>
+                        </div>
+                     )}
+                  </div>
+
+                  <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-4">
+                     <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">Dicas de Segurança Mobile</h3>
+                     <ul className="space-y-2">
+                        <li className="flex items-start gap-2 text-[11px] text-slate-400">
+                           <div className="w-1 h-1 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                           Nunca compartilhe sua conta do Google usada para este sistema.
+                        </li>
+                        <li className="flex items-start gap-2 text-[11px] text-slate-400">
+                           <div className="w-1 h-1 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                           A biometria é configurada individualmente para cada aparelho.
+                        </li>
+                        <li className="flex items-start gap-2 text-[11px] text-slate-400">
+                           <div className="w-1 h-1 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                           Caso perca o celular, desative o acesso na lista de usuários.
+                        </li>
+                     </ul>
+                  </div>
+               </div>
             </motion.div>
           ) : (
             <motion.div 
@@ -917,7 +1097,7 @@ export default function Settings() {
                       onChange={e => setNewUser({...newUser, role: e.target.value})}
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none focus:ring-1 focus:ring-blue-500 transition-all text-sm"
                     >
-                      <option value="atendente">Atendente</option>
+                      <option value="assessor">Assessor</option>
                       <option value="vereador">Vereador</option>
                       <option value="consulta">Apenas Consulta</option>
                     </select>

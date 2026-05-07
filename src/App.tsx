@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import LocalAuthBarrier from './components/LocalAuthBarrier';
 import Login from './components/Login';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
@@ -29,17 +30,19 @@ function AppContent() {
   }
 
   return (
-    <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
-      {activeTab === 'dashboard' && <Dashboard />}
-      {activeTab === 'agenda' && <Agenda />}
-      {activeTab === 'atendimentos' && <Atendimentos />}
-      {activeTab === 'medico' && <AtendimentosMedicos />}
-      {activeTab === 'malotes' && <Malotes />}
-      {activeTab === 'demandas' && <Demandas />}
-      {activeTab === 'sugestoes' && <Sugestoes />}
-      {activeTab === 'relatorios' && <Relatorios />}
-      {activeTab === 'config' && <Settings />}
-    </Layout>
+    <LocalAuthBarrier>
+      <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
+        {activeTab === 'dashboard' && <Dashboard />}
+        {activeTab === 'agenda' && <Agenda />}
+        {activeTab === 'atendimentos' && <Atendimentos />}
+        {activeTab === 'medico' && <AtendimentosMedicos />}
+        {activeTab === 'malotes' && <Malotes />}
+        {activeTab === 'demandas' && <Demandas />}
+        {activeTab === 'sugestoes' && <Sugestoes />}
+        {activeTab === 'relatorios' && <Relatorios />}
+        {activeTab === 'config' && <Settings />}
+      </Layout>
+    </LocalAuthBarrier>
   );
 }
 

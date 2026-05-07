@@ -7,7 +7,7 @@
       "properties": {
         "nome": { "type": "string" },
         "email": { "type": "string", "format": "email" },
-        "role": { "type": "string", "enum": ["admin", "atendente", "vereador", "consulta"] },
+        "role": { "type": "string", "enum": ["admin", "assessor", "vereador", "consulta"] },
         "ativo": { "type": "boolean" },
         "status": { "type": "string", "enum": ["online", "offline"] },
         "last_seen": { "type": "string", "format": "date-time" },

@@ -26,7 +26,7 @@ service cloud.firestore {
     // Internal user check: must be active and have a valid cabinet role
     function isCabinetMember() {
       let data = getUserData();
-      return isSignedIn() && data.ativo == true && data.role in ['admin', 'vereador', 'atendente'];
+      return isSignedIn() && data.ativo == true && data.role in ['admin', 'vereador', 'assessor'];
     }
     
     function isAdmin() {
@@ -75,7 +75,7 @@ service cloud.firestore {
       function isValidUser(data) {
         return data.nome is string && data.nome.size() <= 100 &&
                data.email is string && data.email == request.auth.token.email &&
-               data.role in ['admin', 'atendente', 'vereador', 'consulta'] &&
+               data.role in ['admin', 'assessor', 'vereador', 'consulta'] &&
                data.ativo is bool;
       }
 
