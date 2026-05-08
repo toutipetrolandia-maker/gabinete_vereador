@@ -73,6 +73,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               status: 'online',
               last_seen: serverTimestamp()
             }).catch(() => {}); // Ignore if rules block
+
+            // Log session start
+            const { logAction } = await import('../lib/audit');
+            await logAction('Início de Sessão', 'sistema', user.uid, {
+              next: { login_metodo: user.providerData[0]?.providerId || 'google' }
+            });
           } else {
             // First time user? Let's check if we should create a profile
             const isInitialAdmin = user.email === 'toutipetrolandia@gmail.com' || user.email === 'cleciotecnologia@gmail.com';
