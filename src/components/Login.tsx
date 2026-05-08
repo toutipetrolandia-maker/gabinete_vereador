@@ -23,6 +23,8 @@ export default function Login() {
         setPerfilLink(data.perfil_link || 'https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
         setLgpdText(data.lgpd_text || 'Ao utilizar este sistema, você concorda com a coleta e processamento de dados pessoais de acordo com a LGPD para fins de gestão parlamentar.');
       }
+    }, (error) => {
+      console.error("Error listening to global settings in Login:", error);
     });
     return () => unsub();
   }, []);

@@ -1,6 +1,17 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const apiKey = process.env.GEMINI_API_KEY;
+let ai: GoogleGenAI | null = null;
+
+try {
+  if (apiKey) {
+    ai = new GoogleGenAI({ apiKey });
+  } else {
+    console.warn("GEMINI_API_KEY não configurada. O assistente de IA estará desativado.");
+  }
+} catch (error) {
+  console.error("Erro ao inicializar GoogleGenAI:", error);
+}
 
 const SYSTEM_INSTRUCTION = `
 Você é o Assistente Virtual do Sistema de Gestão de Gabinete Parlamentar. 
@@ -35,6 +46,10 @@ DIRETRIZES DE RESPOSTA:
 `;
 
 export async function askAIAssistant(message: string, history: { role: 'user' | 'model', content: string }[] = []) {
+  if (!ai || !apiKey) {
+    throw new Error("Assistente de IA não configurado ou chave de API ausente.");
+  }
+  
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
