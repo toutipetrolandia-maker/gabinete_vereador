@@ -172,12 +172,14 @@ export default function AtendimentosMedicos() {
         const existing = data.find(i => i.id === editingId);
         await updateDoc(doc(db, 'atendimentos_medicos', editingId), {
           ...formData,
+          usuario_id: user?.uid,
           updated_at: serverTimestamp()
         });
         await logAction('Atualizar', 'atendimentos_medicos', editingId, { previous: existing, next: formData });
       } else {
         const docRef = await addDoc(collection(db, 'atendimentos_medicos'), {
           ...formData,
+          usuario_id: user?.uid,
           tipo_atendimento: 'Médico',
           created_at: serverTimestamp(),
         });

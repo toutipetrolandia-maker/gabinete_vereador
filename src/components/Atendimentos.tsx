@@ -225,13 +225,14 @@ export default function Atendimentos() {
         const existing = data.find(i => i.id === editingId);
         await updateDoc(doc(db, 'atendimentos', editingId), {
           ...formData,
+          usuario_id: user?.uid, // Added to match rules
           updated_at: serverTimestamp(),
         });
         await logAction('Atualizar', 'atendimentos', editingId, { previous: existing, next: formData });
       } else {
         const docRef = await addDoc(collection(db, 'atendimentos'), {
           ...formData,
-          assessor_id: user?.uid,
+          usuario_id: user?.uid, // Changed from assessor_id to match rules
           created_at: serverTimestamp(),
           updated_at: serverTimestamp(),
         });

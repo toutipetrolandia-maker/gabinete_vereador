@@ -73,12 +73,14 @@ export default function Demandas() {
         const existing = data.find(i => i.id === editingId);
         await updateDoc(doc(db, 'demandas_parlamentares', editingId), {
           ...formData,
+          usuario_id: profile?.role === 'admin' ? existing?.usuario_id : profile?.nome || 'Assessor', // Just for consistency
           updated_at: serverTimestamp()
         });
         await logAction('Atualizar', 'demandas_parlamentares', editingId, { previous: existing, next: formData });
       } else {
         const docRef = await addDoc(collection(db, 'demandas_parlamentares'), {
           ...formData,
+          usuario_id: profile?.nome || 'Assessor',
           created_at: serverTimestamp(),
         });
         await logAction('Criar', 'demandas_parlamentares', docRef.id, { next: formData });

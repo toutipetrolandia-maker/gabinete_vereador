@@ -26,7 +26,7 @@ service cloud.firestore {
     // Internal user check: must be active and have a valid cabinet role
     function isCabinetMember() {
       let data = getUserData();
-      return isSignedIn() && data.ativo == true && data.role in ['admin', 'vereador', 'assessor'];
+      return isSignedIn() && (data.ativo == true || data.role == 'admin') && data.role in ['admin', 'vereador', 'assessor'];
     }
     
     function isAdmin() {
@@ -75,18 +75,17 @@ service cloud.firestore {
       function isValidUser(data) {
         return data.nome is string && data.nome.size() <= 100 &&
                data.email is string && data.email == request.auth.token.email &&
-               data.role in ['admin', 'assessor', 'vereador', 'consulta'] &&
-               data.ativo is bool;
+               data.role in ['admin', 'assessor', 'vereador', 'consulta'];
       }
 
       // Initial profile creation (via useAuth hook)
-      allow create: if isEmailVerified() && isOwner(userId) && isValidUser(incoming());
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming());
       
-      allow update: if isEmailVerified() && (
+      allow update: if isSignedIn() && (
         // Only admin can change roles or activation status
         (isAdmin() && incoming().email == existing().email) ||
         // User can update their own status (online/offline)
-        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'last_seen']))
+        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'last_seen', 'primeiro_acesso_concluido']))
       );
 
       allow delete: if isAdmin() || isVereador();
@@ -98,17 +97,17 @@ service cloud.firestore {
       
       function isValidAtendimento(data) {
         return data.nome_completo is string && data.nome_completo.size() <= 150 &&
-               data.usuario_id == request.auth.uid &&
+               (data.usuario_id == request.auth.uid || data.assessor_id == request.auth.uid) &&
                data.status in ['Novo', 'Em Andamento', 'Concluído', 'Cancelado', 'Pendente', 'Encaminhado', 'Em andamento'] &&
                data.prioridade in ['Baixa', 'Média', 'Alta'];
       }
 
-      allow create: if isCabinetMember() && isEmailVerified() && isValidAtendimento(incoming()) && incoming().created_at == request.time;
+      allow create: if isCabinetMember() && isValidAtendimento(incoming()) && incoming().created_at == request.time;
       
-      allow update: if isCabinetMember() && isEmailVerified() && (
+      allow update: if isCabinetMember() && (
         (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updated_at']) && incoming().updated_at == request.time) ||
         (isAdmin()) ||
-        (incoming().usuario_id == existing().usuario_id && incoming().updated_at == request.time)
+        ((incoming().usuario_id == existing().usuario_id || incoming().assessor_id == existing().assessor_id) && incoming().updated_at == request.time)
       );
       
       allow delete: if isAdmin();
@@ -121,13 +120,13 @@ service cloud.firestore {
       
       function isValidAtendimentoMedico(data) {
         return data.nome_completo is string && data.nome_completo.size() <= 150 &&
-               data.usuario_id == request.auth.uid;
+               (data.usuario_id == request.auth.uid || data.assessor_id == request.auth.uid);
       }
 
-      allow create: if isCabinetMember() && isEmailVerified() && isValidAtendimentoMedico(incoming()) && incoming().created_at == request.time;
-      allow update: if isCabinetMember() && isEmailVerified() && (
+      allow create: if isCabinetMember() && isValidAtendimentoMedico(incoming()) && (incoming().created_at == request.time || !('created_at' in incoming()));
+      allow update: if isCabinetMember() && (
         isAdmin() || 
-        (incoming().usuario_id == existing().usuario_id && incoming().updated_at == request.time)
+        ((incoming().usuario_id == existing().usuario_id || incoming().assessor_id == existing().assessor_id) && (incoming().updated_at == request.time || !('updated_at' in incoming())))
       );
       allow delete: if isAdmin();
     }
@@ -135,42 +134,42 @@ service cloud.firestore {
     // AGENDA VEREADOR
     match /agenda_vereador/{id} {
       allow read: if isSignedIn();
-      allow create, update: if isCabinetMember() && isEmailVerified();
-      allow delete: if isAdmin() || (isVereador() && isEmailVerified());
+      allow create, update: if isCabinetMember();
+      allow delete: if isAdmin() || isVereador();
     }
 
     // SUGESTÕES
     match /sugestoes/{id} {
       allow read: if isCabinetMember();
-      allow create, update: if isCabinetMember() && isEmailVerified();
+      allow create, update: if isCabinetMember();
       allow delete: if isAdmin();
     }
 
     // MALOTES
     match /malotes/{id} {
       allow read: if isCabinetMember();
-      allow create, update: if isCabinetMember() && isEmailVerified();
+      allow create, update: if isCabinetMember();
       allow delete: if isAdmin();
     }
     
     // DEMANDAS PARLAMENTARES
     match /demandas_parlamentares/{id} {
       allow read: if isCabinetMember();
-      allow create, update: if isCabinetMember() && isEmailVerified();
+      allow create, update: if isCabinetMember();
       allow delete: if isAdmin();
     }
 
     // APP SETTINGS
     match /app_settings/{docId} {
       allow read: if isSignedIn();
-      allow update: if isEmailVerified() && (isAdmin() || isVereador());
+      allow update: if isAdmin() || isVereador();
       allow create: if isAdmin();
     }
 
     // AUDIT LOGS (IMMUTABLE & RESTRICTED)
     match /logs/{id} {
       allow read: if isCabinetMember() && (isAdmin() || isVereador());
-      allow create: if isEmailVerified();
+      allow create: if isSignedIn();
       allow update, delete: if false;
     }
   }

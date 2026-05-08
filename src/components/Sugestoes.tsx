@@ -82,13 +82,16 @@ export default function Sugestoes() {
         const existing = data.find(i => i.id === editingId);
         await updateDoc(doc(db, 'sugestoes', editingId), {
           ...formData,
+          usuario_id: user?.uid,
           updated_at: serverTimestamp()
         });
         await logAction('Atualizar', 'sugestoes', editingId, { previous: existing, next: formData });
       } else {
         const docRef = await addDoc(collection(db, 'sugestoes'), {
           ...formData,
+          usuario_id: user?.uid,
           created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
         });
         await logAction('Criar', 'sugestoes', docRef.id, { next: formData });
       }
