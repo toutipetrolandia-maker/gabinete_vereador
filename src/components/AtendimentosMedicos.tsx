@@ -78,7 +78,8 @@ export default function AtendimentosMedicos() {
     grau_od: '',
     grau_oe: '',
     status_oculos: 'não solicitado', // 'solicitado', 'em produção', 'pronto', 'entregue'
-    data_entrega_oculos: ''
+    data_entrega_oculos: '',
+    lgpd_consent: false
   };
 
   // Masks
@@ -156,8 +157,16 @@ export default function AtendimentosMedicos() {
     return () => unsubscribe();
   }, []);
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.lgpd_consent) {
+       alert("O cidadão deve consentir com a LGPD para realizar o registro.");
+       return;
+    }
+
+    setSubmitting(true);
     try {
       if (editingId) {
         const existing = data.find(i => i.id === editingId);
@@ -176,7 +185,11 @@ export default function AtendimentosMedicos() {
       }
       closeModal();
     } catch (err) {
+      console.error("Submit error:", err);
+      alert("Erro ao salvar atendimento médico. Tente novamente.");
       handleFirestoreError(err, OperationType.WRITE, 'atendimentos_medicos');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -329,7 +342,8 @@ export default function AtendimentosMedicos() {
       grau_od: item.grau_od || '',
       grau_oe: item.grau_oe || '',
       status_oculos: item.status_oculos || 'não solicitado',
-      data_entrega_oculos: item.data_entrega_oculos || ''
+      data_entrega_oculos: item.data_entrega_oculos || '',
+      lgpd_consent: !!item.lgpd_consent
     });
     if (item.cpf) searchCitizenData(item.cpf);
     setShowModal(true);
@@ -431,6 +445,11 @@ export default function AtendimentosMedicos() {
                     <MessageCircle size={12} />
                   </a>
                 </div>
+              )}
+              {(item.endereco || item.bairro) && (
+                <span className="text-[10px] text-slate-500 italic">
+                  {item.endereco}{item.endereco && item.bairro ? ', ' : ''}{item.bairro}
+                </span>
               )}
               {item.cartao_sus && (
                 <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">SUS: {item.cartao_sus}</span>
@@ -707,8 +726,31 @@ export default function AtendimentosMedicos() {
                         )}
                      </div>
                   </div>
-                  <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 py-4 rounded-xl font-bold transition-all shadow-lg shadow-emerald-900/20">
-                      {editingId ? 'Salvar Alterações' : 'Registrar Atendimento Médico'}
+                  <div className="flex items-start gap-3 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl mb-4">
+                     <input 
+                       required
+                       type="checkbox" 
+                       id="lgpd_med"
+                       checked={formData.lgpd_consent}
+                       onChange={(e) => setFormData({...formData, lgpd_consent: e.target.checked})}
+                       className="mt-1 w-4 h-4 rounded border-slate-700 bg-slate-800 text-emerald-600 focus:ring-emerald-500"
+                     />
+                     <label htmlFor="lgpd_med" className="text-[10px] text-slate-400 leading-relaxed font-sans cursor-pointer">
+                        O cidadão declara estar ciente e concorda com a coleta e processamento de seus dados pessoais para fins de atendimento de saúde e gestão parlamentar (LGPD).
+                     </label>
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    disabled={submitting}
+                    className={cn(
+                      "w-full bg-emerald-600 hover:bg-emerald-700 py-4 rounded-xl font-bold transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2",
+                      submitting && "opacity-70 cursor-not-allowed"
+                    )}
+                  >
+                    {submitting ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : editingId ? 'Salvar Alterações' : 'Registrar Atendimento Médico'}
                   </button>
                </form>
 

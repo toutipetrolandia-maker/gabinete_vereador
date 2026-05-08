@@ -63,8 +63,11 @@ export default function Demandas() {
     return () => unsubscribe();
   }, []);
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
     try {
       if (editingId) {
         const existing = data.find(i => i.id === editingId);
@@ -82,7 +85,10 @@ export default function Demandas() {
       }
       closeModal();
     } catch (err) {
-      console.error(err);
+      console.error("Submit error:", err);
+      alert("Erro ao salvar demanda. Tente novamente.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -337,8 +343,17 @@ export default function Demandas() {
                      </div>
                   </div>
 
-                  <button type="submit" disabled={uploading} className="w-full bg-purple-600 hover:bg-purple-700 py-4 rounded-xl font-bold text-white shadow-xl shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed">
-                      {editingId ? 'Salvar Alterações' : 'Protocolar Demanda'}
+                  <button 
+                    type="submit" 
+                    disabled={submitting || uploading} 
+                    className={cn(
+                      "w-full bg-purple-600 hover:bg-purple-700 py-4 rounded-xl font-bold text-white shadow-xl shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2",
+                      (submitting || uploading) && "opacity-70"
+                    )}
+                  >
+                    {submitting ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : editingId ? 'Salvar Alterações' : 'Protocolar Demanda'}
                   </button>
                </form>
             </motion.div>

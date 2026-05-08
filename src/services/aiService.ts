@@ -1,4 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
+import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 const apiKey = process.env.GEMINI_API_KEY;
 let ai: GoogleGenAI | null = null;
@@ -20,7 +22,7 @@ Seu objetivo é ajudar os usuários (assessores, atendentes e o vereador) a ente
 CONHECIMENTO DO SISTEMA:
 1. ATENDIMENTOS:
    - Registro de demandas gerais da população.
-   - Status: Novo, Em andamento, Concluído, Encaminhado (novo).
+   - Status: Novo, Em andamento, Concluído, Encaminhado.
    - Busca Automática de Histórico: Ao inserir um CPF em um novo atendimento, o sistema busca automaticamente se o cidadão possui histórico em "Atendimentos Médicos" e exibe uma barra lateral com essas informações.
 
 2. ATENDIMENTOS MÉDICOS:
@@ -32,18 +34,79 @@ CONHECIMENTO DO SISTEMA:
 3. PROTOCOLOS DE SAÚDE:
    - Categorias: TFD (Tratamento Fora de Domicílio), Cirurgias, Exames e Consultas.
 
-4. RELATÓRIOS:
+4. SUGESTÕES:
+   - Ouvidoria e feedback dos cidadãos.
+   - Campos: Nome completo, telefone, e-mail, sugestão (mensagem), status (Nova, Analisada, Arquivada) e lembrete.
+   - Você pode buscar o status e detalhes de sugestões específicas usando ferramentas de busca.
+
+5. RELATÓRIOS:
    - Exportação de arquivos PDF.
    - Relatórios por bairro, agudos e demandas de alta prioridade.
 
-5. SUPORTE TÉCNICO:
+6. SUPORTE TÉCNICO:
    - WhatsApp do suporte: (75) 98801-7239.
 
 DIRETRIZES DE RESPOSTA:
 - Seja profissional, prestativo e conciso.
 - Responda sempre em Português Brasileiro.
+- Se o usuário perguntar sobre uma sugestão específica ou o status de algo, use a ferramenta de busca de sugestões se disponível.
 - Para dúvidas técnicas além do uso do sistema, sugira entrar em contato com o suporte técnico.
 `;
+
+const tools = [
+  {
+    functionDeclarations: [
+      {
+        name: "search_suggestions",
+        description: "Busca sugestões na base de dados por nome do cidadão ou traz as mais recentes se nenhum nome for fornecido.",
+        parameters: {
+          type: "object",
+          properties: {
+            nome: {
+              type: "string",
+              description: "Nome completo ou parte do nome do cidadão que registrou a sugestão."
+            }
+          }
+        }
+      }
+    ]
+  }
+];
+
+async function executeSearchSuggestions(nome?: string) {
+  try {
+    const suggestionsRef = collection(db, 'sugestoes');
+    let q;
+    
+    if (nome) {
+      q = query(
+        suggestionsRef, 
+        where('nome_completo', '>=', nome),
+        where('nome_completo', '<=', nome + '\uf8ff'),
+        limit(5)
+      );
+    } else {
+      q = query(suggestionsRef, orderBy('created_at', 'desc'), limit(5));
+    }
+    
+    const querySnapshot = await getDocs(q);
+    const results = querySnapshot.docs.map(doc => {
+      const data = doc.data() as any;
+      return {
+        id: doc.id,
+        nome_completo: data.nome_completo,
+        status: data.status,
+        sugestao: data.sugestao,
+        data: data.created_at?.toDate()?.toLocaleDateString('pt-BR') || 'Desconhecida'
+      };
+    });
+    
+    return results.length > 0 ? results : "Nenhuma sugestão encontrada com esse nome.";
+  } catch (error) {
+    console.error("Erro ao buscar sugestões:", error);
+    return "Erro ao acessar o banco de dados de sugestões.";
+  }
+}
 
 export async function askAIAssistant(message: string, history: { role: 'user' | 'model', content: string }[] = []) {
   if (!ai || !apiKey) {
@@ -51,22 +114,57 @@ export async function askAIAssistant(message: string, history: { role: 'user' | 
   }
   
   try {
-    const response = await ai.models.generateContent({
+    const contents = [
+      ...history.map(h => ({
+        role: h.role === 'user' ? 'user' : 'model',
+        parts: [{ text: h.content }],
+      })),
+      { role: 'user', parts: [{ text: message }] }
+    ];
+
+    let result = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: [
-        ...history.map(h => ({ 
-          role: h.role === 'user' ? 'user' : 'model', 
-          parts: [{ text: h.content }] 
-        })),
-        { role: 'user', parts: [{ text: message }] }
-      ],
+      contents: contents as any,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.7,
-      },
+        tools: tools as any,
+      }
     });
 
-    return response.text;
+    const call = result.functionCalls?.[0];
+
+    if (call) {
+      const { name, args } = call;
+      if (name === "search_suggestions") {
+        const toolResult = await executeSearchSuggestions(args.nome as string);
+        
+        // Append the model's tool call and the tool's response to contents
+        const nextContents = [
+          ...contents,
+          { role: 'model', parts: [{ functionCall: call }] },
+          { 
+            role: 'user', 
+            parts: [{ 
+              functionResponse: {
+                name: "search_suggestions",
+                response: { content: toolResult }
+              }
+            }] 
+          }
+        ];
+
+        result = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: nextContents as any,
+          config: {
+            systemInstruction: SYSTEM_INSTRUCTION,
+            tools: tools as any,
+          }
+        });
+      }
+    }
+
+    return result.text;
   } catch (error) {
     console.error("Erro na assistência de IA:", error);
     throw new Error("Não foi possível processar sua pergunta agora.");

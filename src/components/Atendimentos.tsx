@@ -185,6 +185,8 @@ export default function Atendimentos() {
     return () => unsubscribe();
   }, []);
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.lgpd_consent) {
@@ -192,30 +194,33 @@ export default function Atendimentos() {
       return;
     }
 
-    if (formData.protocolo) {
-      if (!validateProtocolPattern(formData.protocolo)) {
-        setProtocolError("O protocolo deve seguir o padrão PROT-AAAA-NNNN (Ex: PROT-2024-0015)");
-        return;
-      }
-
-      setValidatingProtocol(true);
-      try {
-        const q = query(collection(db, 'atendimentos'), where('protocolo', '==', formData.protocolo));
-        const snap = await getDocs(q);
-        const exists = snap.docs.some(doc => doc.id !== editingId);
-        if (exists) {
-          setProtocolError("Este número de protocolo já está em uso. Por favor, utilize outro.");
-          setValidatingProtocol(false);
+    setSubmitting(true);
+    try {
+      if (formData.protocolo) {
+        if (!validateProtocolPattern(formData.protocolo)) {
+          setProtocolError("O protocolo deve seguir o padrão PROT-AAAA-NNNN (Ex: PROT-2024-0015)");
+          setSubmitting(false);
           return;
         }
-      } catch (err) {
-        console.error("Erro ao validar protocolo:", err);
-      } finally {
-        setValidatingProtocol(false);
-      }
-    }
 
-    try {
+        setValidatingProtocol(true);
+        try {
+          const q = query(collection(db, 'atendimentos'), where('protocolo', '==', formData.protocolo));
+          const snap = await getDocs(q);
+          const exists = snap.docs.some(doc => doc.id !== editingId);
+          if (exists) {
+            setProtocolError("Este número de protocolo já está em uso. Por favor, utilize outro.");
+            setValidatingProtocol(false);
+            setSubmitting(false);
+            return;
+          }
+        } catch (err) {
+          console.error("Erro ao validar protocolo:", err);
+        } finally {
+          setValidatingProtocol(false);
+        }
+      }
+
       if (editingId) {
         const existing = data.find(i => i.id === editingId);
         await updateDoc(doc(db, 'atendimentos', editingId), {
@@ -235,7 +240,11 @@ export default function Atendimentos() {
       
       closeModal();
     } catch (err) {
+      console.error("Submit error:", err);
+      alert("Ocorreu um erro ao salvar o registro. Verifique sua conexão e tente novamente.");
       handleFirestoreError(err, OperationType.WRITE, 'atendimentos');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -443,7 +452,7 @@ export default function Atendimentos() {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
                           <span className="text-[10px] text-slate-500">{item.cpf}</span>
                           <span className="text-[10px] text-slate-600">•</span>
                           <div className="flex items-center gap-1">
@@ -460,6 +469,14 @@ export default function Atendimentos() {
                               </a>
                             )}
                           </div>
+                          {(item.endereco || item.bairro) && (
+                            <>
+                              <span className="text-[10px] text-slate-600">•</span>
+                              <span className="text-[10px] text-slate-500 font-medium italic truncate max-w-[200px]">
+                                {item.endereco}{item.endereco && item.bairro ? ', ' : ''}{item.bairro}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -900,9 +917,15 @@ export default function Atendimentos() {
                   </button>
                   <button 
                     type="submit"
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-blue-900/20 transition-all"
+                    disabled={submitting}
+                    className={cn(
+                      "flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2",
+                      submitting && "opacity-70 cursor-not-allowed"
+                    )}
                   >
-                    {editingId ? 'Salvar Alterações' : 'Salvar Registro'}
+                    {submitting ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : editingId ? 'Salvar Alterações' : 'Salvar Registro'}
                   </button>
                 </div>
               </form>

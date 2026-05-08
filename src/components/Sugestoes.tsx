@@ -46,6 +46,8 @@ export default function Sugestoes() {
     nome_completo: '',
     telefone: '',
     email: '',
+    endereco: '',
+    bairro: '',
     sugestao: '',
     status: 'Nova',
     lembrete: '',
@@ -66,12 +68,15 @@ export default function Sugestoes() {
     return () => unsubscribe();
   }, []);
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.lgpd_consent) {
       alert("É necessário o consentimento da LGPD para registrar a sugestão.");
       return;
     }
+    setSubmitting(true);
     try {
       if (editingId) {
         const existing = data.find(i => i.id === editingId);
@@ -89,7 +94,11 @@ export default function Sugestoes() {
       }
       closeModal();
     } catch (err) {
+      console.error("Submit error:", err);
+      alert("Erro ao salvar sugestão. Tente novamente.");
       handleFirestoreError(err, OperationType.WRITE, 'sugestoes');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -105,6 +114,8 @@ export default function Sugestoes() {
       nome_completo: item.nome_completo || '',
       telefone: item.telefone || '',
       email: item.email || '',
+      endereco: item.endereco || '',
+      bairro: item.bairro || '',
       sugestao: item.sugestao || '',
       status: item.status || 'Nova',
       lembrete: item.lembrete || '',
@@ -194,7 +205,7 @@ export default function Sugestoes() {
                 </div>
                 <div>
                    <h3 className="font-bold text-slate-100">{item.nome_completo}</h3>
-                   <div className="flex items-center gap-1.5 text-slate-500">
+                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-500">
                       <span className="text-[10px] font-mono italic">{item.telefone}</span>
                       {item.telefone && (
                         <a 
@@ -206,6 +217,11 @@ export default function Sugestoes() {
                         >
                           <MessageCircle size={12} />
                         </a>
+                      )}
+                      {(item.endereco || item.bairro) && (
+                        <span className="text-[9px] text-slate-500 font-medium">
+                          • {item.endereco}{item.endereco && item.bairro ? ', ' : ''}{item.bairro}
+                        </span>
                       )}
                    </div>
                 </div>
@@ -263,6 +279,10 @@ export default function Sugestoes() {
                         <input value={formData.telefone} onChange={e => setFormData({...formData, telefone: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl py-4 px-4 focus:ring-2 focus:ring-blue-500/30" placeholder="Telefone" />
                         <input value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl py-4 px-4 focus:ring-2 focus:ring-blue-500/30" placeholder="E-mail" />
                      </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <input value={formData.endereco} onChange={e => setFormData({...formData, endereco: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl py-4 px-4 focus:ring-2 focus:ring-blue-500/30" placeholder="Endereço" />
+                        <input value={formData.bairro} onChange={e => setFormData({...formData, bairro: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl py-4 px-4 focus:ring-2 focus:ring-blue-500/30" placeholder="Bairro" />
+                     </div>
                      <div className="space-y-1">
                         <label className="text-[10px] font-bold uppercase text-slate-500">Status</label>
                         <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none appearance-none">
@@ -291,9 +311,22 @@ export default function Sugestoes() {
                      </p>
                   </div>
 
-                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20">
-                     <MessageCircle size={18} />
-                     {editingId ? 'Salvar Alterações' : 'Registrar Mensagem'}
+                  <button 
+                    type="submit" 
+                    disabled={submitting}
+                    className={cn(
+                      "w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20",
+                      submitting && "opacity-70 cursor-not-allowed"
+                    )}
+                  >
+                    {submitting ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <MessageCircle size={18} />
+                        {editingId ? 'Salvar Alterações' : 'Registrar Mensagem'}
+                      </>
+                    )}
                   </button>
                </form>
             </motion.div>
