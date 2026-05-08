@@ -40,6 +40,8 @@ export default function Sugestoes() {
   const [data, setData] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [searchPhone, setSearchPhone] = useState('');
   const [loading, setLoading] = useState(true);
 
   const initialForm = {
@@ -153,6 +155,15 @@ export default function Sugestoes() {
     }
   };
 
+  const filteredData = data.filter(item => {
+    const matchesSearch = item.nome_completo?.toLowerCase().includes(search.toLowerCase()) ||
+      item.sugestao?.toLowerCase().includes(search.toLowerCase());
+    
+    const matchesPhone = !searchPhone || item.telefone?.replace(/\D/g, '').includes(searchPhone.replace(/\D/g, ''));
+    
+    return matchesSearch && matchesPhone;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -172,12 +183,36 @@ export default function Sugestoes() {
         </button>
       </div>
 
+      {/* Search Bar */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -track-y-1/2 mt-0 text-slate-500" size={18} style={{ transform: 'translateY(-50%)' }} />
+          <input 
+            type="text" 
+            placeholder="Buscar por nome ou sugestão..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 md:py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all text-sm md:text-base text-white"
+          />
+        </div>
+        <div className="relative flex-1 max-w-xs">
+          <MessageCircle className="absolute left-3 top-1/2 -track-y-1/2 mt-0 text-slate-500" size={18} style={{ transform: 'translateY(-50%)' }} />
+          <input 
+            type="text" 
+            placeholder="Buscar por Telefone..."
+            value={searchPhone}
+            onChange={(e) => setSearchPhone(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 md:py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all text-sm md:text-base text-white"
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {loading ? (
           <div className="col-span-full py-20 text-center text-slate-500">Carregando sugestões...</div>
-        ) : data.length === 0 ? (
-          <div className="col-span-full py-20 text-center text-slate-600">Nenhuma sugestão registrada.</div>
-        ) : data.map((item) => (
+        ) : filteredData.length === 0 ? (
+          <div className="col-span-full py-20 text-center text-slate-600">Nenhuma sugestão encontrada.</div>
+        ) : filteredData.map((item) => (
           <motion.div 
             key={item.id}
             initial={{ opacity: 0, y: 10 }}

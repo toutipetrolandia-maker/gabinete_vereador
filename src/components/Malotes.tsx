@@ -148,8 +148,11 @@ export default function Malotes() {
                key={item.id}
                className="p-4 rounded-xl hover:bg-slate-800/50 transition-all group border border-transparent hover:border-slate-700 flex flex-col md:flex-row md:items-center gap-4"
              >
-                <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center font-mono text-xs text-amber-500">
-                  {item.protocolo || '#000'}
+                <div className="flex flex-col items-center justify-center px-4 py-2 bg-slate-900 border border-slate-700 rounded-2xl min-w-[100px] shadow-sm">
+                   <span className="text-[8px] font-bold uppercase text-slate-500 tracking-widest mb-0.5">Protocolo</span>
+                   <span className="font-mono text-[11px] text-amber-500 font-bold tracking-tight select-all">
+                      {item.protocolo || '#000'}
+                   </span>
                 </div>
                 <div className="flex-1">
                    <div className="flex items-center gap-2 mb-1">

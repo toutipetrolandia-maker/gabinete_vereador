@@ -40,6 +40,7 @@ export default function Demandas() {
   const [loading, setLoading] = useState(true);
 
   const initialForm = {
+    protocolo: '',
     assunto: '',
     orgao_responsavel: '',
     prioridade: 'Média',
@@ -103,6 +104,7 @@ export default function Demandas() {
   const handleEdit = (item: any) => {
     setEditingId(item.id);
     setFormData({
+      protocolo: item.protocolo || '',
       assunto: item.assunto || '',
       orgao_responsavel: item.orgao_responsavel || '',
       prioridade: item.prioridade || 'Média',
@@ -157,6 +159,12 @@ export default function Demandas() {
           >
              <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
+                   {item.protocolo && (
+                     <span className="text-[10px] font-mono bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2.5 py-1 rounded-lg font-bold shrink-0 shadow-sm shadow-purple-900/10">
+                       <span className="text-[8px] opacity-50 mr-1 font-black uppercase">id</span>
+                       {item.protocolo}
+                     </span>
+                   )}
                    <h3 className="font-bold text-slate-100">{item.assunto}</h3>
                    <span className={cn(
                      "text-[10px] px-2 py-0.5 rounded-full border uppercase font-bold",
@@ -236,9 +244,15 @@ export default function Demandas() {
                   </button>
                </div>
                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4">
-                  <div className="space-y-1">
-                     <label className="text-[10px] font-bold text-slate-500 uppercase">Assunto / Título</label>
-                     <input required value={formData.assunto} onChange={e => setFormData({...formData, assunto: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none" />
+                  <div className="grid grid-cols-3 gap-4">
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Nº Protocolo</label>
+                        <input value={formData.protocolo} onChange={e => setFormData({...formData, protocolo: e.target.value.toUpperCase()})} className="w-full bg-slate-800 rounded-xl p-3 border-none font-mono text-sm" placeholder="2024/001" />
+                     </div>
+                     <div className="space-y-1 col-span-2">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Assunto / Título</label>
+                        <input required value={formData.assunto} onChange={e => setFormData({...formData, assunto: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none" />
+                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                      <div className="space-y-1">

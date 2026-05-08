@@ -86,6 +86,7 @@ export default function Atendimentos() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [searchCPF, setSearchCPF] = useState('');
+  const [searchPhone, setSearchPhone] = useState('');
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -307,13 +308,15 @@ export default function Atendimentos() {
   const filteredData = data.filter(item => {
     const matchesSearch = item.nome_completo?.toLowerCase().includes(search.toLowerCase()) ||
       item.cpf?.includes(search) ||
+      item.telefone?.includes(search) ||
       item.descricao?.toLowerCase().includes(search.toLowerCase());
     
     const matchesCPF = !searchCPF || normalizeCPF(item.cpf || '').includes(normalizeCPF(searchCPF));
+    const matchesPhone = !searchPhone || item.telefone?.replace(/\D/g, '').includes(searchPhone.replace(/\D/g, ''));
     
     const matchesType = activeTypeFilter === 'Todos' || item.tipo_atendimento === activeTypeFilter;
     
-    return matchesSearch && matchesCPF && matchesType;
+    return matchesSearch && matchesCPF && matchesPhone && matchesType;
   });
 
   return (
@@ -398,6 +401,16 @@ export default function Atendimentos() {
               className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 md:py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all text-sm md:text-base font-mono"
             />
           </div>
+          <div className="relative flex-1 max-w-xs">
+            <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+            <input 
+              type="text" 
+              placeholder="Buscar por Telefone..."
+              value={searchPhone}
+              onChange={(e) => setSearchPhone(maskPhone(e.target.value))}
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 md:py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all text-sm md:text-base"
+            />
+          </div>
           {viewMode === 'calendar' && (
             <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-2 py-1">
               <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors">
@@ -448,7 +461,8 @@ export default function Atendimentos() {
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-slate-200">{item.nome_completo}</span>
                           {item.protocolo && (
-                            <span className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded font-mono font-bold">
+                            <span className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600/10 text-blue-400 border border-blue-500/20 rounded-lg font-mono text-[10px] font-bold shadow-sm shadow-blue-900/10">
+                              <span className="text-[8px] opacity-50 uppercase tracking-widest font-black">prot</span>
                               {item.protocolo}
                             </span>
                           )}

@@ -290,7 +290,14 @@ export default function Dashboard() {
               {recent.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-800/50 transition-colors">
                   <td className="px-6 py-4">
-                    <span className="text-sm font-medium text-slate-200">{item.nome_completo}</span>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-slate-200">{item.nome_completo}</span>
+                      {item.protocolo && (
+                        <span className="text-[9px] font-mono text-blue-400 opacity-70">
+                          {item.protocolo}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-xs px-2 py-1 bg-slate-800 rounded-md text-slate-300">{item.tipo_atendimento}</span>

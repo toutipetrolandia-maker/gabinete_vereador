@@ -44,6 +44,9 @@ export default function AtendimentosMedicos() {
   const [data, setData] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [searchCPF, setSearchCPF] = useState('');
+  const [searchPhone, setSearchPhone] = useState('');
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -363,6 +366,18 @@ export default function AtendimentosMedicos() {
     }
   };
 
+  const filteredData = data.filter(item => {
+    const matchesSearch = item.nome_completo?.toLowerCase().includes(search.toLowerCase()) ||
+      item.cpf?.includes(search) ||
+      item.telefone?.includes(search) ||
+      item.descricao_problema?.toLowerCase().includes(search.toLowerCase());
+    
+    const matchesCPF = !searchCPF || item.cpf?.replace(/\D/g, '').includes(searchCPF.replace(/\D/g, ''));
+    const matchesPhone = !searchPhone || item.telefone?.replace(/\D/g, '').includes(searchPhone.replace(/\D/g, ''));
+    
+    return matchesSearch && matchesCPF && matchesPhone;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -384,15 +399,49 @@ export default function AtendimentosMedicos() {
         )}
       </div>
 
+      {/* Search Bar */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -track-y-1/2 mt-0 text-slate-500" size={18} style={{ transform: 'translateY(-50%)' }} />
+          <input 
+            type="text" 
+            placeholder="Buscar por nome ou diagnóstico..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 md:py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-emerald-600/50 transition-all text-sm md:text-base text-white"
+          />
+        </div>
+        <div className="relative flex-1 max-w-xs">
+          <User className="absolute left-3 top-1/2 -track-y-1/2 mt-0 text-slate-500" size={18} style={{ transform: 'translateY(-50%)' }} />
+          <input 
+            type="text" 
+            placeholder="Buscar por CPF..."
+            value={searchCPF}
+            onChange={(e) => setSearchCPF(maskCPF(e.target.value))}
+            className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 md:py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-emerald-600/50 transition-all text-sm md:text-base font-mono text-white"
+          />
+        </div>
+        <div className="relative flex-1 max-w-xs">
+          <MessageCircle className="absolute left-3 top-1/2 -track-y-1/2 mt-0 text-slate-500" size={18} style={{ transform: 'translateY(-50%)' }} />
+          <input 
+            type="text" 
+            placeholder="Buscar por Telefone..."
+            value={searchPhone}
+            onChange={(e) => setSearchPhone(maskPhone(e.target.value))}
+            className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 md:py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-emerald-600/50 transition-all text-sm md:text-base text-white"
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
           <div className="col-span-full py-20 text-center text-slate-500">Buscando registros...</div>
-        ) : data.length === 0 ? (
+        ) : filteredData.length === 0 ? (
           <div className="col-span-full py-20 text-center flex flex-col items-center gap-4 text-slate-500">
             <ClipboardList size={40} className="text-slate-800" />
-            <p>Nenhum atendimento médico registrado.</p>
+            <p>Nenhum atendimento médico encontrado.</p>
           </div>
-        ) : data.map((item) => (
+        ) : filteredData.map((item) => (
           <motion.div 
             key={item.id}
             initial={{ opacity: 0, scale: 0.98 }}
