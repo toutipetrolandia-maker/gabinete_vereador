@@ -88,6 +88,8 @@ service cloud.firestore {
         // User can update their own status (online/offline)
         (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'last_seen']))
       );
+
+      allow delete: if isAdmin() || isVereador();
     }
 
     // ATENDIMENTOS (GENERIC)

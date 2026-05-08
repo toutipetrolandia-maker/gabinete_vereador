@@ -21,7 +21,8 @@ import {
   Download,
   Save,
   Fingerprint,
-  ShieldAlert
+  ShieldAlert,
+  MessageSquare
 } from 'lucide-react';
 import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, addDoc, setDoc, deleteDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -251,8 +252,10 @@ export default function Settings() {
       await logAction('Desligamento (Exclusão)', 'users', id, { 
         previous: { nome, status: 'Removido Permanentemente' } 
       });
-    } catch (err) {
+      alert("Usuário removido com sucesso.");
+    } catch (err: any) {
       console.error("Erro ao excluir usuário:", err);
+      alert("Erro ao excluir usuário: " + (err.message || String(err)));
     }
   };
 
@@ -1046,6 +1049,28 @@ export default function Settings() {
                     Agenda
                   </h3>
                   <p>Gerencie os compromissos do Vereador. Você pode Adiar (para o dia seguinte), Remarcar (editar detalhes) ou Excluir eventos diretamente da visualização semanal.</p>
+                </section>
+
+                <section className="col-span-full pt-6 border-t border-slate-800 space-y-4">
+                  <h3 className="text-emerald-400 font-bold flex items-center gap-3 text-xl">
+                    <MessageSquare size={24} />
+                    Suporte Técnico
+                  </h3>
+                  <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
+                     <div className="space-y-2">
+                        <p className="text-slate-300">Precisa de ajuda ou encontrou algum problema?</p>
+                        <p className="text-xs text-slate-500">Estamos disponíveis para suporte técnico e atualizações do sistema.</p>
+                     </div>
+                     <a 
+                       href="https://wa.me/5575988017239" 
+                       target="_blank" 
+                       rel="noopener noreferrer"
+                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 px-8 rounded-2xl shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-3 w-full md:w-auto justify-center"
+                     >
+                        <MessageSquare size={20} />
+                        Suporte no WhatsApp
+                     </a>
+                  </div>
                 </section>
               </div>
             </motion.div>

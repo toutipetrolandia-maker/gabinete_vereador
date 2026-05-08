@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, deleteDoc, getDocFromServer } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
 interface UserProfile {
@@ -35,15 +35,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const testConnection = async () => {
       try {
-        await getDoc(doc(db, '_connection_test', 'ping'));
+        console.log("Testing Firestore connection...");
+        const docRef = doc(db, '_connection_test', 'ping');
+        await getDocFromServer(docRef);
+        console.log("Firestore connection: OK");
+        setIsOnline(true);
       } catch (error: any) {
-        if (error?.message?.includes('offline')) {
-          console.error("Firebase is offline. Check configuration.");
+        console.warn("Firestore connection check failed:", error.code, error.message);
+        // "unavailable" or "offline" in message indicates real network issues with Firestore
+        if (error?.message?.includes('offline') || error?.code === 'unavailable' || error?.code === 'deadline-exceeded') {
           setIsOnline(false);
+        } else {
+          // If it's a permission error (e.g. 403) or document not found, we are online
+          setIsOnline(navigator.onLine);
         }
       }
     };
     testConnection();
+
+    // Re-check every 30 seconds if we are offline
+    const interval = setInterval(() => {
+      if (!isOnline && navigator.onLine) {
+        testConnection();
+      }
+    }, 30000);
 
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
       try {
@@ -80,26 +95,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               next: { login_metodo: user.providerData[0]?.providerId || 'google' }
             });
           } else {
-            // First time user? Let's check if we should create a profile
-            const isInitialAdmin = user.email === 'toutipetrolandia@gmail.com' || user.email === 'cleciotecnologia@gmail.com';
-            const newProfile: UserProfile = {
-              nome: user.displayName || 'Novo Usuário',
-              email: user.email || '',
-              role: isInitialAdmin ? 'admin' : 'consulta',
-              ativo: isInitialAdmin ? true : false,
-              status: 'online'
-            };
+            // Check if there is a pre-created profile with the same email
+            const { collection, query, where, getDocs, deleteDoc } = await import('firebase/firestore');
+            const q = query(collection(db, 'users'), where('email', '==', user.email));
+            const querySnap = await getDocs(q);
             
-            try {
+            if (!querySnap.empty) {
+              // Found a pre-created user! Migrate it to use the UID as ID
+              const preCreatedDoc = querySnap.docs[0];
+              const preCreatedData = preCreatedDoc.data();
+              
               await setDoc(docRef, {
-                ...newProfile,
-                created_at: serverTimestamp(),
-                last_seen: serverTimestamp()
+                ...preCreatedData,
+                status: 'online',
+                last_seen: serverTimestamp(),
+                updated_at: serverTimestamp(),
+                migrated_from: preCreatedDoc.id // Track migration
               });
-              setProfile(newProfile);
-            } catch (e) {
-              console.error("Erro ao criar perfil inicial:", e);
-              setProfile(newProfile);
+              
+              // Only delete if it's a different ID
+              if (preCreatedDoc.id !== user.uid) {
+                await deleteDoc(preCreatedDoc.ref);
+              }
+              
+              setProfile(preCreatedData as UserProfile);
+              
+              const { logAction } = await import('../lib/audit');
+              await logAction('Migração de Perfil', 'users', user.uid, {
+                next: { mensagem: 'Perfil pré-criado vinculado ao UID do Firebase.' }
+              });
+            } else {
+              // First time user? Let's check if we should create a profile
+              const isInitialAdmin = user.email === 'toutipetrolandia@gmail.com' || user.email === 'cleciotecnologia@gmail.com';
+              const newProfile: UserProfile = {
+                nome: user.displayName || 'Novo Usuário',
+                email: user.email || '',
+                role: isInitialAdmin ? 'admin' : 'consulta',
+                ativo: isInitialAdmin ? true : false,
+                status: 'online'
+              };
+              
+              try {
+                await setDoc(docRef, {
+                  ...newProfile,
+                  created_at: serverTimestamp(),
+                  last_seen: serverTimestamp()
+                });
+                setProfile(newProfile);
+              } catch (e) {
+                console.error("Erro ao criar perfil inicial:", e);
+                setProfile(newProfile);
+              }
             }
           }
         } else {
@@ -118,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      clearInterval(interval);
       unsubAuth();
     };
   }, []);

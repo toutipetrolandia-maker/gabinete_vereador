@@ -530,6 +530,7 @@ export default function AtendimentosMedicos() {
                                 <option>Novo</option>
                                 <option>Em andamento</option>
                                 <option>Concluído</option>
+                                <option>Encaminhado</option>
                             </select>
                         </div>
                      </div>

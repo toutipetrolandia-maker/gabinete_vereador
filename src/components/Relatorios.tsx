@@ -8,7 +8,8 @@ import {
   CheckCircle2,
   Calendar,
   MapPin,
-  ExternalLink
+  ExternalLink,
+  Map as MapIcon
 } from 'lucide-react';
 import { collection, query, getDocs, orderBy, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -150,6 +151,105 @@ export default function Relatorios() {
     }
   };
 
+  const exportBairroReport = async () => {
+    try {
+      setLoading(true);
+      const doc = new jsPDF();
+      const now = new Date();
+      
+      // Header
+      doc.setFontSize(22);
+      doc.setTextColor(30, 41, 59);
+      doc.text('Relatório de Atendimentos por Bairro', 14, 20);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Período: ${dateRange.start ? format(new Date(dateRange.start + 'T00:00:00'), "dd/MM/yy") : 'Início'} até ${dateRange.end ? format(new Date(dateRange.end + 'T00:00:00'), "dd/MM/yy") : 'Hoje'}`, 14, 28);
+      doc.text(`Gerado em: ${format(now, "dd/MM/yyyy HH:mm")}`, 14, 33);
+
+      // Grouping logic
+      const groupedData: Record<string, { count: number; items: any[] }> = {};
+      
+      filteredData.forEach(item => {
+        const b = item.bairro || 'Não Informado';
+        if (!groupedData[b]) {
+          groupedData[b] = { count: 0, items: [] };
+        }
+        groupedData[b].count++;
+        groupedData[b].items.push(item);
+      });
+
+      // Sort neighborhoods by count (descending)
+      const sortedBairros = Object.entries(groupedData).sort((a, b) => b[1].count - a[1].count);
+
+      let currentY = 45;
+
+      // Overview Table
+      doc.setFontSize(14);
+      doc.setTextColor(59, 130, 246);
+      doc.text('Resumo de Atendimentos', 14, currentY);
+      
+      autoTable(doc, {
+        startY: currentY + 5,
+        head: [['Bairro', 'Total de Atendimentos']],
+        body: sortedBairros.map(([b, info]) => [b, info.count]),
+        theme: 'striped',
+        headStyles: { fillColor: [30, 41, 59] },
+        margin: { bottom: 20 }
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 15;
+
+      // Detailed Sections for each Bairro
+      sortedBairros.forEach(([b, info], index) => {
+        if (currentY > 240) {
+          doc.addPage();
+          currentY = 20;
+        }
+
+        doc.setFontSize(12);
+        doc.setTextColor(30, 41, 59);
+        doc.setFont("helvetica", "bold");
+        doc.text(`${index + 1}. Bairro: ${b} (${info.count} atendimentos)`, 14, currentY);
+        doc.setFont("helvetica", "normal");
+        
+        // Filter high priority items for this bairro
+        const highPriority = info.items.filter(item => 
+          item.prioridade === 'Urgente' || item.prioridade === 'Alto' || item.prioridade === 'Alta'
+        );
+
+        if (highPriority.length > 0) {
+          autoTable(doc, {
+            startY: currentY + 5,
+            head: [['Nome / Assunto', 'Prioridade', 'Status', 'Data']],
+            body: highPriority.map(item => [
+              item.nome_completo || item.assunto || '-',
+              item.prioridade || '-',
+              item.status || '-',
+              item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-'
+            ]),
+            theme: 'grid',
+            headStyles: { fillColor: [220, 38, 38] }, // Red header for priority
+            styles: { fontSize: 8 },
+            margin: { left: 20 }
+          });
+          currentY = (doc as any).lastAutoTable.finalY + 12;
+        } else {
+          doc.setFontSize(9);
+          doc.setTextColor(150);
+          doc.text('Nenhum atendimento de alta prioridade registrado neste bairro.', 20, currentY + 8);
+          currentY += 18;
+        }
+      });
+
+      doc.save(`atendimentos_por_bairro_${format(now, "yyyyMMdd")}.pdf`);
+    } catch (err) {
+      console.error("Error generating neighborhood report:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <header>
@@ -190,8 +290,9 @@ export default function Relatorios() {
                     >
                        <option>Todos</option>
                        <option>Novo</option>
-                       <option>Em Andamento</option>
+                       <option>Em andamento</option>
                        <option>Concluído</option>
+                       <option>Encaminhado</option>
                        <option>Cancelado</option>
                     </select>
                  </div>
@@ -274,6 +375,17 @@ export default function Relatorios() {
                     {loading ? <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" /> : <FileDown size={18} />}
                     {loading ? 'Processando...' : 'Exportar para PDF'}
                  </button>
+
+                 {filterType === 'atendimentos' && (
+                   <button 
+                     onClick={exportBairroReport}
+                     disabled={loading || filteredData.length === 0}
+                     className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 mt-2 shadow-lg shadow-indigo-900/20"
+                   >
+                      <MapIcon size={18} />
+                      Relatório por Bairro
+                   </button>
+                 )}
               </div>
            </div>
 
@@ -348,7 +460,10 @@ export default function Relatorios() {
                                  <td className="px-6 py-4">
                                     <span className={cn(
                                       "text-[10px] px-2 py-0.5 rounded-full border",
-                                      item.status === 'Concluído' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-slate-800 text-slate-400 border-slate-700"
+                                      item.status === 'Concluído' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : 
+                                      item.status === 'Encaminhado' ? "bg-purple-500/10 text-purple-400 border-purple-500/20" :
+                                      item.status === 'Em andamento' ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                                      "bg-slate-800 text-slate-400 border-slate-700"
                                     )}>
                                        {item.status}
                                     </span>
@@ -362,7 +477,13 @@ export default function Relatorios() {
                                <>
                                  <td className="px-6 py-4 text-xs text-slate-300 font-medium">{item.nome_completo || item.assunto || '-'}</td>
                                  <td className="px-6 py-4">
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                                    <span className={cn(
+                                       "text-[10px] px-2 py-0.5 rounded-full border",
+                                       item.status === 'Concluído' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : 
+                                       item.status === 'Encaminhado' ? "bg-purple-500/10 text-purple-400 border-purple-500/20" :
+                                       item.status === 'Em andamento' ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                                       "bg-slate-800 text-slate-400 border-slate-700"
+                                     )}>
                                        {item.status}
                                     </span>
                                  </td>

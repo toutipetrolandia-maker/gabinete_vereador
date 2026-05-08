@@ -146,7 +146,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
           </div>
           <div className="pt-4 border-t border-slate-800">
             <p className="text-xs text-slate-500 italic mb-6">
-              Entre em contato com o suporte técnico para normalizar seu acesso.
+              Para normalizar seu acesso, entre em contato com o suporte técnico no WhatsApp: <a href="https://wa.me/5575988017239" target="_blank" rel="noopener noreferrer" className="text-red-400 font-bold hover:underline">(75) 98801-7239</a>
             </p>
             <button 
               onClick={handleLogout}

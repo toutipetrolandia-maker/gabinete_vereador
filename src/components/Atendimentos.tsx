@@ -473,12 +473,14 @@ export default function Atendimentos() {
                             "w-1.5 h-1.5 rounded-full",
                             item.status === 'Concluído' ? "bg-emerald-400" :
                             item.status === 'Novo' ? "bg-blue-400" :
+                            item.status === 'Encaminhado' ? "bg-purple-400" :
                             "bg-amber-400"
                           )} />
                           <span className={cn(
                             "text-xs font-medium",
                             item.status === 'Concluído' ? "text-emerald-400" :
                             item.status === 'Novo' ? "text-blue-400" :
+                            item.status === 'Encaminhado' ? "text-purple-400" :
                             "text-amber-400"
                           )}>{item.status}</span>
                         </div>
@@ -587,6 +589,7 @@ export default function Atendimentos() {
                             "group cursor-pointer px-2 py-1 rounded-md border text-[10px] font-medium transition-all hover:translate-x-1",
                             item.status === 'Concluído' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20" :
                             item.status === 'Novo' ? "bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20" :
+                            item.status === 'Encaminhado' ? "bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20" :
                             "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20"
                           )}
                         >
