@@ -27,6 +27,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import NotificationCenter from './NotificationCenter';
+import { AIAssistant } from './AIAssistant';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -323,6 +324,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
           {children}
         </div>
       </main>
+      <AIAssistant />
     </div>
   );
 }

@@ -127,13 +127,13 @@ export default function Agenda() {
 
       if (editingId) {
         await updateDoc(doc(db, 'agenda_vereador', editingId), eventData);
-        await logAction('Atualizar', 'agenda_vereador', editingId, eventData);
+        await logAction('Atualizar', 'agenda_vereador', editingId, { next: eventData });
       } else {
         const docRef = await addDoc(collection(db, 'agenda_vereador'), {
           ...eventData,
           created_at: serverTimestamp()
         });
-        await logAction('Criar', 'agenda_vereador', docRef.id, eventData);
+        await logAction('Criar', 'agenda_vereador', docRef.id, { next: eventData });
       }
 
       setShowModal(false);
