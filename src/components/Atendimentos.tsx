@@ -139,14 +139,16 @@ export default function Atendimentos() {
   const [formData, setFormData] = useState(initialForm);
 
   const fetchMedicalHistory = async (cpf: string) => {
+    const maskedCPF = maskCPF(cpf);
     const cleanCPF = cpf.replace(/\D/g, '');
     if (cleanCPF.length < 11) return;
     
     setSearchingMedical(true);
     try {
+      // Search for both masked and potentially unmasked (standardizing on masked since that's what the UI saves)
       const q = query(
         collection(db, 'atendimentos_medicos'), 
-        where('cpf', '==', cleanCPF), 
+        where('cpf', '==', maskedCPF), 
         orderBy('created_at', 'desc')
       );
       const querySnapshot = await getDocs(q);
@@ -640,6 +642,31 @@ export default function Atendimentos() {
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
+                      {/* Mobile Medical History Alert */}
+                      {medicalHistory.length > 0 && (
+                        <div className="md:hidden bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl flex items-center justify-between gap-4">
+                           <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                                 <Stethoscope size={16} className="text-emerald-400" />
+                              </div>
+                              <div className="flex flex-col">
+                                 <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Histórico Médico Encontrado</span>
+                                 <span className="text-[10px] text-slate-400">{medicalHistory.length} registros anteriores vinculados</span>
+                              </div>
+                           </div>
+                           <button 
+                             type="button"
+                             onClick={() => {
+                               const el = document.getElementById('mobile-history-section');
+                               el?.scrollIntoView({ behavior: 'smooth' });
+                             }}
+                             className="bg-emerald-600 text-white p-2 rounded-xl"
+                           >
+                             <History size={18} />
+                           </button>
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2 col-span-2">
                           <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider flex items-center justify-between">
@@ -701,13 +728,17 @@ export default function Atendimentos() {
                               onChange={e => {
                                 const val = maskCPF(e.target.value);
                                 setFormData({...formData, cpf: val});
-                                if (val.replace(/\D/g, '').length === 11) fetchMedicalHistory(val);
+                                if (val.replace(/\D/g, '').length === 11) {
+                                  fetchMedicalHistory(val);
+                                } else {
+                                  setMedicalHistory([]);
+                                }
                               }}
                               className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors pr-10"
                               placeholder="000.000.000-00"
                             />
                             {searchingMedical && (
-                              <div className="absolute right-3 top-1/2 -track-y-1/2 mt-0.5">
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2 mt-0.5">
                                 <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                               </div>
                             )}
@@ -875,6 +906,40 @@ export default function Atendimentos() {
                   </button>
                 </div>
               </form>
+
+              {/* Mobile: Dedicated section for Medical History at bottom */}
+              {medicalHistory.length > 0 && (
+                <div id="mobile-history-section" className="md:hidden mt-8 pt-6 border-t border-slate-800 space-y-4 pb-20">
+                   <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
+                     <Stethoscope size={14} className="text-emerald-500" />
+                     Histórico Médico Completo
+                   </h3>
+                  <div className="space-y-3">
+                    {medicalHistory.map((h) => (
+                      <div key={h.id} className="bg-slate-950 border border-slate-800 p-4 rounded-2xl">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[9px] font-bold text-slate-500">
+                            {h.created_at?.toDate ? format(h.created_at.toDate(), 'dd/MM/yyyy HH:mm') : '...'}
+                          </span>
+                          <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-black uppercase">
+                            {h.especialidade}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-300 italic mb-2">"{h.descricao_problema}"</p>
+                        <div className="flex items-center justify-between text-[9px] text-slate-500">
+                           <span className="flex items-center gap-1 font-bold">
+                              <User size={10} />
+                              Atendido por: {h.usuario_nome?.split(' ')[0]}
+                           </span>
+                           <span className="bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 font-bold uppercase tracking-tight">
+                              {h.status}
+                           </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right: Medical History Sidebar */}

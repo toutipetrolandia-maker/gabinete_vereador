@@ -29,7 +29,8 @@ import {
   ExternalLink,
   Glasses,
   Printer,
-  ChevronRight
+  ChevronRight,
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -102,15 +103,16 @@ export default function AtendimentosMedicos() {
 
   // Function to search general assistance data by CPF
   const searchCitizenData = async (cpf: string) => {
+    const maskedCPF = maskCPF(cpf);
     const cleanCPF = cpf.replace(/\D/g, '');
     if (cleanCPF.length < 11) return;
     
     setSearchingCitizen(true);
     try {
-      // Find in general assistances
+      // Find in general assistances using masked CPF
       const q = query(
         collection(db, 'atendimentos'), 
-        where('cpf', '==', cleanCPF), 
+        where('cpf', '==', maskedCPF), 
         orderBy('created_at', 'desc')
       );
       const querySnapshot = await getDocs(q);
@@ -194,66 +196,110 @@ export default function AtendimentosMedicos() {
         <head>
           <title>Recibo de Entrega - Gabinete Digital</title>
           <style>
-            body { font-family: sans-serif; padding: 40px; color: #333; }
-            .header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 40px; }
-            .content { line-height: 1.6; }
-            .field { margin-bottom: 15px; }
-            .label { font-weight: bold; text-transform: uppercase; font-size: 10px; color: #666; letter-spacing: 1px; }
-            .value { font-size: 16px; border-bottom: 1px solid #eee; display: block; padding: 5px 0; margin-top: 4px; min-height: 24px; }
-            .signature { margin-top: 100px; text-align: center; }
-            .signature-line { border-top: 1px solid #333; width: 350px; margin: 0 auto; padding-top: 10px; }
-            .footer { margin-top: 50px; font-size: 10px; text-align: center; color: #999; }
-            @media print { .no-print { display: none; } }
+            @page { size: A4; margin: 0; }
+            body { font-family: 'Inter', system-ui, -apple-system, sans-serif; padding: 50px; color: #1e293b; background: white; }
+            .container { max-width: 800px; margin: 0 auto; border: 1px solid #e2e8f0; padding: 40px; border-radius: 8px; }
+            .header { text-align: center; border-bottom: 2px solid #334155; padding-bottom: 20px; margin-bottom: 40px; }
+            .header h1 { margin: 0; font-size: 20px; color: #0f172a; text-transform: uppercase; letter-spacing: 2px; }
+            .header p { margin: 5px 0 0; color: #64748b; font-size: 12px; font-weight: 600; }
+            .receipt-id { text-align: right; font-size: 10px; color: #94a3b8; margin-bottom: 20px; font-family: monospace; }
+            .section { margin-bottom: 30px; }
+            .section-title { font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; margin-bottom: 15px; }
+            .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+            .field { margin-bottom: 10px; }
+            .label { font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 2px; display: block; }
+            .value { font-size: 14px; font-weight: 500; color: #1e293b; padding-bottom: 4px; border-bottom: 1px dashed #e2e8f0; min-height: 20px; display: block; }
+            .prescription-box { background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin: 20px 0; }
+            .prescription-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; text-align: center; }
+            .declaration { margin-top: 40px; font-size: 13px; line-height: 1.6; color: #475569; text-align: justify; }
+            .signature-area { margin-top: 80px; display: grid; grid-template-columns: 1fr 1fr; gap: 50px; }
+            .signature-box { text-align: center; }
+            .line { border-top: 1px solid #334155; margin-bottom: 8px; }
+            .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid #f1f5f9; font-size: 9px; text-align: center; color: #94a3b8; }
+            .btn-print { margin-top: 40px; text-align: center; }
+            .btn-print button { background: #0f172a; color: white; border: none; padding: 12px 32px; border-radius: 6px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+            .btn-print button:hover { background: #334155; }
+            @media print { .no-print { display: none; } body { padding: 30px; } .container { border: none; } }
           </style>
         </head>
         <body>
-          <div class="header">
-            <h1 style="margin: 0; font-size: 24px;">RECIBO DE ENTREGA DE ÓCULOS</h1>
-            <p style="margin: 5px 0 0; color: #666;">Sistema Gestor Parlamentar - Ações de Saúde</p>
-          </div>
-          <div class="content">
-            <div class="field">
-              <span class="label">Beneficiário</span>
-              <span class="value">${atendimento.nome_completo}</span>
-            </div>
-            <div class="field" style="display: flex; gap: 40px;">
-              <div style="flex: 1;">
-                 <span class="label">CPF</span>
-                 <span class="value">${atendimento.cpf || '---'}</span>
-              </div>
-              <div style="flex: 1;">
-                 <span class="label">Data de Entrega</span>
-                 <span class="value">${atendimento.data_entrega_oculos ? format(new Date(atendimento.data_entrega_oculos + 'T12:00:00'), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</span>
-              </div>
-            </div>
-            <div class="field" style="display: flex; gap: 40px; margin-top: 20px;">
-              <div style="flex: 1; background: #f9f9f9; padding: 15px; border-radius: 8px;">
-                <span class="label">Grau Olho Direito (OD)</span>
-                <span class="value" style="border: none;">${atendimento.grau_od || 'Não informado'}</span>
-              </div>
-              <div style="flex: 1; background: #f9f9f9; padding: 15px; border-radius: 8px;">
-                <span class="label">Grau Olho Esquerdo (OE)</span>
-                <span class="value" style="border: none;">${atendimento.grau_oe || 'Não informado'}</span>
-              </div>
-            </div>
-            <div class="field" style="margin-top: 20px;">
-              <span class="label">Observações Clínicas / Especialidade</span>
-              <span class="value">${atendimento.especialidade} - ${atendimento.unidade_saude}</span>
+          <div class="container">
+            <div class="receipt-id">REF: ${atendimento.id.substring(0, 8).toUpperCase()}</div>
+            <div class="header">
+              <h1>Recibo de Entrega de Óculos</h1>
+              <p>Gabinete Parlamentar - Departamento de Assistência Social e Saúde</p>
             </div>
 
-            <p style="margin-top: 60px; font-size: 14px;">Declaro para os devidos fins que recebi nesta data o óculos completo, com armação e lentes conforme prescrição médica, em perfeitas condições de uso.</p>
-
-            <div class="signature">
-              <div class="signature-line">Assinatura do Beneficiário</div>
-              <p style="font-size: 13px; font-weight: bold; margin-top: 5px;">${atendimento.nome_completo}</p>
-              <p style="font-size: 11px; color: #777;">${atendimento.cpf || ''}</p>
+            <div class="section">
+              <div class="section-title">Dados do Beneficiário</div>
+              <div class="field">
+                <span class="label">Paciente / Beneficiário</span>
+                <span class="value">${atendimento.nome_completo}</span>
+              </div>
+              <div class="grid">
+                <div class="field">
+                  <span class="label">CPF</span>
+                  <span class="value">${atendimento.cpf || '---'}</span>
+                </div>
+                <div class="field">
+                  <span class="label">Telefone</span>
+                  <span class="value">${atendimento.telefone || '---'}</span>
+                </div>
+                <div class="field">
+                  <span class="label">Endereço / Bairro</span>
+                  <span class="value">${atendimento.endereco ? `${atendimento.endereco}, ` : ''}${atendimento.bairro || ''}</span>
+                </div>
+                <div class="field">
+                  <span class="label">Data de Entrega</span>
+                  <span class="value">${atendimento.data_entrega_oculos ? format(new Date(atendimento.data_entrega_oculos + 'T12:00:00'), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}</span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="footer">
-            Documento emitido digitalmente em ${format(new Date(), 'dd/MM/yyyy HH:mm')}
-          </div>
-          <div class="no-print" style="margin-top: 60px; text-align: center;">
-            <button onclick="window.print()" style="padding: 12px 30px; cursor: pointer; background: #10b981; color: white; border: none; border-radius: 6px; font-weight: bold;">IMPRIMIR RECIBO AGORA</button>
+
+            <div class="section">
+              <div class="section-title">Especificações Técnicas (Lentes)</div>
+              <div class="prescription-box">
+                <div class="prescription-grid">
+                  <div>
+                    <span class="label" style="color: #64748b">Olho Direito (OD)</span>
+                    <span style="font-size: 24px; font-weight: 800; color: #0f172a;">${atendimento.grau_od || 'PLANO'}</span>
+                  </div>
+                  <div>
+                    <span class="label" style="color: #64748b">Olho Esquerdo (OE)</span>
+                    <span style="font-size: 24px; font-weight: 800; color: #0f172a;">${atendimento.grau_oe || 'PLANO'}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="field">
+                <span class="label">Unidade de Saúde / Especialidade</span>
+                <span class="value">${atendimento.unidade_saude || 'Não informada'} - ${atendimento.especialidade}</span>
+              </div>
+            </div>
+
+            <div class="declaration">
+              Declaro para os devidos fins que recebi nesta data o item acima descrito (óculos completo com armação e lentes) conforme prescrição médica apresentada, em perfeitas condições de uso e acabamento, nada tendo a reclamar quanto à qualidade do material entregue.
+            </div>
+
+            <div class="signature-area">
+              <div class="signature-box">
+                <div class="line"></div>
+                <span class="label">Responsável pela Entrega</span>
+                <span style="font-size: 11px; font-weight: bold;">Gabinete Parlamentar</span>
+              </div>
+              <div class="signature-box">
+                <div class="line"></div>
+                <span class="label">Assinatura do Beneficiário</span>
+                <span style="font-size: 11px; font-weight: bold;">${atendimento.nome_completo}</span>
+              </div>
+            </div>
+
+            <div class="footer">
+              Este documento foi gerado pelo Sistema de Gestão de Gabinete em ${format(new Date(), 'dd/MM/yyyy HH:mm:ss')} por ${user?.email || 'Sistema'}.
+            </div>
+            
+            <div class="btn-print no-print">
+              <button onclick="window.print()">IMPRIMIR DOCUMENTO</button>
+            </div>
           </div>
         </body>
       </html>
@@ -395,12 +441,17 @@ export default function AtendimentosMedicos() {
                <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed">
                  {item.descricao_problema}
                </p>
-               {item.lembrete_exame && (
+               {item.lembrete_exame ? (
                   <div className="flex items-center gap-2 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20 w-fit">
                     <Clock size={10} />
                     <span>Lembrete: Exame em {format(new Date(item.lembrete_exame + 'T12:00:00'), 'dd/MM/yyyy')}</span>
                   </div>
-               )}
+               ) : item.necessita_exame ? (
+                  <div className="flex items-center gap-2 text-[10px] text-amber-400 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20 w-fit animate-pulse">
+                    <Clock size={10} />
+                    <span>Atenção: Necessita exame s/ data definida</span>
+                  </div>
+               ) : null}
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-slate-800">
@@ -414,10 +465,11 @@ export default function AtendimentosMedicos() {
                       e.stopPropagation();
                       handlePrintReceipt(item);
                     }}
-                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 rounded-lg transition-all"
+                    className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-all border border-emerald-500/20 group/print"
                     title="Imprimir Recibo de Entrega"
                   >
-                    <Printer size={14} />
+                    <Printer size={12} className="group-hover/print:scale-110 transition-transform" />
+                    <span className="text-[10px] font-bold uppercase tracking-tight">Recibo</span>
                   </button>
                 )}
               </div>
@@ -446,6 +498,31 @@ export default function AtendimentosMedicos() {
                     </div>
                     
                     <form onSubmit={handleSubmit} className="space-y-6">
+                       {/* Mobile Alert for History */}
+                       {citizenHistory.length > 0 && (
+                         <div className="md:hidden bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                               <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                  <History size={16} className="text-blue-400" />
+                               </div>
+                               <div className="flex flex-col">
+                                  <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Histórico Geral Encontrado</span>
+                                  <span className="text-[10px] text-slate-400">{citizenHistory.length} atendimentos registrados</span>
+                               </div>
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                const el = document.getElementById('mobile-history-citizen');
+                                el?.scrollIntoView({ behavior: 'smooth' });
+                              }}
+                              className="bg-blue-600 text-white p-2 rounded-xl"
+                            >
+                              <ChevronRight size={18} />
+                            </button>
+                         </div>
+                       )}
+
                        <div className="space-y-4">
                           <div className="space-y-1">
                              <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Nome do Paciente</label>
@@ -611,8 +688,21 @@ export default function AtendimentosMedicos() {
                         </div>
                         {formData.necessita_exame && (
                           <div className="space-y-1">
-                             <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Data do Lembrete (Exame)</label>
-                             <input type="date" value={formData.lembrete_exame} onChange={e => setFormData({...formData, lembrete_exame: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50 [color-scheme:dark]" />
+                             <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider flex items-center justify-between">
+                                <span>Data do Lembrete (Exame)</span>
+                                {!formData.lembrete_exame && (
+                                   <span className="text-[9px] text-amber-400 animate-pulse lowercase font-bold">Sugestão: Adicione uma data</span>
+                                )}
+                             </label>
+                             <input type="date" value={formData.lembrete_exame} onChange={e => setFormData({...formData, lembrete_exame: e.target.value})} className={cn(
+                               "w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50 [color-scheme:dark] transition-all",
+                               !formData.lembrete_exame && "ring-1 ring-amber-500/30"
+                             )} />
+                             {!formData.lembrete_exame && (
+                               <p className="text-[9px] text-slate-500 mt-1 leading-tight">
+                                 É altamente recomendável definir uma data para que o sistema possa monitorar este encaminhamento.
+                               </p>
+                             )}
                           </div>
                         )}
                      </div>
@@ -621,6 +711,35 @@ export default function AtendimentosMedicos() {
                       {editingId ? 'Salvar Alterações' : 'Registrar Atendimento Médico'}
                   </button>
                </form>
+
+               {/* Mobile Citizen History */}
+               {citizenHistory.length > 0 && (
+                 <div id="mobile-history-citizen" className="md:hidden mt-8 pt-6 border-t border-slate-800 space-y-4 pb-12">
+                    <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
+                       <History size={14} className="text-blue-500" />
+                       Histórico Geral de Atendimentos
+                    </h3>
+                    <div className="space-y-3">
+                       {citizenHistory.map((h) => (
+                         <div key={h.id} className="bg-slate-950 border border-slate-800 p-4 rounded-2xl">
+                           <div className="flex items-center justify-between mb-2">
+                             <span className="text-[9px] font-bold text-slate-500 uppercase">
+                               {h.created_at?.toDate ? format(h.created_at.toDate(), 'dd/MM/yyyy HH:mm') : '...'}
+                             </span>
+                             <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[8px] font-black uppercase tracking-tighter">
+                               {h.tipo_atendimento}
+                             </span>
+                           </div>
+                           <p className="text-xs text-slate-300 font-medium line-clamp-3 leading-relaxed mb-1 italic">"{h.descricao}"</p>
+                           <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/50">
+                              <span className="text-[9px] text-slate-600 font-bold uppercase tracking-tight">Status: {h.status}</span>
+                              <span className="text-[9px] text-slate-600">Prioridade: {h.prioridade}</span>
+                           </div>
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+               )}
             </div>
 
             {/* Right: History Sidebar */}
