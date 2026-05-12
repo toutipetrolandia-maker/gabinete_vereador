@@ -126,7 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               });
             } else {
               // First time user? Let's check if we should create a profile
-              const isInitialAdmin = user.email === 'toutipetrolandia@gmail.com' || user.email === 'cleciotecnologia@gmail.com';
+              const isInitialAdmin = user.email === 'toutipetrolandia@gmail.com' || user.email === 'cleciotecnologia@gmail.com' || user.email === 'lorena.goamaral@gmail.com';
               const newProfile: UserProfile = {
                 nome: user.displayName || 'Novo Usuário',
                 email: user.email || '',
