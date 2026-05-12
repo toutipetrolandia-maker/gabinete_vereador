@@ -103,24 +103,25 @@ export default function Settings() {
   useEffect(() => {
     if (!profile) return;
 
-    // Proactively register Lorena if current user is admin and she's not found
+    // Proactively register Lorena if current user is admin
     const seedLorena = async () => {
       const lorenaEmail = 'lorena.goamaral@gmail.com';
-      if ((profile.role === 'admin' || isSuperAdmin) && activeSubTab === 'users' && usersList.length > 0) {
-        const found = usersList.find(u => u.email === lorenaEmail);
-        if (!found) {
-          try {
+      if (profile.role === 'admin' || isSuperAdmin) {
+        try {
+          const q = query(collection(db, 'users'), where('email', '==', lorenaEmail));
+          const snap = await getDocs(q);
+          if (snap.empty) {
             await addDoc(collection(db, 'users'), {
-              nome: 'Lorena',
+              nome: 'Lorena Admin',
               email: lorenaEmail,
               role: 'admin',
               ativo: true,
               criado_em: serverTimestamp(),
             });
             console.log("Lorena cadastrada com sucesso!");
-          } catch (e) {
-            console.error("Erro ao cadastrar Lorena via auto-seed:", e);
           }
+        } catch (e) {
+          console.error("Erro ao cadastrar Lorena via auto-seed:", e);
         }
       }
     };
