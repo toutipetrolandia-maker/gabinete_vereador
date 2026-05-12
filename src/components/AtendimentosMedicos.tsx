@@ -171,27 +171,38 @@ export default function AtendimentosMedicos() {
 
     setSubmitting(true);
     try {
+      const payload = {
+        ...formData,
+        usuario_id: user?.uid,
+        assessor_id: user?.uid, // Added for rule compatibility
+        updated_at: serverTimestamp()
+      };
+
       if (editingId) {
-        const existing = data.find(i => i.id === editingId);
-        await updateDoc(doc(db, 'atendimentos_medicos', editingId), {
-          ...formData,
-          usuario_id: user?.uid,
-          updated_at: serverTimestamp()
-        });
-        await logAction('Atualizar', 'atendimentos_medicos', editingId, { previous: existing, next: formData });
+        const existingDoc = data.find(i => i.id === editingId);
+        await updateDoc(doc(db, 'atendimentos_medicos', editingId), payload);
+        await logAction('Atualizar', 'atendimentos_medicos', editingId, { previous: existingDoc, next: formData });
       } else {
         const docRef = await addDoc(collection(db, 'atendimentos_medicos'), {
-          ...formData,
-          usuario_id: user?.uid,
+          ...payload,
           tipo_atendimento: 'Médico',
           created_at: serverTimestamp(),
         });
         await logAction('Criar', 'atendimentos_medicos', docRef.id, { next: formData });
       }
       closeModal();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Submit error:", err);
-      alert("Erro ao salvar atendimento médico. Tente novamente.");
+      
+      let errorMsg = "Erro ao salvar atendimento médico. Tente novamente.";
+      
+      if (err?.message?.includes('permission-denied') || err?.code === 'permission-denied') {
+        errorMsg = "Permissão negada. Seu perfil pode estar inativo ou você não tem autorização para esta área.";
+      } else if (!navigator.onLine) {
+        errorMsg = "Sem conexão com a internet.";
+      }
+
+      alert(errorMsg);
       handleFirestoreError(err, OperationType.WRITE, 'atendimentos_medicos');
     } finally {
       setSubmitting(false);

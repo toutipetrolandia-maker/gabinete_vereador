@@ -222,28 +222,38 @@ export default function Atendimentos() {
         }
       }
 
+      const payload = {
+        ...formData,
+        usuario_id: user?.uid,
+        assessor_id: user?.uid, // Send both for compatibility
+        updated_at: serverTimestamp(),
+      };
+
       if (editingId) {
-        const existing = data.find(i => i.id === editingId);
-        await updateDoc(doc(db, 'atendimentos', editingId), {
-          ...formData,
-          usuario_id: user?.uid, // Added to match rules
-          updated_at: serverTimestamp(),
-        });
-        await logAction('Atualizar', 'atendimentos', editingId, { previous: existing, next: formData });
+        const existingDoc = data.find(i => i.id === editingId);
+        await updateDoc(doc(db, 'atendimentos', editingId), payload);
+        await logAction('Atualizar', 'atendimentos', editingId, { previous: existingDoc, next: formData });
       } else {
         const docRef = await addDoc(collection(db, 'atendimentos'), {
-          ...formData,
-          usuario_id: user?.uid, // Changed from assessor_id to match rules
+          ...payload,
           created_at: serverTimestamp(),
-          updated_at: serverTimestamp(),
         });
         await logAction('Criar', 'atendimentos', docRef.id, { next: formData });
       }
       
       closeModal();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Submit error:", err);
-      alert("Ocorreu um erro ao salvar o registro. Verifique sua conexão e tente novamente.");
+      
+      let errorMsg = "Ocorreu um erro ao salvar o registro. Verifique sua conexão e tente novamente.";
+      
+      if (err?.message?.includes('permission-denied') || err?.code === 'permission-denied') {
+        errorMsg = "Permissão negada. Verifique se seu perfil está ativo e se você tem permissão para realizar esta operação.";
+      } else if (!navigator.onLine) {
+        errorMsg = "Você parece estar offline. Verifique sua rede.";
+      }
+
+      alert(errorMsg);
       handleFirestoreError(err, OperationType.WRITE, 'atendimentos');
     } finally {
       setSubmitting(false);

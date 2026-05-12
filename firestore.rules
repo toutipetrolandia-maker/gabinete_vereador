@@ -25,18 +25,23 @@ service cloud.firestore {
     
     // Internal user check: must be active and have a valid cabinet role
     function isCabinetMember() {
-      let data = getUserData();
-      return isSignedIn() && (data.ativo == true || data.role == 'admin') && data.role in ['admin', 'vereador', 'assessor'];
+      let docPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isSignedIn() && 
+             exists(docPath) && 
+             (get(docPath).data.ativo == true || get(docPath).data.role == 'admin') && 
+             get(docPath).data.role in ['admin', 'vereador', 'assessor'];
     }
     
     function isAdmin() {
-      return hasRole('admin');
+      let docPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isSignedIn() && exists(docPath) && get(docPath).data.role == 'admin';
     }
     
     function isVereador() {
-      return hasRole('vereador');
+      let docPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isSignedIn() && exists(docPath) && get(docPath).data.role == 'vereador';
     }
-    
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -74,7 +79,6 @@ service cloud.firestore {
       
       function isValidUser(data) {
         return data.nome is string && data.nome.size() <= 100 &&
-               data.email is string && data.email == request.auth.token.email &&
                data.role in ['admin', 'assessor', 'vereador', 'consulta'];
       }
 
@@ -83,9 +87,9 @@ service cloud.firestore {
       
       allow update: if isSignedIn() && (
         // Only admin can change roles or activation status
-        (isAdmin() && incoming().email == existing().email) ||
+        (isAdmin()) ||
         // User can update their own status (online/offline)
-        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'last_seen', 'primeiro_acesso_concluido']))
+        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'last_seen', 'primeiro_acesso_concluido', 'status_oculos', 'updated_at']))
       );
 
       allow delete: if isAdmin() || isVereador();
@@ -93,21 +97,21 @@ service cloud.firestore {
 
     // ATENDIMENTOS (GENERIC)
     match /atendimentos/{id} {
-      allow read: if isCabinetMember() || hasRole('consulta');
+      allow read: if isCabinetMember() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'consulta');
       
       function isValidAtendimento(data) {
         return data.nome_completo is string && data.nome_completo.size() <= 150 &&
-               (data.usuario_id == request.auth.uid || data.assessor_id == request.auth.uid) &&
+               (data.usuario_id == request.auth.uid || data.assessor_id == request.auth.uid || !('usuario_id' in data)) &&
                data.status in ['Novo', 'Em Andamento', 'Concluído', 'Cancelado', 'Pendente', 'Encaminhado', 'Em andamento'] &&
                data.prioridade in ['Baixa', 'Média', 'Alta'];
       }
 
-      allow create: if isCabinetMember() && isValidAtendimento(incoming()) && incoming().created_at == request.time;
+      allow create: if isCabinetMember() && isValidAtendimento(incoming()) && (incoming().created_at == request.time || !('created_at' in incoming()));
       
       allow update: if isCabinetMember() && (
-        (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updated_at']) && incoming().updated_at == request.time) ||
+        (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updated_at']) && (incoming().updated_at == request.time || !('updated_at' in incoming()))) ||
         (isAdmin()) ||
-        ((incoming().usuario_id == existing().usuario_id || incoming().assessor_id == existing().assessor_id) && incoming().updated_at == request.time)
+        ((incoming().usuario_id == existing().usuario_id || incoming().assessor_id == existing().assessor_id) && (incoming().updated_at == request.time || !('updated_at' in incoming())))
       );
       
       allow delete: if isAdmin();
@@ -120,7 +124,7 @@ service cloud.firestore {
       
       function isValidAtendimentoMedico(data) {
         return data.nome_completo is string && data.nome_completo.size() <= 150 &&
-               (data.usuario_id == request.auth.uid || data.assessor_id == request.auth.uid);
+               (data.usuario_id == request.auth.uid || data.assessor_id == request.auth.uid || !('usuario_id' in data));
       }
 
       allow create: if isCabinetMember() && isValidAtendimentoMedico(incoming()) && (incoming().created_at == request.time || !('created_at' in incoming()));
