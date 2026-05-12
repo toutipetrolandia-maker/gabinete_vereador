@@ -103,30 +103,6 @@ export default function Settings() {
   useEffect(() => {
     if (!profile) return;
 
-    // Proactively register Lorena if current user is admin
-    const seedLorena = async () => {
-      const lorenaEmail = 'lorena.goamaral@gmail.com';
-      if (profile.role === 'admin' || isSuperAdmin) {
-        try {
-          const q = query(collection(db, 'users'), where('email', '==', lorenaEmail));
-          const snap = await getDocs(q);
-          if (snap.empty) {
-            await addDoc(collection(db, 'users'), {
-              nome: 'Lorena Admin',
-              email: lorenaEmail,
-              role: 'admin',
-              ativo: true,
-              criado_em: serverTimestamp(),
-            });
-            console.log("Lorena cadastrada com sucesso!");
-          }
-        } catch (e) {
-          console.error("Erro ao cadastrar Lorena via auto-seed:", e);
-        }
-      }
-    };
-    seedLorena();
-
     let unsubLogs = () => {};
     let unsubUsers = () => {};
 
@@ -262,8 +238,10 @@ export default function Settings() {
       await logAction('Criar Usuário', 'users', 'novo', { next: newUser });
       setShowUserModal(false);
       setNewUser({ nome: '', email: '', role: 'assessor', ativo: true });
-    } catch (err) {
+      alert("Usuário cadastrado com sucesso! Ele já pode acessar o sistema via Google Login.");
+    } catch (err: any) {
       console.error("Erro ao criar usuário:", err);
+      alert("Erro ao criar usuário: " + (err.message || String(err)));
     }
   };
 
@@ -1151,6 +1129,7 @@ export default function Settings() {
                     >
                       <option value="assessor">Assessor</option>
                       <option value="vereador">Vereador</option>
+                      <option value="admin">Administrador</option>
                       <option value="secretaria_parlamentar">Secretaria Parlamentar</option>
                       <option value="consulta">Apenas Consulta</option>
                     </select>

@@ -83,7 +83,7 @@ service cloud.firestore {
       }
 
       // Initial profile creation (via useAuth hook)
-      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming());
+      allow create: if isSignedIn() && (isOwner(userId) || isAdmin()) && isValidUser(incoming());
       
       allow update: if isSignedIn() && (
         // Only admin can change roles or activation status
