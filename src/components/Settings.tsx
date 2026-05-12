@@ -873,6 +873,7 @@ export default function Settings() {
                             <option value="assessor">Assessor</option>
                             <option value="vereador">Vereador</option>
                             <option value="admin">Administrador</option>
+                            <option value="secretaria_parlamentar">Secretaria Parlamentar</option>
                             <option value="consulta">Apenas Consulta</option>
                           </select>
                         </td>
@@ -1145,11 +1146,12 @@ export default function Settings() {
                     <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest px-1">Papel</label>
                     <select 
                       value={newUser.role}
-                      onChange={e => setNewUser({...newUser, role: e.target.value})}
+                      onChange={e => setNewUser({...newUser, role: e.target.value as any})}
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none focus:ring-1 focus:ring-blue-500 transition-all text-sm"
                     >
                       <option value="assessor">Assessor</option>
                       <option value="vereador">Vereador</option>
+                      <option value="secretaria_parlamentar">Secretaria Parlamentar</option>
                       <option value="consulta">Apenas Consulta</option>
                     </select>
                   </div>

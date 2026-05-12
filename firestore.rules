@@ -29,7 +29,7 @@ service cloud.firestore {
       return isSignedIn() && 
              exists(docPath) && 
              (get(docPath).data.ativo == true || get(docPath).data.role == 'admin') && 
-             get(docPath).data.role in ['admin', 'vereador', 'assessor'];
+             get(docPath).data.role in ['admin', 'vereador', 'assessor', 'secretaria_parlamentar'];
     }
     
     function isAdmin() {
@@ -79,7 +79,7 @@ service cloud.firestore {
       
       function isValidUser(data) {
         return data.nome is string && data.nome.size() <= 100 &&
-               data.role in ['admin', 'assessor', 'vereador', 'consulta'];
+               data.role in ['admin', 'assessor', 'vereador', 'consulta', 'secretaria_parlamentar'];
       }
 
       // Initial profile creation (via useAuth hook)

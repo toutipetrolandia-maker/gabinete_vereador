@@ -5,7 +5,7 @@ import { auth, db } from '../lib/firebase';
 
 interface UserProfile {
   nome: string;
-  role: 'admin' | 'assessor' | 'vereador' | 'consulta';
+  role: 'admin' | 'assessor' | 'vereador' | 'consulta' | 'secretaria_parlamentar';
   email: string;
   ativo?: boolean;
   status?: 'online' | 'offline';
