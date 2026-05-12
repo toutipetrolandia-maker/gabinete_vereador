@@ -84,7 +84,7 @@ export default function Settings() {
   };
   const [usersList, setUsersList] = useState<any[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
-  const [newUser, setNewUser] = useState({ nome: '', email: '', role: 'assessor', ativo: false });
+  const [newUser, setNewUser] = useState({ nome: '', username: '', email: '', role: 'assessor', ativo: false, password: '' });
   const [appName, setAppName] = useState('Gabinete Digital');
   const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
   const [perfilLink, setPerfilLink] = useState('https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
@@ -231,14 +231,19 @@ export default function Settings() {
     e.preventDefault();
     if (!newUser.nome || !newUser.email) return alert("Preencha todos os campos.");
     try {
-      await addDoc(collection(db, 'users'), {
-        ...newUser,
+      const userRef = doc(db, 'users', newUser.username || newUser.email.split('@')[0]);
+      await setDoc(userRef, {
+        nome: newUser.nome,
+        username: newUser.username || newUser.email.split('@')[0],
+        email: newUser.email,
+        role: newUser.role,
+        ativo: newUser.ativo,
         criado_em: serverTimestamp(),
       });
-      await logAction('Criar Usuário', 'users', 'novo', { next: newUser });
+      await logAction('Criar Usuário', 'users', userRef.id, { next: newUser });
       setShowUserModal(false);
-      setNewUser({ nome: '', email: '', role: 'assessor', ativo: true });
-      alert("Usuário cadastrado com sucesso! Ele já pode acessar o sistema via Google Login.");
+      setNewUser({ nome: '', username: '', email: '', role: 'assessor', ativo: true, password: '' });
+      alert("Usuário cadastrado com sucesso!");
     } catch (err: any) {
       console.error("Erro ao criar usuário:", err);
       alert("Erro ao criar usuário: " + (err.message || String(err)));
@@ -1099,24 +1104,49 @@ export default function Settings() {
             >
               <h3 className="text-xl font-bold text-white mb-6">Criar Acesso ao Sistema</h3>
               <form onSubmit={handleCreateUser} className="space-y-4">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest px-1">Nome Completo</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={newUser.nome}
+                      onChange={e => setNewUser({...newUser, nome: e.target.value})}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest px-1">Email Principal</label>
+                      <input 
+                        type="email" 
+                        required
+                        value={newUser.email}
+                        onChange={e => setNewUser({...newUser, email: e.target.value})}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest px-1">Nome de Usuário</label>
+                      <input 
+                        type="text" 
+                        value={newUser.username}
+                        onChange={e => setNewUser({...newUser, username: e.target.value})}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                        placeholder="Ex: joao.silva"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest px-1">Nome Completo</label>
+                  <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest px-1">Senha de Acesso</label>
                   <input 
                     type="text" 
-                    required
-                    value={newUser.nome}
-                    onChange={e => setNewUser({...newUser, nome: e.target.value})}
+                    value={newUser.password}
+                    onChange={e => setNewUser({...newUser, password: e.target.value})}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none focus:ring-1 focus:ring-blue-500 transition-all text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest px-1">Email Principal</label>
-                  <input 
-                    type="email" 
-                    required
-                    value={newUser.email}
-                    onChange={e => setNewUser({...newUser, email: e.target.value})}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                    placeholder="Deixe em branco para usar '123456'"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">

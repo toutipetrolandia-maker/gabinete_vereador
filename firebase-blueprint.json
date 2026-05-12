@@ -6,6 +6,7 @@
       "type": "object",
       "properties": {
         "nome": { "type": "string" },
+        "username": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "role": { "type": "string", "enum": ["admin", "assessor", "vereador", "consulta"] },
         "ativo": { "type": "boolean" },

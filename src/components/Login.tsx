@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
-import { LogIn, User } from 'lucide-react';
+import { LogIn, User, Mail, Lock, ChevronLeft } from 'lucide-react';
 import { motion } from 'motion/react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs, getDoc } from 'firebase/firestore';
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
@@ -13,6 +13,9 @@ export default function Login() {
   const [perfilLink, setPerfilLink] = useState('https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
   const [lgpdText, setLgpdText] = useState('Ao utilizar este sistema, você concorda com a coleta e processamento de dados pessoais de acordo com a LGPD para fins de gestão parlamentar.');
   const [lgpdAccepted, setLgpdAccepted] = useState(false);
+  const [showTraditional, setShowTraditional] = useState(false);
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'app_settings', 'global'), (snap) => {
@@ -46,6 +49,54 @@ export default function Login() {
         setError('O login foi cancelado.');
       } else {
         setError('Erro ao autenticar: ' + err.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTraditionalLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lgpdAccepted) {
+      setError('Você precisa aceitar os termos da LGPD para continuar.');
+      return;
+    }
+    if (!identifier || !password) {
+      setError('Preencha todos os campos.');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    try {
+      let email = identifier;
+      // If it looks like a username (no @), try to find it in Firestore
+      if (!identifier.includes('@')) {
+        const docRef = doc(db, 'users', identifier);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          email = docSnap.data().email;
+        } else {
+          // Fallback to query if doc ID isn't the username
+          const q = query(collection(db, 'users'), where('username', '==', identifier));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            email = snap.docs[0].data().email;
+          } else {
+            throw new Error('Usuário não encontrado.');
+          }
+        }
+      }
+
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err: any) {
+      console.error('Traditional login error:', err);
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setError('Email/Usuário ou senha incorretos.');
+      } else if (err.message === 'Usuário não encontrado.') {
+        setError('Nome de usuário não encontrado.');
+      } else {
+        setError('Erro ao autenticar: ' + (err.message || 'Erro desconhecido.'));
       }
     } finally {
       setLoading(false);
@@ -95,14 +146,72 @@ export default function Login() {
           </div>
         )}
         
-        <button
-          onClick={handleLogin}
-          disabled={loading}
-          className="w-full bg-white text-slate-950 font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-200 transition-colors disabled:opacity-50"
-        >
-          <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
-          {loading ? 'Entrando...' : 'Entrar com Google'}
-        </button>
+        {!showTraditional ? (
+          <div className="space-y-4">
+            <button
+              onClick={handleLogin}
+              disabled={loading}
+              className="w-full bg-white text-slate-950 font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-200 transition-colors disabled:opacity-50"
+            >
+              <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
+              {loading ? 'Entrando...' : 'Entrar com Google'}
+            </button>
+            <button
+              onClick={() => setShowTraditional(true)}
+              className="w-full bg-slate-800 text-slate-300 font-medium py-3 px-4 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-700 transition-colors"
+            >
+              <User size={18} />
+              Entrar com Usuário ou Email
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleTraditionalLogin} className="space-y-4 text-left">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest px-1">Email ou Usuário</label>
+              <div className="relative">
+                <input 
+                  type="text"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 pl-10 text-white outline-none focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                  placeholder="Seu nome de usuário ou email"
+                />
+                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest px-1">Senha</label>
+              <div className="relative">
+                <input 
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 pl-10 text-white outline-none focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                  placeholder="Sua senha"
+                />
+                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50 shadow-lg shadow-blue-900/20"
+            >
+              {loading ? 'Autenticando...' : 'Acessar Painel'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowTraditional(false)}
+              className="w-full flex items-center justify-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition-colors py-2"
+            >
+              <ChevronLeft size={14} />
+              Voltar para login social
+            </button>
+          </form>
+        )}
 
         <div className="mt-6 flex items-start gap-3 p-4 bg-slate-800/40 rounded-2xl border border-slate-700/50 text-left">
            <input 

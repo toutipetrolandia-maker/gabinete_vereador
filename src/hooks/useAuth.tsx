@@ -5,6 +5,7 @@ import { auth, db } from '../lib/firebase';
 
 interface UserProfile {
   nome: string;
+  username?: string;
   role: 'admin' | 'assessor' | 'vereador' | 'consulta' | 'secretaria_parlamentar';
   email: string;
   ativo?: boolean;
@@ -129,6 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const isInitialAdmin = user.email === 'toutipetrolandia@gmail.com' || user.email === 'cleciotecnologia@gmail.com' || user.email === 'lorena.goamaral@gmail.com';
               const newProfile: UserProfile = {
                 nome: user.displayName || 'Novo Usuário',
+                username: user.email?.split('@')[0] || 'usuario',
                 email: user.email || '',
                 role: isInitialAdmin ? 'admin' : 'consulta',
                 ativo: isInitialAdmin ? true : false,

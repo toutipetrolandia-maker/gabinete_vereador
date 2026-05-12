@@ -74,7 +74,8 @@ service cloud.firestore {
     // USER PROFILES
     match /users/{userId} {
       // Users can read their own profile. Admins and Vereadores can read all.
-      allow get: if isSignedIn() && (isOwner(userId) || isAdmin() || isVereador());
+      // Allow public 'get' for username-to-email resolution in Login.tsx
+      allow get: if true;
       allow list: if isAdmin() || isVereador();
       
       function isValidUser(data) {
