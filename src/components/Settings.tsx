@@ -25,6 +25,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, addDoc, setDoc, deleteDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
@@ -85,6 +86,8 @@ export default function Settings() {
   const [usersList, setUsersList] = useState<any[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
   const [newUser, setNewUser] = useState({ nome: '', username: '', email: '', role: 'assessor', ativo: false, password: '' });
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState({ nome: '', username: '' });
   const [appName, setAppName] = useState('Gabinete Digital');
   const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
   const [perfilLink, setPerfilLink] = useState('https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
@@ -106,7 +109,7 @@ export default function Settings() {
     let unsubLogs = () => {};
     let unsubUsers = () => {};
 
-    if (profile.role === 'admin' || profile.role === 'vereador' || isSuperAdmin) {
+    if (profile.role === 'admin' || profile.role === 'vereador' || profile.role === 'secretaria_parlamentar' || isSuperAdmin) {
       const qLogs = query(collection(db, 'logs'), orderBy('criado_em', 'desc'), limit(50));
       unsubLogs = onSnapshot(qLogs, (snap) => {
         setLogs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -116,7 +119,7 @@ export default function Settings() {
       });
     }
 
-    if (profile.role === 'admin' || profile.role === 'vereador' || profile.role === 'assessor' || isSuperAdmin) {
+    if (profile.role === 'admin' || profile.role === 'vereador' || profile.role === 'assessor' || profile.role === 'secretaria_parlamentar' || isSuperAdmin) {
       const qUsers = query(collection(db, 'users'), orderBy('nome', 'asc'));
       unsubUsers = onSnapshot(qUsers, (snap) => {
         setUsersList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -150,7 +153,7 @@ export default function Settings() {
 
   const handleUpdateSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (profile?.role !== 'admin' && profile?.role !== 'vereador') return;
+    if (profile?.role !== 'admin' && profile?.role !== 'vereador' && profile?.role !== 'secretaria_parlamentar') return;
     setSavingSettings(true);
     try {
       const data: any = {
@@ -196,17 +199,52 @@ export default function Settings() {
   };
 
   const handleUpdateRole = async (userId: string, newRole: string) => {
-    if (profile?.role !== 'admin' && !isSuperAdmin) return;
+    if (profile?.role !== 'admin' && profile?.role !== 'secretaria_parlamentar' && !isSuperAdmin) return;
     try {
       const userRef = doc(db, 'users', userId);
       const userToUpdate = usersList.find(u => u.id === userId);
       await updateDoc(userRef, { role: newRole });
       await logAction('Atualizar Perfil', 'users', userId, { 
-        previous: { role: userToUpdate?.role }, 
+        previous: { role: userToUpdate?.role, nome: userToUpdate?.nome }, 
         next: { role: newRole } 
       });
     } catch (error) {
       console.error("Erro ao atualizar papel:", error);
+    }
+  };
+
+  const handleStartEdit = (user: any) => {
+    setEditingUserId(user.id);
+    setEditFormData({ nome: user.nome, username: user.username || '' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingUserId(null);
+    setEditFormData({ nome: '', username: '' });
+  };
+
+  const handleSaveUserEdit = async (userId: string) => {
+    if (profile?.role !== 'admin' && profile?.role !== 'secretaria_parlamentar' && !isSuperAdmin) return;
+    try {
+      const userRef = doc(db, 'users', userId);
+      const userToUpdate = usersList.find(u => u.id === userId);
+      
+      const updates: any = {
+        nome: editFormData.nome,
+        username: editFormData.username
+      };
+
+      await updateDoc(userRef, updates);
+      await logAction('Atualizar Perfil', 'users', userId, {
+        previous: { nome: userToUpdate?.nome, username: userToUpdate?.username },
+        next: updates
+      });
+      
+      setEditingUserId(null);
+      alert("Perfil atualizado com sucesso!");
+    } catch (err: any) {
+      console.error("Erro ao salvar edição:", err);
+      alert("Erro ao salvar: " + (err.message || String(err)));
     }
   };
 
@@ -235,7 +273,7 @@ export default function Settings() {
       await setDoc(userRef, {
         nome: newUser.nome,
         username: newUser.username || newUser.email.split('@')[0],
-        email: newUser.email,
+        email: newUser.email.toLowerCase().trim(),
         role: newUser.role,
         ativo: newUser.ativo,
         criado_em: serverTimestamp(),
@@ -247,6 +285,17 @@ export default function Settings() {
     } catch (err: any) {
       console.error("Erro ao criar usuário:", err);
       alert("Erro ao criar usuário: " + (err.message || String(err)));
+    }
+  };
+
+  const handleResetPassword = async (email: string) => {
+    if (!window.confirm(`Deseja enviar um e-mail de redefinição de senha para ${email}?`)) return;
+    try {
+      await sendPasswordResetEmail(auth, email);
+      alert("E-mail de redefinição enviado com sucesso!");
+    } catch (err: any) {
+      console.error("Erro ao enviar reset:", err);
+      alert("Erro ao enviar reset: " + (err.message || String(err)));
     }
   };
 
@@ -267,7 +316,7 @@ export default function Settings() {
   };
 
   const handleBackup = async () => {
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'vereador')) return;
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'vereador' && profile.role !== 'secretaria_parlamentar')) return;
     setBackingUp(true);
     try {
       const collections = [
@@ -341,7 +390,7 @@ export default function Settings() {
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Sidebar Mini Nav */}
         <div className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 gap-2 scrollbar-none lg:w-64 shrink-0">
-          {(profile?.role === 'admin' || profile?.role === 'vereador') && (
+          {(profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar') && (
             <button 
               onClick={() => setActiveSubTab('general')}
               className={cn(
@@ -365,7 +414,7 @@ export default function Settings() {
               Super Admin
             </button>
           )}
-          {(profile?.role === 'admin' || profile?.role === 'vereador' || isSuperAdmin) && (
+          {(profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' || isSuperAdmin) && (
             <button 
               onClick={() => setActiveSubTab('audit')}
               className={cn(
@@ -390,7 +439,7 @@ export default function Settings() {
             </button>
           )}
 
-          {(profile?.role === 'admin' || profile?.role === 'vereador' || isSuperAdmin) && (
+          {(profile?.role === 'admin' || profile?.role === 'vereador' || isSuperAdmin || profile?.role === 'secretaria_parlamentar') && (
             <button 
               onClick={() => setActiveSubTab('backup')}
               className={cn(
@@ -841,16 +890,38 @@ export default function Settings() {
                       .map((user) => (
                       <tr key={user.id} className="hover:bg-slate-800/30 transition-colors">
                         <td className="px-6 py-4">
-                          <div>
-                            <span className="block text-sm font-medium text-white">{user.nome}</span>
-                            <span className="text-xs text-slate-500">{user.email}</span>
-                          </div>
+                          {editingUserId === user.id ? (
+                            <div className="space-y-2 max-w-[200px]">
+                              <input 
+                                type="text"
+                                value={editFormData.nome}
+                                onChange={e => setEditFormData({ ...editFormData, nome: e.target.value })}
+                                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:ring-1 focus:ring-blue-500"
+                                placeholder="Nome Completo"
+                              />
+                              <input 
+                                type="text"
+                                value={editFormData.username}
+                                onChange={e => setEditFormData({ ...editFormData, username: e.target.value })}
+                                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:ring-1 focus:ring-blue-500"
+                                placeholder="Username"
+                              />
+                            </div>
+                          ) : (
+                            <div>
+                              <span className="block text-sm font-medium text-white">{user.nome}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-500">{user.email}</span>
+                                {user.username && <span className="text-[10px] bg-slate-800 text-slate-500 px-1 rounded">@{user.username}</span>}
+                              </div>
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <select 
                             value={user.role}
                             onChange={(e) => handleUpdateRole(user.id, e.target.value)}
-                            disabled={profile?.role !== 'admin' && !isSuperAdmin}
+                            disabled={profile?.role !== 'admin' && profile?.role !== 'secretaria_parlamentar' && !isSuperAdmin}
                             className="bg-slate-800 border border-slate-700 rounded-lg text-xs p-1 text-slate-300 outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
                           >
                             <option value="assessor">Assessor</option>
@@ -863,7 +934,7 @@ export default function Settings() {
                         <td className="px-6 py-4">
                           <button 
                             onClick={() => handleToggleAtivo(user.id, user.ativo)}
-                            disabled={profile?.role !== 'admin' && !isSuperAdmin}
+                            disabled={profile?.role !== 'admin' && profile?.role !== 'vereador' && profile?.role !== 'secretaria_parlamentar' && !isSuperAdmin}
                             className={cn(
                               "text-[10px] font-bold uppercase px-2 py-1 rounded flex items-center gap-1 transition-all",
                               user.ativo ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"
@@ -874,15 +945,56 @@ export default function Settings() {
                           </button>
                         </td>
                         <td className="px-6 py-4">
-                          {(profile?.role === 'admin' || isSuperAdmin) && (
-                            <button 
-                              onClick={() => handleDeleteUser(user.id, user.nome)}
-                              className="p-2 text-slate-500 hover:text-red-400 transition-colors"
-                              title="Remover permanentemente"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {editingUserId === user.id ? (
+                              <>
+                                <button 
+                                  onClick={() => handleSaveUserEdit(user.id)}
+                                  className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20"
+                                  title="Salvar Alterações"
+                                >
+                                  <Save size={16} />
+                                </button>
+                                <button 
+                                  onClick={handleCancelEdit}
+                                  className="p-1.5 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-all"
+                                  title="Cancelar"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                {(profile?.role === 'admin' || profile?.role === 'secretaria_parlamentar' || isSuperAdmin) && (
+                                  <button 
+                                    onClick={() => handleStartEdit(user)}
+                                    className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-blue-400 rounded-lg transition-all"
+                                    title="Editar Perfil"
+                                  >
+                                    <Edit2 size={16} />
+                                  </button>
+                                )}
+                                {(profile?.role === 'admin' || isSuperAdmin) && (
+                                  <button 
+                                    onClick={() => handleResetPassword(user.email)}
+                                    className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-blue-400 rounded-lg transition-all"
+                                    title="Redefinir Senha (Enviar e-mail)"
+                                  >
+                                    <Fingerprint size={16} />
+                                  </button>
+                                )}
+                                {(profile?.role === 'admin' || isSuperAdmin) && (
+                                  <button 
+                                    onClick={() => handleDeleteUser(user.id, user.nome)}
+                                    className="p-1.5 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg transition-all"
+                                    title="Remover permanentemente"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

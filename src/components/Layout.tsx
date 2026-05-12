@@ -82,6 +82,14 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
      return () => unsub();
   }, []);
 
+  const roleLabels: Record<string, string> = {
+    admin: 'Administrador',
+    vereador: 'Vereador',
+    secretaria_parlamentar: 'Sec. Parlamentar',
+    assessor: 'Assessor',
+    consulta: 'Consulta'
+  };
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
     { id: 'agenda', label: 'Agenda', icon: Clock },
@@ -92,7 +100,12 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     { id: 'sugestoes', label: 'Sugestões', icon: MessageSquare },
     { id: 'relatorios', label: 'Relatórios', icon: FileDown },
     { id: 'config', label: 'Configurações', icon: Settings },
-  ];
+  ].filter(item => {
+    if (item.id === 'config') {
+      return profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' || isSuperAdmin;
+    }
+    return true;
+  });
 
   const handleLogout = () => auth.signOut();
 
@@ -264,7 +277,9 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
                   <span className="text-sm font-medium truncate">{profile?.nome || 'Usuário'}</span>
                   {isOnline ? <Wifi size={10} className="text-emerald-500" /> : <WifiOff size={10} className="text-red-500" />}
                 </div>
-                <span className="text-[10px] text-slate-500 uppercase tracking-tighter">{profile?.role || 'Consulta'}</span>
+                <span className="text-[10px] text-slate-500 uppercase tracking-tighter">
+                  {profile?.role ? (roleLabels[profile.role] || profile.role) : 'Consulta'}
+                </span>
               </div>
             )}
           </div>

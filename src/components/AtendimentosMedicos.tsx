@@ -465,7 +465,7 @@ export default function AtendimentosMedicos() {
                 <Stethoscope className="text-emerald-500" size={20} />
               </div>
               <div className="flex items-center gap-2">
-                 {profile?.role === 'admin' && (
+                 {(profile?.role === 'admin' || profile?.role === 'secretaria_parlamentar') && (
                    <button 
                      onClick={(e) => handleDelete(e, item.id)}
                      className="p-1.5 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg transition-all"

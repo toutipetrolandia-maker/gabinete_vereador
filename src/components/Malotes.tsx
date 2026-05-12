@@ -359,7 +359,7 @@ export default function Malotes() {
                            <Edit2 size={16} />
                         </button>
                       )}
-                      {profile?.role === 'admin' && (
+                      {(profile?.role === 'admin' || profile?.role === 'secretaria_parlamentar') && (
                         <button 
                           onClick={() => handleDelete(item.id)}
                           className="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg transition-all"

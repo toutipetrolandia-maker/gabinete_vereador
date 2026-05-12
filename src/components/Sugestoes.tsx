@@ -36,7 +36,7 @@ import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { useAuth } from '../hooks/useAuth';
 
 export default function Sugestoes() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [data, setData] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -221,7 +221,7 @@ export default function Sugestoes() {
             className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden cursor-pointer hover:border-blue-500/30 transition-all"
           >
              <div className="absolute top-0 right-0 p-4 flex items-center gap-2">
-                {profile?.role === 'admin' && (
+                {(profile?.role === 'admin' || profile?.role === 'secretaria_parlamentar') && (
                   <button 
                     onClick={(e) => handleDelete(e, item.id)}
                     className="p-1.5 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg transition-all"

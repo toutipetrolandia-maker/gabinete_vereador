@@ -119,7 +119,7 @@ export default function NotificationCenter() {
     });
 
     let unsubLogs = () => {};
-    if (profile.role === 'admin' || profile.role === 'vereador' || profile.email === 'cleciotecnologia@gmail.com') {
+    if (profile.role === 'admin' || profile.role === 'vereador' || profile.role === 'secretaria_parlamentar' || profile.email === 'cleciotecnologia@gmail.com') {
       const qLogs = query(
         collection(db, 'logs'),
         where('acao', '==', 'Primeiro Acesso'),

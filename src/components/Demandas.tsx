@@ -211,7 +211,7 @@ export default function Demandas() {
                     Editar
                   </button>
                 )}
-                {profile?.role === 'admin' && (
+                {(profile?.role === 'admin' || profile?.role === 'secretaria_parlamentar') && (
                   <button 
                     onClick={() => handleDelete(item.id)}
                     className="text-xs font-bold text-red-400 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-all"

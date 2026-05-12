@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             // Check if there is a pre-created profile with the same email
             const { collection, query, where, getDocs, deleteDoc } = await import('firebase/firestore');
-            const q = query(collection(db, 'users'), where('email', '==', user.email));
+            const q = query(collection(db, 'users'), where('email', '==', user.email?.toLowerCase()));
             const querySnap = await getDocs(q);
             
             if (!querySnap.empty) {
@@ -127,11 +127,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               });
             } else {
               // First time user? Let's check if we should create a profile
-              const isInitialAdmin = user.email === 'toutipetrolandia@gmail.com' || user.email === 'cleciotecnologia@gmail.com' || user.email === 'lorena.goamaral@gmail.com';
+              const normalizedEmail = user.email?.toLowerCase() || '';
+              const isInitialAdmin = normalizedEmail === 'toutipetrolandia@gmail.com' || normalizedEmail === 'cleciotecnologia@gmail.com' || normalizedEmail === 'lorena.goamaral@gmail.com';
               const newProfile: UserProfile = {
                 nome: user.displayName || 'Novo Usuário',
-                username: user.email?.split('@')[0] || 'usuario',
-                email: user.email || '',
+                username: normalizedEmail.split('@')[0] || 'usuario',
+                email: normalizedEmail,
                 role: isInitialAdmin ? 'admin' : 'consulta',
                 ativo: isInitialAdmin ? true : false,
                 status: 'online'
