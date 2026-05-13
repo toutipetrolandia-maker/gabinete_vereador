@@ -103,7 +103,7 @@ export default function Settings() {
   const [customDomain, setCustomDomain] = useState('');
   const [subdomain, setSubdomain] = useState('');
   const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
-  const [perfilLink, setPerfilLink] = useState('https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
+  const [perfilLink, setPerfilLink] = useState('');
   const [perfilLabel, setPerfilLabel] = useState('Câmara Municipal');
   const [savingSettings, setSavingSettings] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
@@ -161,7 +161,7 @@ export default function Settings() {
         setCustomDomain(data.custom_domain || '');
         setSubdomain(data.subdomain || '');
         setVereadorPhoto(data.vereador_photo || null);
-        setPerfilLink(data.perfil_link || 'https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
+        setPerfilLink(data.perfil_link || '');
         setPerfilLabel(data.perfil_label || 'Câmara Municipal');
         setBiography(data.biography || '');
         setSystemLocked(!!data.system_locked);
@@ -317,7 +317,7 @@ export default function Settings() {
       // Atualizar senha
       await updatePassword(user, newPassword);
       
-      await logAction('Alterar Senha', 'users', user.uid, { status: 'sucesso' });
+      await logAction('Alterar Senha', 'users', user.uid, { next: { status: 'sucesso' } });
       
       setPasswordSuccess(true);
       setCurrentPassword('');
@@ -529,7 +529,8 @@ export default function Settings() {
                            </>
                         )}
                      </button>
-                  </form>
+                   </form>
+
 
                   {/* Device Info */}
                   <div className="p-6 bg-slate-950/50 rounded-2xl border border-slate-800/50">
@@ -554,69 +555,88 @@ export default function Settings() {
             <motion.div 
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl space-y-8"
+              className="space-y-6"
             >
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-white mb-1">Configurações Gerais</h2>
-                  <p className="text-slate-400">Personalize a identidade do seu gabinete no sistema.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <a 
-                    href={customDomain ? `https://${customDomain}` : subdomain ? `https://${subdomain}.gabinetedigital.app` : '#'} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-xl text-xs font-bold transition-all"
-                  >
-                    <ExternalLink size={14} />
-                    Ver Página Digital
-                  </a>
-                </div>
-              </div>
-
-              <form onSubmit={handleUpdateSettings} className="space-y-6 max-w-xl">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase text-slate-500 tracking-widest px-1">Nome do Gabinete / Vereador</label>
-                    <input 
-                      type="text" 
-                      value={appName}
-                      onChange={e => setAppName(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                      placeholder="Ex: Gabinete do Vereador João"
-                    />
-                    <p className="text-[10px] text-slate-500 px-1 italic">Este nome aparecerá na barra lateral e no cabeçalho do sistema.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase text-slate-500 tracking-widest px-1">Domínio Próprio</label>
-                      <input 
-                        type="text" 
-                        value={customDomain}
-                        onChange={e => setCustomDomain(e.target.value.toLowerCase())}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
-                        placeholder="Ex: gabinete.seunome.com.br"
-                      />
+              {/* Cabinet Identity Card */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl space-y-8">
+                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-800 pb-8">
+                    <div>
+                      <h2 className="text-2xl font-bold text-white mb-1">Identidade do Gabinete</h2>
+                      <p className="text-slate-400">Personalize o nome, foto e endereços exclusivos do seu gabinete.</p>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase text-slate-500 tracking-widest px-1">Subdomínio do Sistema</label>
-                      <div className="relative">
-                        <input 
-                          type="text" 
-                          value={subdomain}
-                          onChange={e => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-'))}
-                          className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 pr-32 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-mono"
-                          placeholder="Ex: silva"
-                        />
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-500 pointer-events-none uppercase">
-                          .gabinetedigital.app
+                    
+                    <div className="flex flex-col gap-3 min-w-[280px]">
+                      <div className="p-4 bg-blue-600/5 border border-blue-500/10 rounded-2xl">
+                        <div className="flex items-center justify-between mb-2">
+                           <h4 className="text-[10px] font-black uppercase text-blue-400 flex items-center gap-2">
+                             <LinkIcon size={12} /> Link de Acesso Direto
+                           </h4>
+                           <button 
+                             onClick={() => {
+                               navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?cabinetId=${profile?.cabinetId}`);
+                               alert("Link de acesso copiado!");
+                             }}
+                             className="text-blue-400 hover:text-white transition-colors"
+                             title="Copiar Link"
+                           >
+                             <Save size={12} />
+                           </button>
                         </div>
+                        <div className="text-[10px] font-mono text-slate-500 truncate mb-1">
+                           {window.location.host}{window.location.pathname}?cabinetId={profile?.cabinetId}
+                        </div>
+                        <p className="text-[9px] text-slate-600 leading-tight">
+                           Compartilhe este link com sua assessoria para acesso imediato a este gabinete.
+                        </p>
                       </div>
                     </div>
-                  </div>
+                 </div>
 
-                  <div className="space-y-4 pt-2">
+                 <form onSubmit={handleUpdateSettings} className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                   <div className="space-y-6">
+                     <div className="space-y-2">
+                       <label className="text-xs font-bold uppercase text-slate-500 tracking-widest px-1">Nome do Gabinete / Vereador</label>
+                       <input 
+                         type="text" 
+                         value={appName}
+                         onChange={e => setAppName(e.target.value)}
+                         className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                         placeholder="Ex: Gabinete do Vereador João"
+                       />
+                       <p className="text-[10px] text-slate-500 px-1 italic">Este nome aparecerá na barra lateral e no cabeçalho do sistema.</p>
+                     </div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <div className="space-y-2">
+                         <label className="text-xs font-bold uppercase text-slate-500 tracking-widest px-1">Página Web (Subdomínio)</label>
+                         <div className="relative">
+                            <input 
+                              type="text" 
+                              value={subdomain}
+                              onChange={e => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-'))}
+                              className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-mono"
+                              placeholder="ex: silva"
+                            />
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-500 pointer-events-none">
+                               .gabinetedigital.app
+                            </div>
+                         </div>
+                       </div>
+                       <div className="space-y-2">
+                         <label className="text-xs font-bold uppercase text-slate-500 tracking-widest px-1">Domínio Próprio</label>
+                         <input 
+                           type="text" 
+                           value={customDomain}
+                           onChange={e => setCustomDomain(e.target.value.toLowerCase())}
+                           className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+                           placeholder="Ex: gabinete.seunome.com.br"
+                         />
+                       </div>
+                     </div>
+                   </div>
+
+                   <div className="space-y-6">
+                     <div className="space-y-4 pt-2">
                     <label className="text-xs font-bold uppercase text-slate-500 tracking-widest px-1">Foto do Vereador</label>
                     <div className="flex items-center gap-6">
                       <div className="relative group">
@@ -731,6 +751,7 @@ export default function Settings() {
                   {savingSettings ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
               </form>
+            </div>
 
               <div className="pt-8 border-t border-slate-800 space-y-4">
                  <div className="flex items-center gap-3 text-blue-400 font-bold uppercase text-xs tracking-widest">

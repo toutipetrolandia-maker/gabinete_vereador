@@ -9,6 +9,7 @@ import {
   Activity,
   CreditCard,
   Settings,
+  Link as LinkIcon,
   ChevronRight,
   MoreVertical,
   ExternalLink,
@@ -91,9 +92,12 @@ export default function SaaSAdmin() {
       const slug = newCabinet.slug.toLowerCase().replace(/[^a-z0-9]/g, '-');
       const cabinetRef = doc(db, 'cabinets', slug);
       
+      const finalSubdomain = newCabinet.subdomain || slug;
+      
       await setDoc(cabinetRef, {
         ...newCabinet,
         slug,
+        subdomain: finalSubdomain,
         created_at: serverTimestamp(),
         updated_at: serverTimestamp()
       });

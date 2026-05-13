@@ -14,7 +14,9 @@ import {
   X,
   Plus,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { 
   collection, 
@@ -35,6 +37,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
 import { handleFirestoreError, OperationType } from '../lib/firestoreErrorHandler';
+import { createNewUserWithPassword } from '../lib/adminAuth';
 
 interface User {
   id: string;
@@ -45,6 +48,7 @@ interface User {
   ativo: boolean;
   cabinetId: string;
   criado_em?: any;
+  requirePasswordChange?: boolean;
 }
 
 export default function UserManagement() {
@@ -57,6 +61,7 @@ export default function UserManagement() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -65,7 +70,10 @@ export default function UserManagement() {
     username: '',
     role: 'assessor',
     ativo: true,
+    password: '', // New field for temporary password
   });
+
+  const canManage = profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' || isSuperAdmin;
 
   useEffect(() => {
     if (!profile?.cabinetId) return;
@@ -81,6 +89,28 @@ export default function UserManagement() {
         id: doc.id,
         ...doc.data()
       })) as User[];
+      
+      // Auto-correction for Lorena Gomes as requested
+      if (canManage) {
+        usersData.forEach(async (u) => {
+          if (
+            (u.email === 'lorena.goamaral@gmail.com' || u.email === 'lorena.gomes@gmail.com') && 
+            u.role === 'consulta'
+          ) {
+            console.log("Applying auto-correction for Lorena Gomes role...");
+            try {
+              await updateDoc(doc(db, 'users', u.id), { role: 'secretaria_parlamentar' });
+              await logAction('Correção Automática de Cargo', 'users', u.id, { 
+                previous: { role: 'consulta' }, 
+                next: { role: 'secretaria_parlamentar' } 
+              });
+            } catch (err) {
+              console.error("Failed to auto-correct Lorena role:", err);
+            }
+          }
+        });
+      }
+
       setUsers(usersData);
       setLoading(false);
     }, (error) => {
@@ -89,7 +119,7 @@ export default function UserManagement() {
     });
 
     return () => unsubscribe();
-  }, [profile?.cabinetId]);
+  }, [profile?.cabinetId, canManage]);
 
   const handleResetForm = () => {
     setFormData({
@@ -98,37 +128,67 @@ export default function UserManagement() {
       username: '',
       role: 'assessor',
       ativo: true,
+      password: '',
     });
     setSelectedUser(null);
+    setShowPassword(false);
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile?.cabinetId) return;
+    
+    if (formData.password && formData.password.length < 6) {
+      alert("A senha temporária deve ter pelo menos 6 caracteres.");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      // Use email prefix or sanitized email as document ID if username is empty
-      const docId = formData.username || formData.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
+      let uid = '';
+      
+      // If a password was provided, create the Auth user now
+      if (formData.password) {
+        try {
+          uid = await createNewUserWithPassword(formData.email, formData.password);
+        } catch (authError: any) {
+          if (authError.code === 'auth/email-already-in-use') {
+             // If user already exists in auth, we'll try to find them by email in Firestore later anyway
+             // But for now, let's just warn or proceed if we want to link
+             alert("Este e-mail já está em uso no sistema de autenticação.");
+             setSubmitting(false);
+             return;
+          }
+          throw authError;
+        }
+      }
+
+      // Use generated UID or email prefix as fallback
+      const docId = uid || formData.username || formData.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
       const userRef = doc(db, 'users', docId);
 
+      const { password, ...firestoreData } = formData;
       const userData = {
-        ...formData,
+        ...firestoreData,
         email: formData.email.toLowerCase().trim(),
         cabinetId: profile.cabinetId,
         criado_em: serverTimestamp(),
+        requirePasswordChange: !!formData.password // Force change if admin set a temp password
       };
 
       await setDoc(userRef, userData);
-      await logAction('Criar Usuário', 'users', docId, { next: userData });
+      await logAction('Criar Usuário', 'users', docId, { 
+        next: { ...userData, hasInitialPassword: !!formData.password } 
+      });
       
       setShowAddModal(false);
       handleResetForm();
       alert("Usuário criado com sucesso!");
     } catch (error) {
+      console.error("Error creating user:", error);
       handleFirestoreError(error, OperationType.WRITE, 'users');
     } finally {
-      setSubmitting(true);
       setSubmitting(false);
     }
   };
@@ -206,8 +266,6 @@ export default function UserManagement() {
     return matchesSearch && matchesRole;
   });
 
-  const canManage = profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' || isSuperAdmin;
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -254,7 +312,7 @@ export default function UserManagement() {
             <option value="admin">Administrador</option>
             <option value="vereador">Vereador</option>
             <option value="assessor">Assessor</option>
-            <option value="secretaria_parlamentar">Secretaria</option>
+            <option value="secretaria_parlamentar">Secretária Parlamentar</option>
             <option value="consulta">Apenas Consulta</option>
           </select>
         </div>
@@ -292,7 +350,14 @@ export default function UserManagement() {
                       </div>
                       <div>
                         <span className="block font-bold text-slate-200">{user.nome}</span>
-                        <span className="block text-xs text-slate-500">{user.email}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="block text-xs text-slate-500">{user.email}</span>
+                          {user.requirePasswordChange && (
+                            <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded uppercase font-bold" title="Senha temporária - troca obrigatória">
+                              Senha Temp.
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -302,10 +367,11 @@ export default function UserManagement() {
                       user.role === 'admin' ? "bg-purple-500/10 text-purple-400 border border-purple-500/20" :
                       user.role === 'vereador' ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
                       user.role === 'assessor' ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" :
+                      user.role === 'secretaria_parlamentar' ? "bg-pink-500/10 text-pink-400 border border-pink-500/20" :
                       "bg-slate-500/10 text-slate-400 border border-slate-500/20"
                     )}>
                       <Shield size={10} />
-                      {user.role.replace('_', ' ')}
+                      {user.role === 'secretaria_parlamentar' ? 'SEC. PARLAMENTAR' : user.role.replace('_', ' ')}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -334,7 +400,8 @@ export default function UserManagement() {
                                 email: user.email,
                                 username: user.username || '',
                                 role: user.role,
-                                ativo: user.ativo
+                                ativo: user.ativo,
+                                password: ''
                               });
                               setShowEditModal(true);
                             }}
@@ -345,10 +412,11 @@ export default function UserManagement() {
                           </button>
                           <button 
                             onClick={() => handleResetPassword(user.email)}
-                            className="p-2 hover:bg-blue-500/10 text-slate-400 hover:text-blue-400 rounded-lg transition-all"
-                            title="Redefinir Senha"
+                            className="p-2 bg-blue-500/5 hover:bg-blue-500/10 text-blue-400 rounded-lg transition-all border border-blue-500/10"
+                            title="Redefinir Senha (E-mail)"
                           >
                             <Key size={16} />
+                            <span className="sr-only">Redefinir Senha</span>
                           </button>
                           <button 
                             onClick={() => handleDeleteUser(user)}
@@ -446,6 +514,49 @@ export default function UserManagement() {
                   </div>
                 </div>
 
+                {showAddModal && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between px-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Senha Temporária (Opcional)</label>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%";
+                          let retVal = "";
+                          for (let i = 0, n = charset.length; i < 10; ++i) {
+                              retVal += charset.charAt(Math.floor(Math.random() * n));
+                          }
+                          setFormData({ ...formData, password: retVal });
+                          setShowPassword(true);
+                        }}
+                        className="text-[10px] font-bold text-blue-500 hover:text-blue-400 flex items-center gap-1 transition-colors"
+                      >
+                        <Plus size={10} />
+                        Gerar Senha
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input 
+                        type={showPassword ? "text" : "password"}
+                        value={formData.password}
+                        onChange={e => setFormData({ ...formData, password: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 pr-12 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
+                        placeholder="Deixe vazio para login via Google"
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-500 px-1 italic">
+                      Se definida, o usuário terá que mudar a senha no primeiro acesso.
+                    </p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Cargo / Permissão</label>
@@ -457,7 +568,7 @@ export default function UserManagement() {
                       <option value="assessor">Assessor</option>
                       <option value="admin">Administrador</option>
                       <option value="vereador">Vereador</option>
-                      <option value="secretaria_parlamentar">Secretaria</option>
+                      <option value="secretaria_parlamentar">Secretária Parlamentar</option>
                       <option value="consulta">Apenas Consulta</option>
                     </select>
                   </div>

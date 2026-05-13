@@ -12,6 +12,7 @@ interface UserProfile {
   biography?: string;
   ativo?: boolean;
   status?: 'online' | 'offline';
+  requirePasswordChange?: boolean; // New field
 }
 
 interface AuthContextType {
@@ -206,10 +207,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } else {
               // First time user? Let's check if we should create a profile
               const isSuper = normalizedEmail === 'cleciotecnologia@gmail.com';
+              const isLorena = normalizedEmail === 'lorena.goamaral@gmail.com' || 
+                               normalizedEmail === 'lorena.gomes@gmail.com';
               const isInitialAdmin = isSuper ||
                                      normalizedEmail === 'toutipetrolandia@gmail.com' || 
-                                     normalizedEmail === 'lorena.goamaral@gmail.com' ||
-                                     normalizedEmail === 'lorena.gomes@gmail.com';
+                                     isLorena;
               
               if (isInitialAdmin) {
                 console.log("Initial Admin detected:", normalizedEmail);
@@ -220,7 +222,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 username: normalizedEmail.split('@')[0] || 'usuario',
                 email: normalizedEmail,
                 cabinetId: 'default',
-                role: isSuper ? 'superadmin' : (isInitialAdmin ? 'admin' : 'consulta'),
+                role: isSuper ? 'superadmin' : (isLorena ? 'secretaria_parlamentar' : (isInitialAdmin ? 'admin' : 'consulta')),
                 ativo: isInitialAdmin ? true : false,
                 status: 'online'
               };

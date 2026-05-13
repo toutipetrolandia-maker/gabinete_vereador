@@ -13,9 +13,10 @@ import Sugestoes from './components/Sugestoes';
 import Relatorios from './components/Relatorios';
 import Agenda from './components/Agenda';
 import SaaSAdmin from './components/SaaSAdmin';
+import ForcePasswordChange from './components/ForcePasswordChange';
 
 function AppContent() {
-  const { user, loading, isSuperAdmin } = useAuth();
+  const { user, profile, loading, isSuperAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
   if (loading) {
@@ -28,6 +29,10 @@ function AppContent() {
 
   if (!user) {
     return <Login />;
+  }
+
+  if (profile?.requirePasswordChange) {
+    return <ForcePasswordChange />;
   }
 
   return (
