@@ -142,13 +142,14 @@ export default function Atendimentos() {
   const fetchMedicalHistory = async (cpf: string) => {
     const maskedCPF = maskCPF(cpf);
     const cleanCPF = cpf.replace(/\D/g, '');
-    if (cleanCPF.length < 11) return;
+    if (cleanCPF.length < 11 || !profile?.cabinetId) return;
     
     setSearchingMedical(true);
     try {
       // Search for both masked and potentially unmasked (standardizing on masked since that's what the UI saves)
       const q = query(
         collection(db, 'atendimentos_medicos'), 
+        where('cabinetId', '==', profile?.cabinetId),
         where('cpf', '==', maskedCPF), 
         orderBy('created_at', 'desc')
       );
@@ -175,7 +176,13 @@ export default function Atendimentos() {
   };
 
   useEffect(() => {
-    const q = query(collection(db, 'atendimentos'), orderBy('created_at', 'desc'));
+    if (!profile?.cabinetId) return;
+
+    const q = query(
+      collection(db, 'atendimentos'), 
+      where('cabinetId', '==', profile.cabinetId),
+      orderBy('created_at', 'desc')
+    );
     const unsubscribe = onSnapshot(q, (snap) => {
       setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
@@ -184,7 +191,7 @@ export default function Atendimentos() {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [profile?.cabinetId]);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -224,6 +231,7 @@ export default function Atendimentos() {
 
       const payload = {
         ...formData,
+        cabinetId: profile?.cabinetId,
         usuario_id: user?.uid,
         assessor_id: user?.uid, // Send both for compatibility
         updated_at: serverTimestamp(),
@@ -557,7 +565,7 @@ export default function Atendimentos() {
                              >
                                <Edit2 size={16} />
                              </button>
-                             {profile?.role === 'admin' && (
+                             {(profile?.role === 'admin' || profile?.role === 'secretaria_parlamentar') && (
                                <button 
                                  onClick={() => handleDelete(item.id)}
                                  className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-500 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100"

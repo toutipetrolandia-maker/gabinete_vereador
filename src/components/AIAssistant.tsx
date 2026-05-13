@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bot, Send, X, Minus, Maximize2, MessageSquare, Loader2, User } from 'lucide-react';
 import { askAIAssistant } from '../services/aiService';
+import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/utils';
 import ReactMarkdown from 'react-markdown';
 
@@ -11,6 +12,7 @@ interface Message {
 }
 
 export const AIAssistant: React.FC = () => {
+  const { profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -24,7 +26,7 @@ export const AIAssistant: React.FC = () => {
   }, [messages, isLoading]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !profile?.cabinetId) return;
 
     const userMessage = input.trim();
     setInput('');
@@ -32,7 +34,7 @@ export const AIAssistant: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await askAIAssistant(userMessage, messages);
+      const response = await askAIAssistant(profile.cabinetId, userMessage, messages);
       setMessages(prev => [...prev, { role: 'model', content: response || 'Desculpe, não consegui processar isso.' }]);
     } catch (error) {
       setMessages(prev => [...prev, { role: 'model', content: 'Erro ao conectar com o serviço de IA. Tente novamente mais tarde.' }]);

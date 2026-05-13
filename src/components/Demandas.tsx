@@ -3,6 +3,7 @@ import {
   collection, 
   addDoc, 
   query, 
+  where,
   orderBy, 
   onSnapshot,
   serverTimestamp,
@@ -53,7 +54,13 @@ export default function Demandas() {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, 'demandas_parlamentares'), orderBy('created_at', 'desc'));
+    if (!profile?.cabinetId) return;
+
+    const q = query(
+      collection(db, 'demandas_parlamentares'), 
+      where('cabinetId', '==', profile.cabinetId),
+      orderBy('created_at', 'desc')
+    );
     const unsubscribe = onSnapshot(q, (snap) => {
       setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
@@ -62,7 +69,7 @@ export default function Demandas() {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [profile?.cabinetId]);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -74,6 +81,7 @@ export default function Demandas() {
         const existing = data.find(i => i.id === editingId);
         await updateDoc(doc(db, 'demandas_parlamentares', editingId), {
           ...formData,
+          cabinetId: profile?.cabinetId,
           usuario_id: profile?.role === 'admin' ? existing?.usuario_id : profile?.nome || 'Assessor', // Just for consistency
           updated_at: serverTimestamp()
         });
@@ -81,6 +89,7 @@ export default function Demandas() {
       } else {
         const docRef = await addDoc(collection(db, 'demandas_parlamentares'), {
           ...formData,
+          cabinetId: profile?.cabinetId,
           usuario_id: profile?.nome || 'Assessor',
           created_at: serverTimestamp(),
         });

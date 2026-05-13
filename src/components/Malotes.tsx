@@ -3,6 +3,7 @@ import {
   collection, 
   addDoc, 
   query, 
+  where,
   orderBy, 
   onSnapshot,
   serverTimestamp,
@@ -52,7 +53,13 @@ export default function Malotes() {
   const [formData, setFormData] = useState(initialForm);
 
   useEffect(() => {
-    const q = query(collection(db, 'malotes'), orderBy('created_at', 'desc'));
+    if (!profile?.cabinetId) return;
+
+    const q = query(
+      collection(db, 'malotes'), 
+      where('cabinetId', '==', profile.cabinetId),
+      orderBy('created_at', 'desc')
+    );
     const unsubscribe = onSnapshot(q, (snap) => {
       setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
@@ -61,7 +68,7 @@ export default function Malotes() {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [profile?.cabinetId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,12 +77,14 @@ export default function Malotes() {
         const existing = data.find(i => i.id === editingId);
         await updateDoc(doc(db, 'malotes', editingId), {
           ...formData,
+          cabinetId: profile?.cabinetId,
           updated_at: serverTimestamp()
         });
         await logAction('Atualizar', 'malotes', editingId, { previous: existing, next: formData });
       } else {
         const docRef = await addDoc(collection(db, 'malotes'), {
           ...formData,
+          cabinetId: profile?.cabinetId,
           created_at: serverTimestamp(),
         });
         await logAction('Criar', 'malotes', docRef.id, { next: formData });

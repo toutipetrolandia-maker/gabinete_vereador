@@ -1,0 +1,517 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  UserPlus, 
+  Search, 
+  Filter, 
+  MoreVertical, 
+  Shield, 
+  UserCheck, 
+  UserX, 
+  Mail, 
+  Trash2, 
+  Edit,
+  Key,
+  X,
+  Plus,
+  CheckCircle2,
+  AlertTriangle
+} from 'lucide-react';
+import { 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot, 
+  doc, 
+  updateDoc, 
+  setDoc, 
+  deleteDoc, 
+  serverTimestamp 
+} from 'firebase/firestore';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { db, auth } from '../lib/firebase';
+import { useAuth } from '../hooks/useAuth';
+import { motion, AnimatePresence } from 'motion/react';
+import { cn } from '../lib/utils';
+import { logAction } from '../lib/audit';
+import { handleFirestoreError, OperationType } from '../lib/firestoreErrorHandler';
+
+interface User {
+  id: string;
+  nome: string;
+  email: string;
+  username?: string;
+  role: string;
+  ativo: boolean;
+  cabinetId: string;
+  criado_em?: any;
+}
+
+export default function UserManagement() {
+  const { profile, isSuperAdmin } = useAuth();
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Form State
+  const [formData, setFormData] = useState({
+    nome: '',
+    email: '',
+    username: '',
+    role: 'assessor',
+    ativo: true,
+  });
+
+  useEffect(() => {
+    if (!profile?.cabinetId) return;
+
+    const q = query(
+      collection(db, 'users'),
+      where('cabinetId', '==', profile.cabinetId),
+      orderBy('nome', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const usersData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as User[];
+      setUsers(usersData);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching users:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [profile?.cabinetId]);
+
+  const handleResetForm = () => {
+    setFormData({
+      nome: '',
+      email: '',
+      username: '',
+      role: 'assessor',
+      ativo: true,
+    });
+    setSelectedUser(null);
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile?.cabinetId) return;
+    setSubmitting(true);
+
+    try {
+      // Use email prefix or sanitized email as document ID if username is empty
+      const docId = formData.username || formData.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
+      const userRef = doc(db, 'users', docId);
+
+      const userData = {
+        ...formData,
+        email: formData.email.toLowerCase().trim(),
+        cabinetId: profile.cabinetId,
+        criado_em: serverTimestamp(),
+      };
+
+      await setDoc(userRef, userData);
+      await logAction('Criar Usuário', 'users', docId, { next: userData });
+      
+      setShowAddModal(false);
+      handleResetForm();
+      alert("Usuário criado com sucesso!");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'users');
+    } finally {
+      setSubmitting(true);
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    setSubmitting(true);
+
+    try {
+      const userRef = doc(db, 'users', selectedUser.id);
+      const updates = {
+        nome: formData.nome,
+        role: formData.role,
+        ativo: formData.ativo,
+        username: formData.username
+      };
+
+      await updateDoc(userRef, updates);
+      await logAction('Atualizar Usuário', 'users', selectedUser.id, { 
+        previous: selectedUser,
+        next: updates 
+      });
+
+      setShowEditModal(false);
+      handleResetForm();
+      alert("Usuário atualizado com sucesso!");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${selectedUser.id}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleToggleStatus = async (user: User) => {
+    try {
+      const userRef = doc(db, 'users', user.id);
+      await updateDoc(userRef, { ativo: !user.ativo });
+      await logAction(user.ativo ? 'Desativar Usuário' : 'Ativar Usuário', 'users', user.id, {
+        previous: { ativo: user.ativo },
+        next: { ativo: !user.ativo }
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
+    }
+  };
+
+  const handleResetPassword = async (email: string) => {
+    if (!window.confirm(`Enviar e-mail de redefinição de senha para ${email}?`)) return;
+    try {
+      await sendPasswordResetEmail(auth, email);
+      alert("E-mail de redefinição enviado!");
+    } catch (error: any) {
+      alert("Erro ao enviar e-mail: " + error.message);
+    }
+  };
+
+  const handleDeleteUser = async (user: User) => {
+    if (user.id === auth.currentUser?.uid) return alert("Você não pode remover a si mesmo.");
+    if (!window.confirm(`Tem certeza que deseja remover permanentemente ${user.nome}? Esta ação não pode ser desfeita.`)) return;
+
+    try {
+      await deleteDoc(doc(db, 'users', user.id));
+      await logAction('Excluir Usuário', 'users', user.id, { previous: user });
+      alert("Usuário removido.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `users/${user.id}`);
+    }
+  };
+
+  const filteredUsers = users.filter(u => {
+    const matchesSearch = u.nome.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         u.email.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
+
+  const canManage = profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' || isSuperAdmin;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <Shield className="text-blue-500" size={24} />
+            Gestão de Equipe
+          </h2>
+          <p className="text-slate-400 text-sm">Administre os usuários e permissões do seu gabinete.</p>
+        </div>
+        {canManage && (
+          <button 
+            onClick={() => {
+              handleResetForm();
+              setShowAddModal(true);
+            }}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-900/20"
+          >
+            <UserPlus size={18} />
+            Adicionar Membro
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="relative md:col-span-2">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+          <input 
+            type="text"
+            placeholder="Buscar por nome ou email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
+          />
+        </div>
+        <div className="relative">
+          <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+          <select 
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-3 pl-12 pr-10 text-white focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all appearance-none cursor-pointer"
+          >
+            <option value="all">Todos os Cargos</option>
+            <option value="admin">Administrador</option>
+            <option value="vereador">Vereador</option>
+            <option value="assessor">Assessor</option>
+            <option value="secretaria_parlamentar">Secretaria</option>
+            <option value="consulta">Apenas Consulta</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-slate-950/50 border-b border-slate-800">
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Colaborador</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Cargo / Role</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Status</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-10 text-center text-slate-500">Carregando usuários...</td>
+                </tr>
+              ) : filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-10 text-center text-slate-500">Nenhum colaborador encontrado.</td>
+                </tr>
+              ) : filteredUsers.map((user) => (
+                <tr key={user.id} className="hover:bg-slate-800/30 transition-colors group">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg",
+                        user.ativo ? "bg-blue-600/10 text-blue-400" : "bg-slate-800 text-slate-600"
+                      )}>
+                        {user.nome.charAt(0)}
+                      </div>
+                      <div>
+                        <span className="block font-bold text-slate-200">{user.nome}</span>
+                        <span className="block text-xs text-slate-500">{user.email}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={cn(
+                      "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                      user.role === 'admin' ? "bg-purple-500/10 text-purple-400 border border-purple-500/20" :
+                      user.role === 'vereador' ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+                      user.role === 'assessor' ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" :
+                      "bg-slate-500/10 text-slate-400 border border-slate-500/20"
+                    )}>
+                      <Shield size={10} />
+                      {user.role.replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <button 
+                      onClick={() => canManage && handleToggleStatus(user)}
+                      disabled={!canManage}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all",
+                        user.ativo ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20",
+                        canManage && "hover:bg-opacity-20"
+                      )}
+                    >
+                      {user.ativo ? <UserCheck size={10} /> : <UserX size={10} />}
+                      {user.ativo ? 'Ativo' : 'Inativo'}
+                    </button>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {canManage && (
+                        <>
+                          <button 
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setFormData({
+                                nome: user.nome,
+                                email: user.email,
+                                username: user.username || '',
+                                role: user.role,
+                                ativo: user.ativo
+                              });
+                              setShowEditModal(true);
+                            }}
+                            className="p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-all"
+                            title="Editar Dados"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleResetPassword(user.email)}
+                            className="p-2 hover:bg-blue-500/10 text-slate-400 hover:text-blue-400 rounded-lg transition-all"
+                            title="Redefinir Senha"
+                          >
+                            <Key size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteUser(user)}
+                            className="p-2 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-lg transition-all"
+                            title="Excluir Usuário"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Add/Edit Modal */}
+      <AnimatePresence>
+        {(showAddModal || showEditModal) && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setShowAddModal(false);
+                setShowEditModal(false);
+              }}
+              className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100]"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-x-4 top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-8 z-[101] shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-xl font-bold text-white">
+                    {showAddModal ? 'Adicionar Novo Membro' : 'Editar Colaborador'}
+                  </h3>
+                  <p className="text-slate-400 text-xs mt-1">
+                    {showAddModal ? 'Configure as credenciais de acesso' : `Editando perfil de ${formData.nome}`}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setShowEditModal(false);
+                  }}
+                  className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 hover:text-white transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={showAddModal ? handleCreateUser : handleUpdateUser} className="space-y-5">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Nome Completo</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formData.nome}
+                    onChange={e => setFormData({ ...formData, nome: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
+                    placeholder="Ex: João da Silva"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Email</label>
+                    <input 
+                      type="email" 
+                      required
+                      disabled={showEditModal}
+                      value={formData.email}
+                      onChange={e => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all disabled:opacity-50"
+                      placeholder="email@gabinete.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Nome de Usuário</label>
+                    <input 
+                      type="text" 
+                      value={formData.username}
+                      onChange={e => setFormData({ ...formData, username: e.target.value.toLowerCase().replace(/\s/g, '.') })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
+                      placeholder="Ex: joao.silva"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Cargo / Permissão</label>
+                    <select 
+                      value={formData.role}
+                      onChange={e => setFormData({ ...formData, role: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="assessor">Assessor</option>
+                      <option value="admin">Administrador</option>
+                      <option value="vereador">Vereador</option>
+                      <option value="secretaria_parlamentar">Secretaria</option>
+                      <option value="consulta">Apenas Consulta</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Status da Conta</label>
+                    <div className="flex h-[58px] bg-slate-950 border border-slate-800 rounded-2xl p-1">
+                      <button 
+                        type="button"
+                        onClick={() => setFormData({ ...formData, ativo: true })}
+                        className={cn(
+                          "flex-1 rounded-xl text-xs font-bold transition-all",
+                          formData.ativo ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20" : "text-slate-500 hover:text-slate-300"
+                        )}
+                      >
+                        Ativo
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setFormData({ ...formData, ativo: false })}
+                        className={cn(
+                          "flex-1 rounded-xl text-xs font-bold transition-all",
+                          !formData.ativo ? "bg-red-600 text-white shadow-lg shadow-red-900/20" : "text-slate-500 hover:text-slate-300"
+                        )}
+                      >
+                        Inativo
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-6">
+                  <button 
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-900/40 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                  >
+                    {submitting ? (
+                      <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      showAddModal ? <><Plus size={20} /> Criar Usuário</> : <><CheckCircle2 size={20} /> Salvar Alterações</>
+                    )}
+                  </button>
+                  {showAddModal && (
+                    <div className="mt-4 flex items-center gap-2 text-[10px] text-slate-500 bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                      <AlertTriangle size={14} className="text-amber-500 shrink-0" />
+                      O colaborador receberá um e-mail automático para configurar sua senha no primeiro acesso caso utilize o Login do Google.
+                    </div>
+                  )}
+                </div>
+              </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

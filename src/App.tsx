@@ -12,9 +12,10 @@ import Demandas from './components/Demandas';
 import Sugestoes from './components/Sugestoes';
 import Relatorios from './components/Relatorios';
 import Agenda from './components/Agenda';
+import SaaSAdmin from './components/SaaSAdmin';
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, isSuperAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
   if (loading) {
@@ -33,6 +34,7 @@ function AppContent() {
     <LocalAuthBarrier>
       <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
         {activeTab === 'dashboard' && <Dashboard />}
+        {activeTab === 'saas' && isSuperAdmin && <SaaSAdmin />}
         {activeTab === 'agenda' && <Agenda />}
         {activeTab === 'atendimentos' && <Atendimentos />}
         {activeTab === 'medico' && <AtendimentosMedicos />}

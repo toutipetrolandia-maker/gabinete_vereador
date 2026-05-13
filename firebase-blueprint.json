@@ -2,25 +2,46 @@
   "entities": {
     "User": {
       "title": "User Profile",
-      "description": "System user profiles, roles and online status",
+      "description": "System user profiles, roles and online status within a cabinet",
       "type": "object",
       "properties": {
+        "cabinetId": { "type": "string" },
         "nome": { "type": "string" },
         "username": { "type": "string" },
         "email": { "type": "string", "format": "email" },
-        "role": { "type": "string", "enum": ["admin", "assessor", "vereador", "consulta"] },
+        "role": { "type": "string", "enum": ["superadmin", "admin", "assessor", "vereador", "consulta", "secretaria_parlamentar"] },
         "ativo": { "type": "boolean" },
         "status": { "type": "string", "enum": ["online", "offline"] },
         "last_seen": { "type": "string", "format": "date-time" },
         "created_at": { "type": "string", "format": "date-time" }
       },
-      "required": ["nome", "email", "role", "ativo"]
+      "required": ["nome", "email", "role", "ativo", "cabinetId"]
+    },
+    "Cabinet": {
+      "title": "Cabinet (Tenant)",
+      "description": "Organization/Cabinet settings in the SaaS platform",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "custom_domain": { "type": "string" },
+        "subdomain": { "type": "string" },
+        "vereador_nome": { "type": "string" },
+        "vereador_photo": { "type": "string" },
+        "perfil_link": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "suspended", "trial"] },
+        "plan": { "type": "string", "enum": ["basic", "pro", "enterprise"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "slug", "status"]
     },
     "Atendimento": {
       "title": "Atendimento Geral",
       "description": "General parliamentary assistance records",
       "type": "object",
       "properties": {
+        "cabinetId": { "type": "string" },
         "nome_completo": { "type": "string" },
         "cpf": { "type": "string" },
         "whatsapp": { "type": "string" },
@@ -38,13 +59,14 @@
         "created_at": { "type": "string", "format": "date-time" },
         "updated_at": { "type": "string", "format": "date-time" }
       },
-      "required": ["nome_completo", "tipo_atendimento", "status", "prioridade"]
+      "required": ["cabinetId", "nome_completo", "tipo_atendimento", "status", "prioridade"]
     },
     "AtendimentoMedico": {
       "title": "Atendimento Médico",
       "description": "Health specific appointments",
       "type": "object",
       "properties": {
+        "cabinetId": { "type": "string" },
         "nome_completo": { "type": "string" },
         "datanascimento": { "type": "string" },
         "cpf": { "type": "string" },
@@ -65,13 +87,14 @@
         "created_at": { "type": "string", "format": "date-time" },
         "updated_at": { "type": "string", "format": "date-time" }
       },
-      "required": ["nome_completo", "status", "prioridade"]
+      "required": ["cabinetId", "nome_completo", "status", "prioridade"]
     },
     "Agenda": {
       "title": "Agenda do Vereador",
       "description": "Councilor official schedule",
       "type": "object",
       "properties": {
+        "cabinetId": { "type": "string" },
         "titulo": { "type": "string" },
         "tipo": { "type": "string", "enum": ["Compromisso", "Sessão", "Gabinete", "Viagem", "Outro"] },
         "data": { "type": "string" },
@@ -87,13 +110,15 @@
         "usuario_nome": { "type": "string" },
         "created_at": { "type": "string", "format": "date-time" },
         "updated_at": { "type": "string", "format": "date-time" }
-      }
+      },
+      "required": ["cabinetId"]
     },
     "Sugestao": {
       "title": "Sugestão / Ouvidoria",
       "description": "Public feedback",
       "type": "object",
       "properties": {
+        "cabinetId": { "type": "string" },
         "nome_completo": { "type": "string" },
         "telefone": { "type": "string" },
         "email": { "type": "string" },
@@ -104,13 +129,15 @@
         "usuario_nome": { "type": "string" },
         "created_at": { "type": "string", "format": "date-time" },
         "updated_at": { "type": "string", "format": "date-time" }
-      }
+      },
+      "required": ["cabinetId"]
     },
     "AuditLog": {
       "title": "Log de Auditoria",
       "description": "Immutable audit trail",
       "type": "object",
       "properties": {
+        "cabinetId": { "type": "string" },
         "usuario_id": { "type": "string" },
         "usuario_nome": { "type": "string" },
         "acao": { "type": "string" },
@@ -119,16 +146,17 @@
         "dados_anteriores": { "type": "object" },
         "dados_novos": { "type": "object" },
         "criado_em": { "type": "string", "format": "date-time" }
-      }
+      },
+      "required": ["cabinetId"]
     }
   },
   "firestore": {
+    "/cabinets/{cabinetId}": { "schema": "Cabinet", "description": "Cabinet settings" },
     "/users/{userId}": { "schema": "User", "description": "User profiles" },
     "/atendimentos/{id}": { "schema": "Atendimento", "description": "General records" },
     "/atendimentos_medicos/{id}": { "schema": "AtendimentoMedico", "description": "Medical records" },
     "/agenda_vereador/{id}": { "schema": "Agenda", "description": "Schedule" },
     "/sugestoes/{id}": { "schema": "Sugestao", "description": "Feedback" },
-    "/logs/{id}": { "schema": "AuditLog", "description": "Audit trails" },
-    "/app_settings/global": { "schema": "object", "description": "Global config" }
+    "/logs/{id}": { "schema": "AuditLog", "description": "Audit trails" }
   }
 }

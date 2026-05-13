@@ -17,7 +17,9 @@ import {
   Wifi,
   WifiOff,
   CheckCircle2,
-  Search
+  Search,
+  Globe,
+  ShieldCheck
 } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -36,17 +38,18 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
-  const { profile, isOnline } = useAuth();
+  const { profile, isOnline, isSuperAdmin: authIsSuper, isCabinetOverridden, switchCabinet } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [appName, setAppName] = useState('Gabinete Digital');
   const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
   const [perfilLink, setPerfilLink] = useState('https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
+  const [perfilLabel, setPerfilLabel] = useState('Câmara Municipal');
   const [systemLocked, setSystemLocked] = useState(false);
   const [billingStatus, setBillingStatus] = useState<'regular' | 'pending' | 'suspended'>('regular');
   const [isMobile, setIsMobile] = useState(false);
   const [showStatusToast, setShowStatusToast] = useState(false);
 
-  const isSuperAdmin = profile?.email === 'cleciotecnologia@gmail.com';
+  const isSuperAdmin = authIsSuper;
 
   React.useEffect(() => {
     if (isOnline) {
@@ -67,31 +70,36 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
   }, []);
 
   React.useEffect(() => {
-     const unsub = onSnapshot(doc(db, 'app_settings', 'global'), (snap) => {
+    if (!profile?.cabinetId) return;
+
+    const unsub = onSnapshot(doc(db, 'cabinets', profile.cabinetId), (snap) => {
         if (snap.exists()) {
            const data = snap.data();
-           setAppName(data.app_name || 'Gabinete Digital');
+           setAppName(data.name || 'Gabinete Digital');
            setVereadorPhoto(data.vereador_photo || null);
            setPerfilLink(data.perfil_link || 'https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
-           setSystemLocked(!!data.system_locked);
-           setBillingStatus(data.billing_status || 'regular');
+           setPerfilLabel(data.perfil_label || 'Câmara Municipal');
+           setSystemLocked(data.status === 'suspended');
+           setBillingStatus(data.status === 'suspended' ? 'suspended' : 'regular');
         }
      }, (error) => {
         console.error("Error listening to settings in Layout:", error);
      });
      return () => unsub();
-  }, []);
+  }, [profile?.cabinetId]);
 
   const roleLabels: Record<string, string> = {
+    superadmin: 'Super Admin',
     admin: 'Administrador',
     vereador: 'Vereador',
-    secretaria_parlamentar: 'Sec. Parlamentar',
+    secretaria_parlamentar: 'Assessora Parlamentar',
     assessor: 'Assessor',
     consulta: 'Consulta'
   };
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+    { id: 'saas', label: 'Admin SaaS', icon: Globe, superOnly: true },
     { id: 'agenda', label: 'Agenda', icon: Clock },
     { id: 'atendimentos', label: 'Atendimentos', icon: Users },
     { id: 'medico', label: 'Atend. Médico', icon: Stethoscope },
@@ -103,6 +111,9 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
   ].filter(item => {
     if (item.id === 'config') {
       return profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' || isSuperAdmin;
+    }
+    if ((item as any).superOnly) {
+      return isSuperAdmin;
     }
     return true;
   });
@@ -256,7 +267,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
             )}
           >
             <ExternalLink size={20} className="shrink-0" />
-            {(isSidebarOpen || isMobile) && <span className="font-medium text-sm">Câmara Municipal</span>}
+            {(isSidebarOpen || isMobile) && <span className="font-medium text-sm">{perfilLabel}</span>}
           </a>
         </nav>
 
@@ -295,6 +306,24 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto relative p-4 md:p-6 lg:p-10 flex flex-col">
+        {isCabinetOverridden && (
+          <div className="mb-6 -mt-4 -mx-4 md:-mt-6 md:-mx-6 lg:-mt-10 lg:-mx-10 bg-amber-600 px-6 py-2 flex items-center justify-between shadow-lg z-30">
+            <div className="flex items-center gap-2 text-white font-bold text-xs uppercase tracking-widest">
+               <ShieldCheck size={16} />
+               Modo Administrativo: Visualizando Gabinete "{appName}"
+            </div>
+            <button 
+              onClick={() => {
+                switchCabinet(null);
+                setActiveTab('saas');
+              }}
+              className="bg-white text-amber-700 hover:bg-slate-100 px-4 py-1.5 rounded-lg font-black text-[10px] uppercase transition-all shadow-sm"
+            >
+              Sair do Gabinete
+            </button>
+          </div>
+        )}
+        
         {/* Header Bar */}
         <header className="flex items-center justify-between mb-8 pb-6 border-b border-slate-800/50">
            <div className="flex items-center gap-4 bg-slate-900 border border-slate-800 px-4 py-2 rounded-2xl w-full max-w-md group focus-within:border-blue-500/50 transition-all">

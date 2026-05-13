@@ -3,6 +3,7 @@ import {
   collection, 
   addDoc, 
   query, 
+  where,
   orderBy, 
   onSnapshot,
   serverTimestamp,
@@ -59,7 +60,13 @@ export default function Sugestoes() {
   const [formData, setFormData] = useState(initialForm);
 
   useEffect(() => {
-    const q = query(collection(db, 'sugestoes'), orderBy('created_at', 'desc'));
+    if (!profile?.cabinetId) return;
+
+    const q = query(
+      collection(db, 'sugestoes'), 
+      where('cabinetId', '==', profile.cabinetId),
+      orderBy('created_at', 'desc')
+    );
     const unsubscribe = onSnapshot(q, (snap) => {
       setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
@@ -68,7 +75,7 @@ export default function Sugestoes() {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [profile?.cabinetId]);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -84,6 +91,7 @@ export default function Sugestoes() {
         const existing = data.find(i => i.id === editingId);
         await updateDoc(doc(db, 'sugestoes', editingId), {
           ...formData,
+          cabinetId: profile?.cabinetId,
           usuario_id: user?.uid,
           updated_at: serverTimestamp()
         });
@@ -91,6 +99,7 @@ export default function Sugestoes() {
       } else {
         const docRef = await addDoc(collection(db, 'sugestoes'), {
           ...formData,
+          cabinetId: profile?.cabinetId,
           usuario_id: user?.uid,
           created_at: serverTimestamp(),
           updated_at: serverTimestamp(),

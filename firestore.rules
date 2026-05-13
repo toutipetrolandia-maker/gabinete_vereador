@@ -11,39 +11,51 @@ service cloud.firestore {
       return request.auth != null;
     }
     
-    function isEmailVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
-    }
-    
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
     
-    function hasRole(role) {
-      return isSignedIn() && getUserData().role == role;
+    function isAdmin() {
+      let docPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isSignedIn() && exists(docPath) && (get(docPath).data.role == 'admin' || get(docPath).data.role == 'superadmin' || get(docPath).data.role == 'secretaria_parlamentar');
     }
     
-    // Internal user check: must be active and have a valid cabinet role
+    function isSuper() {
+      let docPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isSignedIn() && (
+        request.auth.token.email == 'cleciotecnologia@gmail.com' || 
+        request.auth.token.email == 'toutipetrolandia@gmail.com' ||
+        (exists(docPath) && get(docPath).data.role == 'superadmin')
+      );
+    }
+
     function isCabinetMember() {
       let docPath = /databases/$(database)/documents/users/$(request.auth.uid);
       return isSignedIn() && 
              exists(docPath) && 
-             (get(docPath).data.ativo == true || get(docPath).data.role == 'admin') && 
-             get(docPath).data.role in ['admin', 'vereador', 'assessor', 'secretaria_parlamentar'];
+             (get(docPath).data.ativo == true || get(docPath).data.role == 'admin' || get(docPath).data.role == 'superadmin' || get(docPath).data.role == 'secretaria_parlamentar') && 
+             get(docPath).data.role in ['superadmin', 'admin', 'vereador', 'assessor', 'secretaria_parlamentar', 'consulta'];
+    }
+
+    function belongsToCabinet(cabinetId) {
+      return isSuper() || (isCabinetMember() && getUserData().cabinetId == cabinetId);
     }
     
-    function isAdmin() {
-      let docPath = /databases/$(database)/documents/users/$(request.auth.uid);
-      return isSignedIn() && exists(docPath) && get(docPath).data.role == 'admin';
+    function dataBelongsToUserCabinet() {
+      return isSuper() || (isCabinetMember() && request.resource.data.cabinetId == getUserData().cabinetId);
     }
-    
+
+    function resourceBelongsToUserCabinet() {
+      return isSuper() || (isCabinetMember() && resource.data.cabinetId == getUserData().cabinetId);
+    }
+
     function isVereador() {
       let docPath = /databases/$(database)/documents/users/$(request.auth.uid);
-      return isSignedIn() && exists(docPath) && get(docPath).data.role == 'vereador';
+      return isSignedIn() && exists(docPath) && (get(docPath).data.role == 'vereador' || get(docPath).data.role == 'superadmin' || get(docPath).data.role == 'admin' || get(docPath).data.role == 'secretaria_parlamentar');
     }
 
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return isSignedIn() && (request.auth.uid == userId || isSuper());
     }
 
     function incoming() {
@@ -65,115 +77,102 @@ service cloud.firestore {
     // ==========================================
     // 3. COLLECTION RULES
     // ==========================================
-
+    
     // Health check Document
     match /_connection_test/ping {
       allow get: if isSignedIn();
     }
 
-    // USER PROFILES
+    // CABINETS
+    match /cabinets/{cabinetId} {
+      // Allow public read to facilitate multitenancy detection (subdomains/domains)
+      allow read: if true; 
+      allow write: if isSuper() || (belongsToCabinet(cabinetId) && isAdmin());
+    }
+
+
     match /users/{userId} {
-      // Users can read their own profile. Admins and Vereadores can read all.
-      // Allow public 'get' for username-to-email resolution in Login.tsx
       allow get: if true;
-      allow list: if isAdmin() || isVereador();
+      allow list: if isSuper() || (isCabinetMember() && resourceBelongsToUserCabinet() && (isAdmin() || isVereador()));
       
       function isValidUser(data) {
         return data.nome is string && data.nome.size() <= 100 &&
-               data.role in ['admin', 'assessor', 'vereador', 'consulta', 'secretaria_parlamentar'];
+               data.role in ['superadmin', 'admin', 'assessor', 'vereador', 'consulta', 'secretaria_parlamentar'];
       }
 
-      // Initial profile creation (via useAuth hook)
-      allow create: if isSignedIn() && (isOwner(userId) || isAdmin()) && isValidUser(incoming());
+      allow create: if isSignedIn() && (isOwner(userId) || isSuper()) && isValidUser(incoming());
       
       allow update: if isSignedIn() && (
-        // Only admin can change roles or activation status
-        (isAdmin()) ||
-        // User can update their own status (online/offline)
+        isSuper() || (isAdmin() && resourceBelongsToUserCabinet()) ||
         (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'last_seen', 'primeiro_acesso_concluido', 'status_oculos', 'updated_at']))
       );
 
-      allow delete: if isAdmin() || isVereador();
+      allow delete: if isSuper();
     }
 
-    // ATENDIMENTOS (GENERIC)
+    // ATENDIMENTOS
     match /atendimentos/{id} {
-      allow read: if isCabinetMember() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'consulta');
+      allow read: if resourceBelongsToUserCabinet();
       
       function isValidAtendimento(data) {
         return data.nome_completo is string && data.nome_completo.size() <= 150 &&
-               (data.usuario_id == request.auth.uid || data.assessor_id == request.auth.uid || !('usuario_id' in data)) &&
-               data.status in ['Novo', 'Em Andamento', 'Concluído', 'Cancelado', 'Pendente', 'Encaminhado', 'Em andamento'] &&
-               data.prioridade in ['Baixa', 'Média', 'Alta'];
+               data.cabinetId is string;
       }
 
-      allow create: if isCabinetMember() && isValidAtendimento(incoming()) && (incoming().created_at == request.time || !('created_at' in incoming()));
-      
-      allow update: if isCabinetMember() && (
-        (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updated_at']) && (incoming().updated_at == request.time || !('updated_at' in incoming()))) ||
-        (isAdmin()) ||
-        ((incoming().usuario_id == existing().usuario_id || incoming().assessor_id == existing().assessor_id) && (incoming().updated_at == request.time || !('updated_at' in incoming())))
-      );
-      
-      allow delete: if isAdmin();
+      allow create: if isCabinetMember() && dataBelongsToUserCabinet() && isValidAtendimento(incoming());
+      allow update: if isCabinetMember() && resourceBelongsToUserCabinet() && (isSuper() || isAdmin() || existing().usuario_id == request.auth.uid);
+      allow delete: if isSuper() || (isAdmin() && resourceBelongsToUserCabinet());
     }
 
-    // ATENDIMENTOS MÉDICOS (Sensitive PII)
+    // ATENDIMENTOS MÉDICOS
     match /atendimentos_medicos/{id} {
-      // Restricted to Cabinet Members only (No Consulta)
-      allow read: if isCabinetMember();
+      allow read: if resourceBelongsToUserCabinet();
       
       function isValidAtendimentoMedico(data) {
         return data.nome_completo is string && data.nome_completo.size() <= 150 &&
-               (data.usuario_id == request.auth.uid || data.assessor_id == request.auth.uid || !('usuario_id' in data));
+               data.cabinetId is string;
       }
 
-      allow create: if isCabinetMember() && isValidAtendimentoMedico(incoming()) && (incoming().created_at == request.time || !('created_at' in incoming()));
-      allow update: if isCabinetMember() && (
-        isAdmin() || 
-        ((incoming().usuario_id == existing().usuario_id || incoming().assessor_id == existing().assessor_id) && (incoming().updated_at == request.time || !('updated_at' in incoming())))
-      );
-      allow delete: if isAdmin();
+      allow create: if isCabinetMember() && dataBelongsToUserCabinet() && isValidAtendimentoMedico(incoming());
+      allow update: if isCabinetMember() && resourceBelongsToUserCabinet() && (isSuper() || isAdmin() || existing().usuario_id == request.auth.uid);
+      allow delete: if isSuper() || (isAdmin() && resourceBelongsToUserCabinet());
     }
 
     // AGENDA VEREADOR
     match /agenda_vereador/{id} {
-      allow read: if isSignedIn();
-      allow create, update: if isCabinetMember();
-      allow delete: if isAdmin() || isVereador();
+      allow read: if resourceBelongsToUserCabinet();
+      allow create: if isCabinetMember() && dataBelongsToUserCabinet();
+      allow update: if isCabinetMember() && resourceBelongsToUserCabinet() && dataBelongsToUserCabinet();
+      allow delete: if isSuper() || (isAdmin() && resourceBelongsToUserCabinet());
     }
 
     // SUGESTÕES
     match /sugestoes/{id} {
-      allow read: if isCabinetMember();
-      allow create, update: if isCabinetMember();
-      allow delete: if isAdmin();
+      allow read: if resourceBelongsToUserCabinet();
+      allow create: if isCabinetMember() && dataBelongsToUserCabinet();
+      allow update: if isCabinetMember() && resourceBelongsToUserCabinet() && dataBelongsToUserCabinet();
+      allow delete: if isSuper() || (isAdmin() && resourceBelongsToUserCabinet());
     }
 
     // MALOTES
     match /malotes/{id} {
-      allow read: if isCabinetMember();
-      allow create, update: if isCabinetMember();
-      allow delete: if isAdmin();
+      allow read: if resourceBelongsToUserCabinet();
+      allow create: if isCabinetMember() && dataBelongsToUserCabinet();
+      allow update: if isCabinetMember() && resourceBelongsToUserCabinet() && dataBelongsToUserCabinet();
+      allow delete: if isSuper() || (isAdmin() && resourceBelongsToUserCabinet());
     }
     
     // DEMANDAS PARLAMENTARES
     match /demandas_parlamentares/{id} {
-      allow read: if isCabinetMember();
-      allow create, update: if isCabinetMember();
-      allow delete: if isAdmin();
+      allow read: if resourceBelongsToUserCabinet();
+      allow create: if isCabinetMember() && dataBelongsToUserCabinet();
+      allow update: if isCabinetMember() && resourceBelongsToUserCabinet() && dataBelongsToUserCabinet();
+      allow delete: if isSuper() || (isAdmin() && resourceBelongsToUserCabinet());
     }
 
-    // APP SETTINGS
-    match /app_settings/{docId} {
-      allow read: if isSignedIn();
-      allow update: if isAdmin() || isVereador();
-      allow create: if isAdmin();
-    }
-
-    // AUDIT LOGS (IMMUTABLE & RESTRICTED)
+    // AUDIT LOGS
     match /logs/{id} {
-      allow read: if isCabinetMember() && (isAdmin() || isVereador());
+      allow read: if isSuper() || (isCabinetMember() && resourceBelongsToUserCabinet() && (isAdmin() || isVereador()));
       allow create: if isSignedIn();
       allow update, delete: if false;
     }

@@ -10,8 +10,9 @@ import {
   AlertCircle,
   ExternalLink
 } from 'lucide-react';
-import { collection, query, limit, getDocs, orderBy, onSnapshot, doc } from 'firebase/firestore';
+import { collection, query, limit, getDocs, orderBy, onSnapshot, doc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../hooks/useAuth';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { 
@@ -28,6 +29,7 @@ import {
 } from 'recharts';
 
 export default function Dashboard() {
+  const { profile } = useAuth();
   const [stats, setStats] = useState({
     atendimentos: 0,
     medicos: 0,
@@ -49,13 +51,15 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    const unsubSettings = onSnapshot(doc(db, 'app_settings', 'global'), (snap) => {
+    if (!profile?.cabinetId) return;
+
+    const unsubSettings = onSnapshot(doc(db, 'cabinets', profile.cabinetId), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        setAppName(data.app_name || 'Gabinete Digital');
+        setAppName(data.name || 'Gabinete Digital');
         setVereadorPhoto(data.vereador_photo || null);
         setPerfilLink(data.perfil_link || 'https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
-        setBillingStatus(data.billing_status || 'regular');
+        setBillingStatus(data.status === 'suspended' ? 'suspended' : 'regular');
         const start = data.atendimento_inicio || '08:00';
         const end = data.atendimento_fim || '13:00';
         setOfficeHours({ inicio: start, fim: end });
@@ -67,12 +71,14 @@ export default function Dashboard() {
 
     const fetchData = async () => {
       try {
+        const cabQuery = (col: string) => query(collection(db, col), where('cabinetId', '==', profile.cabinetId));
+        
         const [atendSnap, medSnap, malSnap, demSnap, sugSnap] = await Promise.all([
-          getDocs(collection(db, 'atendimentos')),
-          getDocs(collection(db, 'atendimentos_medicos')),
-          getDocs(collection(db, 'malotes')),
-          getDocs(collection(db, 'demandas_parlamentares')),
-          getDocs(collection(db, 'sugestoes'))
+          getDocs(cabQuery('atendimentos')),
+          getDocs(cabQuery('atendimentos_medicos')),
+          getDocs(cabQuery('malotes')),
+          getDocs(cabQuery('demandas_parlamentares')),
+          getDocs(cabQuery('sugestoes'))
         ]);
 
         setStats({
@@ -94,7 +100,12 @@ export default function Dashboard() {
         setChartDataSync(distribution);
 
         // Recent limit 8
-        const qRecent = query(collection(db, 'atendimentos'), orderBy('created_at', 'desc'), limit(8));
+        const qRecent = query(
+          collection(db, 'atendimentos'), 
+          where('cabinetId', '==', profile.cabinetId),
+          orderBy('created_at', 'desc'), 
+          limit(8)
+        );
         const snapRecent = await getDocs(qRecent);
         setRecent(snapRecent.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (e) {
@@ -104,7 +115,7 @@ export default function Dashboard() {
     fetchData();
 
     return () => unsubSettings();
-  }, []);
+  }, [profile]);
 
   const [chartDataSync, setChartDataSync] = useState([
     { name: 'Geral', value: 0 },

@@ -38,6 +38,7 @@ import {
   doc, 
   onSnapshot, 
   query, 
+  where,
   orderBy, 
   serverTimestamp,
   Timestamp
@@ -76,7 +77,13 @@ export default function Agenda() {
   const [formData, setFormData] = useState(initialForm);
 
   useEffect(() => {
-    const q = query(collection(db, 'agenda_vereador'), orderBy('data', 'asc'));
+    if (!profile?.cabinetId) return;
+
+    const q = query(
+      collection(db, 'agenda_vereador'), 
+      where('cabinetId', '==', profile.cabinetId),
+      orderBy('data', 'asc')
+    );
     const unsub = onSnapshot(q, (snap) => {
       setEvents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
@@ -85,10 +92,12 @@ export default function Agenda() {
       setLoading(false);
     });
     return () => unsub();
-  }, []);
+  }, [profile?.cabinetId]);
 
   useEffect(() => {
-    const unsubSettings = onSnapshot(doc(db, 'app_settings', 'global'), (snap) => {
+    if (!profile?.cabinetId) return;
+
+    const unsubSettings = onSnapshot(doc(db, 'cabinets', profile.cabinetId), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         setOfficeHours({
@@ -98,7 +107,7 @@ export default function Agenda() {
       }
     });
     return () => unsubSettings();
-  }, []);
+  }, [profile?.cabinetId]);
 
   useEffect(() => {
     if (!editingId) {
@@ -120,6 +129,7 @@ export default function Agenda() {
     try {
       const eventData = {
         ...formData,
+        cabinetId: profile.cabinetId,
         updated_at: serverTimestamp(),
         usuario_id: user.uid,
         usuario_nome: profile.nome

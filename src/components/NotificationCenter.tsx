@@ -44,31 +44,35 @@ export default function NotificationCenter() {
   });
 
   useEffect(() => {
-    if (!profile) return;
+    if (!profile?.cabinetId) return;
 
     const todayStr = format(new Date(), 'yyyy-MM-dd');
 
     // 1. Fetch Today's Agenda (Events for today)
     const qAgenda = query(
       collection(db, 'agenda_vereador'),
+      where('cabinetId', '==', profile.cabinetId),
       where('data', '==', todayStr)
     );
 
     // 1.1 Fetch Future Agenda Reminders
     const qAgendaReminders = query(
       collection(db, 'agenda_vereador'),
+      where('cabinetId', '==', profile.cabinetId),
       where('lembrete_data', '>=', todayStr)
     );
 
     // 2. Fetch Medical Exam Reminders (from today onwards)
     const qMedical = query(
       collection(db, 'atendimentos_medicos'),
+      where('cabinetId', '==', profile.cabinetId),
       where('lembrete_exame', '>=', todayStr)
     );
 
     // 3. Fetch Suggestion Reminders (from today onwards)
     const qSuggestions = query(
       collection(db, 'sugestoes'),
+      where('cabinetId', '==', profile.cabinetId),
       where('lembrete', '>=', todayStr)
     );
 
@@ -119,9 +123,10 @@ export default function NotificationCenter() {
     });
 
     let unsubLogs = () => {};
-    if (profile.role === 'admin' || profile.role === 'vereador' || profile.role === 'secretaria_parlamentar' || profile.email === 'cleciotecnologia@gmail.com') {
+    if (profile.role === 'admin' || profile.role === 'vereador' || profile.role === 'secretaria_parlamentar' || profile.email === 'cleciotecnologia@gmail.com' || profile.email === 'toutipetrolandia@gmail.com') {
       const qLogs = query(
         collection(db, 'logs'),
+        where('cabinetId', '==', profile.cabinetId),
         where('acao', '==', 'Primeiro Acesso'),
         orderBy('criado_em', 'desc'),
         limit(5)

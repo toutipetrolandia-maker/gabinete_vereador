@@ -73,7 +73,7 @@ const tools = [
   }
 ];
 
-async function executeSearchSuggestions(nome?: string) {
+async function executeSearchSuggestions(cabinetId: string, nome?: string) {
   try {
     const suggestionsRef = collection(db, 'sugestoes');
     let q;
@@ -81,12 +81,18 @@ async function executeSearchSuggestions(nome?: string) {
     if (nome) {
       q = query(
         suggestionsRef, 
+        where('cabinetId', '==', cabinetId),
         where('nome_completo', '>=', nome),
         where('nome_completo', '<=', nome + '\uf8ff'),
         limit(5)
       );
     } else {
-      q = query(suggestionsRef, orderBy('created_at', 'desc'), limit(5));
+      q = query(
+        suggestionsRef, 
+        where('cabinetId', '==', cabinetId),
+        orderBy('created_at', 'desc'), 
+        limit(5)
+      );
     }
     
     const querySnapshot = await getDocs(q);
@@ -108,7 +114,7 @@ async function executeSearchSuggestions(nome?: string) {
   }
 }
 
-export async function askAIAssistant(message: string, history: { role: 'user' | 'model', content: string }[] = []) {
+export async function askAIAssistant(cabinetId: string, message: string, history: { role: 'user' | 'model', content: string }[] = []) {
   if (!ai || !apiKey) {
     throw new Error("Assistente de IA não configurado ou chave de API ausente.");
   }
@@ -123,7 +129,7 @@ export async function askAIAssistant(message: string, history: { role: 'user' | 
     ];
 
     let result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: contents as any,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
@@ -136,7 +142,7 @@ export async function askAIAssistant(message: string, history: { role: 'user' | 
     if (call) {
       const { name, args } = call;
       if (name === "search_suggestions") {
-        const toolResult = await executeSearchSuggestions(args.nome as string);
+        const toolResult = await executeSearchSuggestions(cabinetId, args.nome as string);
         
         // Append the model's tool call and the tool's response to contents
         const nextContents = [
@@ -154,7 +160,7 @@ export async function askAIAssistant(message: string, history: { role: 'user' | 
         ];
 
         result = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
+          model: "gemini-1.5-flash",
           contents: nextContents as any,
           config: {
             systemInstruction: SYSTEM_INSTRUCTION,

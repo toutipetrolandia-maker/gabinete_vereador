@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { collection, query, getDocs, orderBy, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../hooks/useAuth';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
@@ -20,6 +21,7 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 
 export default function Relatorios() {
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
   const [filteredData, setFilteredData] = useState<any[]>([]);
@@ -33,9 +35,14 @@ export default function Relatorios() {
   // Load all data from selected collection to filter locally for live preview
   useEffect(() => {
     const fetchData = async () => {
+      if (!profile?.cabinetId) return;
       setLoading(true);
       try {
-        const q = query(collection(db, filterType), orderBy('created_at', 'desc'));
+        const q = query(
+          collection(db, filterType), 
+          where('cabinetId', '==', profile.cabinetId),
+          orderBy('created_at', 'desc')
+        );
         const snap = await getDocs(q);
         setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (err) {
@@ -45,7 +52,7 @@ export default function Relatorios() {
       }
     };
     fetchData();
-  }, [filterType]);
+  }, [filterType, profile?.cabinetId]);
 
   // Apply filters locally
   useEffect(() => {

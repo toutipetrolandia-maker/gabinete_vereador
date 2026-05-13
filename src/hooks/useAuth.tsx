@@ -6,8 +6,10 @@ import { auth, db } from '../lib/firebase';
 interface UserProfile {
   nome: string;
   username?: string;
-  role: 'admin' | 'assessor' | 'vereador' | 'consulta' | 'secretaria_parlamentar';
+  role: 'superadmin' | 'admin' | 'assessor' | 'vereador' | 'consulta' | 'secretaria_parlamentar';
   email: string;
+  cabinetId: string;
+  biography?: string;
   ativo?: boolean;
   status?: 'online' | 'offline';
 }
@@ -17,15 +19,86 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   isOnline: boolean;
+  isSuperAdmin: boolean;
+  isCabinetOverridden: boolean;
+  switchCabinet: (id: string | null) => void;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, profile: null, loading: true, isOnline: true });
+const AuthContext = createContext<AuthContextType>({ 
+  user: null, 
+  profile: null, 
+  loading: true, 
+  isOnline: true,
+  isSuperAdmin: false,
+  isCabinetOverridden: false,
+  switchCabinet: () => {}
+});
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [overrideCabinetId, setOverrideCabinetId] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('cabinetId');
+  });
+  const [domainCabinetId, setDomainCabinetId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const resolveDomain = async () => {
+      const hostname = window.location.hostname;
+      // Skip for common dev/preview domains
+      if (hostname.includes('.run.app') || hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
+        return;
+      }
+
+      try {
+        // Try exact custom domain match
+        const qCustom = query(collection(db, 'cabinets'), where('custom_domain', '==', hostname));
+        const snapCustom = await getDocs(qCustom);
+        if (!snapCustom.empty) {
+          setDomainCabinetId(snapCustom.docs[0].id);
+          return;
+        }
+
+        // Try subdomain match (assuming .gabinetedigital.app)
+        if (hostname.endsWith('.gabinetedigital.app')) {
+          const sub = hostname.split('.')[0];
+          const qSub = query(collection(db, 'cabinets'), where('subdomain', '==', sub));
+          const snapSub = await getDocs(qSub);
+          if (!snapSub.empty) {
+            setDomainCabinetId(snapSub.docs[0].id);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Domain resolution error:", err);
+      }
+    };
+    resolveDomain();
+  }, []);
+
+  const isSuperAdmin = profile?.role === 'superadmin' || 
+                      user?.email === 'cleciotecnologia@gmail.com' || 
+                      user?.email === 'toutipetrolandia@gmail.com';
+
+  const switchCabinet = (id: string | null) => {
+    const url = new URL(window.location.protocol + '//' + window.location.host + window.location.pathname);
+    if (id) {
+      url.searchParams.set('cabinetId', id);
+    } else {
+      url.searchParams.delete('cabinetId');
+    }
+    window.location.href = url.toString();
+  };
+
+  const isCabinetOverridden = isSuperAdmin && !!overrideCabinetId;
+
+  const activeProfile = profile ? {
+    ...profile,
+    cabinetId: isCabinetOverridden ? overrideCabinetId! : (domainCabinetId || profile.cabinetId)
+  } : null;
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -98,7 +171,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             // Check if there is a pre-created profile with the same email
             const { collection, query, where, getDocs, deleteDoc } = await import('firebase/firestore');
-            const q = query(collection(db, 'users'), where('email', '==', user.email?.toLowerCase()));
+            const normalizedEmail = user.email?.toLowerCase().trim() || '';
+            const q = query(collection(db, 'users'), where('email', '==', normalizedEmail));
             const querySnap = await getDocs(q);
             
             if (!querySnap.empty) {
@@ -106,20 +180,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const preCreatedDoc = querySnap.docs[0];
               const preCreatedData = preCreatedDoc.data();
               
-              await setDoc(docRef, {
+              const migratedProfile = {
                 ...preCreatedData,
+                email: normalizedEmail, // Ensure normalized
+                cabinetId: preCreatedData.cabinetId || 'default',
                 status: 'online',
                 last_seen: serverTimestamp(),
                 updated_at: serverTimestamp(),
                 migrated_from: preCreatedDoc.id // Track migration
-              });
+              };
+
+              await setDoc(docRef, migratedProfile);
               
               // Only delete if it's a different ID
               if (preCreatedDoc.id !== user.uid) {
                 await deleteDoc(preCreatedDoc.ref);
               }
               
-              setProfile(preCreatedData as UserProfile);
+              setProfile(migratedProfile as any);
               
               const { logAction } = await import('../lib/audit');
               await logAction('Migração de Perfil', 'users', user.uid, {
@@ -127,13 +205,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               });
             } else {
               // First time user? Let's check if we should create a profile
-              const normalizedEmail = user.email?.toLowerCase() || '';
-              const isInitialAdmin = normalizedEmail === 'toutipetrolandia@gmail.com' || normalizedEmail === 'cleciotecnologia@gmail.com' || normalizedEmail === 'lorena.goamaral@gmail.com';
+              const isSuper = normalizedEmail === 'cleciotecnologia@gmail.com';
+              const isInitialAdmin = isSuper ||
+                                     normalizedEmail === 'toutipetrolandia@gmail.com' || 
+                                     normalizedEmail === 'lorena.goamaral@gmail.com' ||
+                                     normalizedEmail === 'lorena.gomes@gmail.com';
+              
+              if (isInitialAdmin) {
+                console.log("Initial Admin detected:", normalizedEmail);
+              }
+
               const newProfile: UserProfile = {
                 nome: user.displayName || 'Novo Usuário',
                 username: normalizedEmail.split('@')[0] || 'usuario',
                 email: normalizedEmail,
-                role: isInitialAdmin ? 'admin' : 'consulta',
+                cabinetId: 'default',
+                role: isSuper ? 'superadmin' : (isInitialAdmin ? 'admin' : 'consulta'),
                 ativo: isInitialAdmin ? true : false,
                 status: 'online'
               };
@@ -173,7 +260,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, isOnline }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      profile: activeProfile, 
+      loading, 
+      isOnline, 
+      isSuperAdmin,
+      isCabinetOverridden,
+      switchCabinet
+    }}>
       {children}
     </AuthContext.Provider>
   );

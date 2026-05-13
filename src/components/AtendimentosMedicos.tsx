@@ -109,13 +109,14 @@ export default function AtendimentosMedicos() {
   const searchCitizenData = async (cpf: string) => {
     const maskedCPF = maskCPF(cpf);
     const cleanCPF = cpf.replace(/\D/g, '');
-    if (cleanCPF.length < 11) return;
+    if (cleanCPF.length < 11 || !profile?.cabinetId) return;
     
     setSearchingCitizen(true);
     try {
       // Find in general assistances using masked CPF
       const q = query(
         collection(db, 'atendimentos'), 
+        where('cabinetId', '==', profile?.cabinetId),
         where('cpf', '==', maskedCPF), 
         orderBy('created_at', 'desc')
       );
@@ -149,7 +150,13 @@ export default function AtendimentosMedicos() {
   };
 
   useEffect(() => {
-    const q = query(collection(db, 'atendimentos_medicos'), orderBy('created_at', 'desc'));
+    if (!profile?.cabinetId) return;
+
+    const q = query(
+      collection(db, 'atendimentos_medicos'), 
+      where('cabinetId', '==', profile.cabinetId),
+      orderBy('created_at', 'desc')
+    );
     const unsubscribe = onSnapshot(q, (snap) => {
       setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
@@ -158,7 +165,7 @@ export default function AtendimentosMedicos() {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [profile?.cabinetId]);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -173,6 +180,7 @@ export default function AtendimentosMedicos() {
     try {
       const payload = {
         ...formData,
+        cabinetId: profile?.cabinetId,
         usuario_id: user?.uid,
         assessor_id: user?.uid, // Added for rule compatibility
         updated_at: serverTimestamp()
