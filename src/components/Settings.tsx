@@ -27,7 +27,12 @@ import {
   Globe
 } from 'lucide-react';
 import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, addDoc, setDoc, deleteDoc, serverTimestamp, getDocs } from 'firebase/firestore';
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { 
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
+  sendPasswordResetEmail 
+} from 'firebase/auth';
 import { db, auth } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
@@ -41,10 +46,18 @@ export default function Settings() {
   const { profile } = useAuth();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'users' | 'general' | 'manual' | 'backup' | 'security'>('audit');
+  const [activeSubTab, setActiveSubTab] = useState<'profile' | 'audit' | 'users' | 'general' | 'manual' | 'backup' | 'security'>('profile');
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(localStorage.getItem('biometric_enabled') === 'true');
   const [biometricLoading, setBiometricLoading] = useState(false);
+
+  // Password Change State
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
 
   useEffect(() => {
     const checkSupport = async () => {
@@ -278,6 +291,51 @@ export default function Settings() {
     }
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setPasswordError("As senhas não coincidem.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError("A nova senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+
+    setPasswordLoading(true);
+    setPasswordError(null);
+    setPasswordSuccess(false);
+
+    try {
+      const user = auth.currentUser;
+      if (!user || !user.email) throw new Error("Usuário não autenticado.");
+
+      // Reautenticação é necessária para trocar a senha
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      
+      // Atualizar senha
+      await updatePassword(user, newPassword);
+      
+      await logAction('Alterar Senha', 'users', user.uid, { status: 'sucesso' });
+      
+      setPasswordSuccess(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      alert("Senha alterada com sucesso!");
+    } catch (err: any) {
+      console.error("Erro ao alterar senha:", err);
+      if (err.code === 'auth/wrong-password') {
+        setPasswordError("A senha atual está incorreta.");
+      } else {
+        setPasswordError("Erro ao alterar senha: " + (err.message || String(err)));
+      }
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   const [search, setSearch] = useState('');
   const filteredLogs = logs.filter(log => 
     log.usuario_nome?.toLowerCase().includes(search.toLowerCase()) ||
@@ -295,6 +353,17 @@ export default function Settings() {
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Sidebar Mini Nav */}
         <div className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 gap-2 scrollbar-none lg:w-64 shrink-0">
+          <button 
+            onClick={() => setActiveSubTab('profile')}
+            className={cn(
+              "whitespace-nowrap px-4 py-3 rounded-xl font-medium flex items-center gap-3 transition-all",
+              activeSubTab === 'profile' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-slate-400 hover:bg-slate-900"
+            )}
+          >
+            <User size={18} />
+            Meu Perfil
+          </button>
+          
           {(profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar') && (
             <button 
               onClick={() => setActiveSubTab('general')}
@@ -304,7 +373,7 @@ export default function Settings() {
               )}
             >
               <SettingsIcon size={18} />
-              Configurações
+              Gabinete
             </button>
           )}
           {(profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' || isSuperAdmin) && (
@@ -369,7 +438,119 @@ export default function Settings() {
         </div>
 
         <div className="flex-1 space-y-6 min-w-0">
-          {activeSubTab === 'general' ? (
+          {activeSubTab === 'profile' ? (
+            <motion.div 
+               initial={{ opacity: 0, y: 20 }}
+               animate={{ opacity: 1, y: 0 }}
+               className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl space-y-8"
+            >
+               <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center text-blue-400 border border-blue-500/20">
+                     <User size={32} />
+                  </div>
+                  <div>
+                     <h2 className="text-2xl font-bold text-white mb-1">Meu Perfil</h2>
+                     <p className="text-slate-400 text-sm">{profile?.nome} ({profile?.email})</p>
+                  </div>
+               </div>
+
+               <div className="max-w-xl space-y-8">
+                  {/* Password Change Form */}
+                  <form onSubmit={handleChangePassword} className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-6">
+                     <div className="flex items-center gap-3 mb-2">
+                        <Fingerprint className="text-blue-500" size={20} />
+                        <h3 className="text-sm font-bold uppercase tracking-widest text-slate-200">Alterar Minha Senha</h3>
+                     </div>
+
+                     <div className="space-y-4">
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest px-1">Senha Atual</label>
+                           <input 
+                              type="password" 
+                              required
+                              value={currentPassword}
+                              onChange={e => setCurrentPassword(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-xl p-4 text-white focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm font-mono"
+                              placeholder="••••••••"
+                           />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest px-1">Nova Senha</label>
+                              <input 
+                                 type="password" 
+                                 required
+                                 value={newPassword}
+                                 onChange={e => setNewPassword(e.target.value)}
+                                 className="w-full bg-slate-900 border border-slate-800 rounded-xl p-4 text-white focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm font-mono"
+                                 placeholder="Min. 6 caracteres"
+                              />
+                           </div>
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest px-1">Confirmar Senha</label>
+                              <input 
+                                 type="password" 
+                                 required
+                                 value={confirmPassword}
+                                 onChange={e => setConfirmPassword(e.target.value)}
+                                 className="w-full bg-slate-900 border border-slate-800 rounded-xl p-4 text-white focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm font-mono"
+                                 placeholder="Repita a nova senha"
+                              />
+                           </div>
+                        </div>
+                     </div>
+
+                     {passwordError && (
+                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-red-500 text-xs">
+                           <ShieldAlert size={14} />
+                           {passwordError}
+                        </div>
+                     )}
+
+                     {passwordSuccess && (
+                        <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2 text-emerald-500 text-xs">
+                           <CheckCircle2 size={14} />
+                           Sua senha foi alterada com sucesso!
+                        </div>
+                     )}
+
+                     <button 
+                        type="submit"
+                        disabled={passwordLoading}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                     >
+                        {passwordLoading ? (
+                           <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                           <>
+                              <Save size={18} />
+                              Confirmar Nova Senha
+                           </>
+                        )}
+                     </button>
+                  </form>
+
+                  {/* Device Info */}
+                  <div className="p-6 bg-slate-950/50 rounded-2xl border border-slate-800/50">
+                     <h3 className="text-xs font-bold uppercase tracking-widest text-slate-600 mb-4 flex items-center gap-2">
+                        <Database size={14} />
+                        Assinatura de Segurança
+                     </h3>
+                     <div className="space-y-2">
+                        <div className="flex justify-between text-[11px]">
+                           <span className="text-slate-500">Último Acesso:</span>
+                           <span className="text-slate-300">{format(new Date(), "dd 'de' MMMM, HH:mm", { locale: ptBR })}</span>
+                        </div>
+                        <div className="flex justify-between text-[11px]">
+                           <span className="text-slate-500">Gabinete ID:</span>
+                           <span className="text-slate-300 font-mono">{profile?.cabinetId}</span>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </motion.div>
+          ) : activeSubTab === 'general' ? (
             <motion.div 
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
