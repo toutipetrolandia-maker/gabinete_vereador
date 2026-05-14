@@ -144,7 +144,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           if (docSnap.exists()) {
             const data = docSnap.data() as UserProfile & { primeiro_acesso_concluido?: boolean };
-            setProfile(data);
+            
+            // Auto-correction for Lorena Gomes as requested
+            const normalizedEmail = user.email?.toLowerCase().trim() || '';
+            const isLorena = normalizedEmail === 'lorena.goamaral@gmail.com' || 
+                             normalizedEmail === 'lorena.gomes@gmail.com';
+            
+            if (isLorena && (data.role === 'consulta' || data.nome === 'Usuário' || data.nome === 'Novo Usuário')) {
+               console.log("Applying auto-correction for Lorena Gomes profile in useAuth...");
+               const updates: any = {};
+               if (data.role === 'consulta') updates.role = 'secretaria_parlamentar';
+               if (data.nome === 'Usuário' || data.nome === 'Novo Usuário') updates.nome = 'Lorena Gomes';
+               
+               const updatedProfile = { ...data, ...updates };
+               setProfile(updatedProfile);
+               updateDoc(docRef, updates).catch(err => console.error("Failed to update Lorena profile:", err));
+            } else {
+               setProfile(data);
+            }
             
             // Check for First Access
             if (!data.primeiro_acesso_concluido) {

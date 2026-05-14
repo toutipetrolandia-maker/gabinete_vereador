@@ -90,27 +90,6 @@ export default function UserManagement() {
         ...doc.data()
       })) as User[];
       
-      // Auto-correction for Lorena Gomes as requested
-      if (canManage) {
-        usersData.forEach(async (u) => {
-          if (
-            (u.email === 'lorena.goamaral@gmail.com' || u.email === 'lorena.gomes@gmail.com') && 
-            u.role === 'consulta'
-          ) {
-            console.log("Applying auto-correction for Lorena Gomes role...");
-            try {
-              await updateDoc(doc(db, 'users', u.id), { role: 'secretaria_parlamentar' });
-              await logAction('Correção Automática de Cargo', 'users', u.id, { 
-                previous: { role: 'consulta' }, 
-                next: { role: 'secretaria_parlamentar' } 
-              });
-            } catch (err) {
-              console.error("Failed to auto-correct Lorena role:", err);
-            }
-          }
-        });
-      }
-
       setUsers(usersData);
       setLoading(false);
     }, (error) => {
