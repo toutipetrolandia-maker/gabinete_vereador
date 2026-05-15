@@ -43,6 +43,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [appName, setAppName] = useState('Gabinete Digital');
   const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
+  const [cabinetLogo, setCabinetLogo] = useState<string | null>(null);
   const [perfilLink, setPerfilLink] = useState('https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
   const [perfilLabel, setPerfilLabel] = useState('Câmara Municipal');
   const [systemLocked, setSystemLocked] = useState(false);
@@ -76,8 +77,9 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     const unsub = onSnapshot(doc(db, 'cabinets', profile.cabinetId), (snap) => {
         if (snap.exists()) {
            const data = snap.data();
-           setAppName(data.name || 'Gabinete Digital');
+           setAppName(data.name || data.app_name || 'Gabinete Digital');
            setVereadorPhoto(data.vereador_photo || null);
+           setCabinetLogo(data.cabinet_logo || null);
            setPerfilLink(data.perfil_link || 'https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
            setPerfilLabel(data.perfil_label || 'Câmara Municipal');
            setSystemLocked(data.status === 'suspended');
@@ -108,6 +110,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     { id: 'demandas', label: 'Demandas', icon: FileText },
     { id: 'sugestoes', label: 'Sugestões', icon: MessageSquare },
     { id: 'relatorios', label: 'Relatórios', icon: FileDown },
+    { id: 'whatsapp', label: 'Mensagens', icon: MessageSquare },
     { id: 'history', label: 'Logs / Auditoria', icon: History, adminOnly: true },
     { id: 'config', label: 'Configurações', icon: Settings },
   ].filter(item => {
@@ -225,7 +228,9 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
       >
         <div className="h-20 flex items-center px-6 gap-3 overflow-hidden whitespace-nowrap border-b border-slate-800/50">
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
-            {vereadorPhoto ? (
+            {cabinetLogo ? (
+              <img src={cabinetLogo} alt={appName} className="w-full h-full object-contain p-1.5" />
+            ) : vereadorPhoto ? (
               <img src={vereadorPhoto} alt={appName} className="w-full h-full object-cover" />
             ) : (
               <span className="font-bold text-xl">{appName[0]}</span>
@@ -276,8 +281,12 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center gap-3 mb-4 px-2 overflow-hidden">
             <div className="relative shrink-0">
-              <div className="w-8 h-8 rounded-full bg-slate-700 uppercase flex items-center justify-center font-bold text-xs ring-2 ring-slate-800/50">
-                {profile?.nome?.[0] || 'U'}
+              <div className="w-8 h-8 rounded-full bg-slate-700 uppercase flex items-center justify-center font-bold text-xs ring-2 ring-slate-800/50 overflow-hidden">
+                {profile?.photo_url ? (
+                  <img src={profile.photo_url} alt="Perfil" className="w-full h-full object-cover" />
+                ) : (
+                  profile?.nome?.[0] || 'U'
+                )}
               </div>
               <div className={cn(
                 "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-900 transition-colors",

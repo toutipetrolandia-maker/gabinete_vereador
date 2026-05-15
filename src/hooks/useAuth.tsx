@@ -9,6 +9,7 @@ interface UserProfile {
   role: 'superadmin' | 'admin' | 'assessor' | 'vereador' | 'consulta' | 'secretaria_parlamentar';
   email: string;
   cabinetId: string;
+  photo_url?: string;
   biography?: string;
   ativo?: boolean;
   status?: 'online' | 'offline';

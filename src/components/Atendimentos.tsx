@@ -34,7 +34,8 @@ import {
   ExternalLink,
   History,
   User,
-  MapPin
+  MapPin,
+  Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -78,6 +79,7 @@ import {
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
+import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig } from '../lib/whatsapp';
 
 export default function Atendimentos() {
   const { profile, user } = useAuth();
@@ -97,6 +99,32 @@ export default function Atendimentos() {
   // States for cross-data
   const [medicalHistory, setMedicalHistory] = useState<any[]>([]);
   const [searchingMedical, setSearchingMedical] = useState(false);
+  const [waConfig, setWaConfig] = useState<WhatsAppConfig | null>(null);
+
+  useEffect(() => {
+    if (!profile?.cabinetId) return;
+    const unsub = onSnapshot(doc(db, 'cabinets', profile.cabinetId), (snap) => {
+      if (snap.exists()) {
+        setWaConfig(snap.data().whatsapp_config);
+      }
+    });
+    return () => unsub();
+  }, [profile?.cabinetId]);
+
+  const sendWAMessage = (item: any, trigger: 'welcome' | 'status_update') => {
+    if (!item.telefone) return;
+    const template = waConfig?.templates?.find(t => t.trigger === trigger);
+    const content = template?.content || (trigger === 'welcome' ? 'Olá {{nome}}, recebemos seu contato.' : 'Olá {{nome}}, seu status foi atualizado para {{status}}.');
+    
+    const message = formatWhatsAppMessage(content, {
+      nome: item.nome_completo,
+      status: item.status,
+      id: item.protocolo || item.id,
+      titulo: item.tipo_atendimento
+    });
+
+    window.open(getWhatsAppLink(item.telefone, message), '_blank');
+  };
 
   const initialForm = {
     nome_completo: '',
@@ -491,15 +519,13 @@ export default function Atendimentos() {
                           <div className="flex items-center gap-1">
                             <span className="text-[10px] text-slate-500">{item.telefone}</span>
                             {item.telefone && (
-                              <a 
-                                href={`https://wa.me/55${item.telefone.replace(/\D/g, '')}`} 
-                                target="_blank" 
-                                rel="noreferrer"
+                              <button 
+                                onClick={() => sendWAMessage(item, 'welcome')}
                                 className="text-emerald-500 hover:text-emerald-400 transition-colors"
-                                title="Enviar WhatsApp"
+                                title="Enviar Boas-vindas"
                               >
                                 <MessageCircle size={10} />
-                              </a>
+                              </button>
                             )}
                           </div>
                           {(item.endereco || item.bairro) && (
@@ -557,6 +583,13 @@ export default function Atendimentos() {
                                title="Concluir"
                              >
                                <CheckCircle2 size={16} />
+                             </button>
+                             <button 
+                               onClick={() => sendWAMessage(item, 'status_update')}
+                               className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400 transition-all opacity-0 group-hover:opacity-100"
+                               title="Notificar Status"
+                             >
+                               <Send size={16} />
                              </button>
                              <button 
                                onClick={() => handleEdit(item)}

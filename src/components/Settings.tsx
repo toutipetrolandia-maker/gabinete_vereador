@@ -103,9 +103,13 @@ export default function Settings() {
   const [customDomain, setCustomDomain] = useState('');
   const [subdomain, setSubdomain] = useState('');
   const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
+  const [cabinetLogo, setCabinetLogo] = useState<string | null>(null);
   const [perfilLink, setPerfilLink] = useState('');
   const [perfilLabel, setPerfilLabel] = useState('Câmara Municipal');
   const [savingSettings, setSavingSettings] = useState(false);
+  const [userPhoto, setUserPhoto] = useState<string | null>(profile?.photo_url || null);
+  const [userNome, setUserNome] = useState(profile?.nome || '');
+  const [savingProfile, setSavingProfile] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
   const [systemLocked, setSystemLocked] = useState(false);
   const [billingStatus, setBillingStatus] = useState<'regular' | 'pending' | 'suspended'>('regular');
@@ -161,6 +165,7 @@ export default function Settings() {
         setCustomDomain(data.custom_domain || '');
         setSubdomain(data.subdomain || '');
         setVereadorPhoto(data.vereador_photo || null);
+        setCabinetLogo(data.cabinet_logo || null);
         setPerfilLink(data.perfil_link || '');
         setPerfilLabel(data.perfil_label || 'Câmara Municipal');
         setBiography(data.biography || '');
@@ -192,6 +197,7 @@ export default function Settings() {
         custom_domain: customDomain,
         subdomain: subdomain,
         vereador_photo: vereadorPhoto,
+        cabinet_logo: cabinetLogo,
         perfil_link: perfilLink,
         perfil_label: perfilLabel,
         lgpd_text: lgpdText,
@@ -231,6 +237,55 @@ export default function Settings() {
       setVereadorPhoto(reader.result as string);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleCabinetLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 800000) {
+      alert("A imagem é muito grande. Escolha uma imagem menor que 800KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setCabinetLogo(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUserPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 800000) {
+      alert("A imagem é muito grande. Escolha uma imagem menor que 800KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setUserPhoto(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth.currentUser) return;
+    setSavingProfile(true);
+    try {
+      const data = {
+        nome: userNome,
+        photo_url: userPhoto,
+        updated_at: serverTimestamp()
+      };
+      await updateDoc(doc(db, 'users', auth.currentUser.uid), data);
+      await logAction('Atualizar Perfil', 'users', auth.currentUser.uid, { next: data });
+      alert("Perfil atualizado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao atualizar perfil:", error);
+      alert("Erro ao atualizar perfil.");
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   const handleBackup = async () => {
@@ -445,8 +500,12 @@ export default function Settings() {
                className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl space-y-8"
             >
                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center text-blue-400 border border-blue-500/20">
-                     <User size={32} />
+                  <div className="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center text-blue-400 border border-blue-500/20 overflow-hidden">
+                     {userPhoto ? (
+                       <img src={userPhoto} alt="Perfil" className="w-full h-full object-cover" />
+                     ) : (
+                       <User size={32} />
+                     )}
                   </div>
                   <div>
                      <h2 className="text-2xl font-bold text-white mb-1">Meu Perfil</h2>
@@ -455,6 +514,51 @@ export default function Settings() {
                </div>
 
                <div className="max-w-xl space-y-8">
+                  {/* Profile Edit Form */}
+                  <form onSubmit={handleUpdateProfile} className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-6">
+                     <div className="flex items-center gap-3 mb-2">
+                        <User className="text-blue-500" size={20} />
+                        <h3 className="text-sm font-bold uppercase tracking-widest text-slate-200">Informações Básicas</h3>
+                     </div>
+
+                     <div className="flex flex-col md:flex-row gap-6">
+                        <div className="relative group">
+                           <div className="w-24 h-24 rounded-2xl bg-slate-900 border-2 border-dashed border-slate-800 overflow-hidden flex items-center justify-center">
+                              {userPhoto ? (
+                                <img src={userPhoto} alt="Perfil" className="w-full h-full object-cover" />
+                              ) : (
+                                <User className="text-slate-700" size={32} />
+                              )}
+                           </div>
+                           <label className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-[10px] text-white font-bold uppercase text-center p-2 rounded-2xl">
+                              Alterar Foto
+                              <input type="file" accept="image/*" onChange={handleUserPhotoChange} className="hidden" />
+                           </label>
+                        </div>
+
+                        <div className="flex-1 space-y-4">
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-bold uppercase text-slate-500 tracking-widest px-1">Nome Completo</label>
+                              <input 
+                                 type="text" 
+                                 required
+                                 value={userNome}
+                                 onChange={e => setUserNome(e.target.value)}
+                                 className="w-full bg-slate-900 border border-slate-800 rounded-xl p-4 text-white focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm"
+                                 placeholder="Seu nome"
+                              />
+                           </div>
+                           <button 
+                              type="submit"
+                              disabled={savingProfile}
+                              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-lg shadow-blue-900/20 transition-all disabled:opacity-50"
+                           >
+                              {savingProfile ? 'Salvando...' : 'Salvar Dados do Perfil'}
+                           </button>
+                        </div>
+                     </div>
+                  </form>
+
                   {/* Password Change Form */}
                   <form onSubmit={handleChangePassword} className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-6">
                      <div className="flex items-center gap-3 mb-2">
@@ -594,6 +698,42 @@ export default function Settings() {
 
                  <form onSubmit={handleUpdateSettings} className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                    <div className="space-y-6">
+                     <div className="space-y-4 pt-2">
+                        <label className="text-xs font-bold uppercase text-slate-500 tracking-widest px-1">Logo do Gabinete</label>
+                        <div className="flex items-center gap-6">
+                          <div className="relative group">
+                            <div className="w-24 h-24 rounded-2xl bg-slate-800 border-2 border-dashed border-slate-700 overflow-hidden flex items-center justify-center">
+                              {cabinetLogo ? (
+                                <img src={cabinetLogo} alt="Logo Cabinet" className="w-full h-full object-contain p-2" />
+                              ) : (
+                                <Globe className="text-slate-600" size={32} />
+                              )}
+                            </div>
+                            {cabinetLogo && (
+                              <button 
+                                type="button"
+                                onClick={() => setCabinetLogo(null)}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <label className="inline-block bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-4 py-3 rounded-xl cursor-pointer transition-all border border-slate-700">
+                              Upload da Logo
+                              <input 
+                                type="file" 
+                                accept="image/*"
+                                onChange={handleCabinetLogoChange}
+                                className="hidden" 
+                              />
+                            </label>
+                            <p className="text-[10px] text-slate-500 mt-2 italic">Aparecerá no topo da barra lateral.</p>
+                          </div>
+                        </div>
+                     </div>
+
                      <div className="space-y-2">
                        <label className="text-xs font-bold uppercase text-slate-500 tracking-widest px-1">Nome do Gabinete / Vereador</label>
                        <input 

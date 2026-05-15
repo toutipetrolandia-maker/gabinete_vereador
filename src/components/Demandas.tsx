@@ -23,13 +23,16 @@ import {
   Paperclip,
   Download,
   Trash2,
-  Loader2
+  Loader2,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
+import { handleFirestoreError, OperationType } from '../lib/error-handler';
+import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig } from '../lib/whatsapp';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 
@@ -43,6 +46,8 @@ export default function Demandas() {
   const initialForm = {
     protocolo: '',
     assunto: '',
+    solicitante_nome: '',
+    solicitante_telefone: '',
     orgao_responsavel: '',
     prioridade: 'Média',
     status: 'Pendente',
@@ -52,6 +57,34 @@ export default function Demandas() {
 
   const [formData, setFormData] = useState(initialForm);
   const [uploading, setUploading] = useState(false);
+  const [waConfig, setWaConfig] = useState<WhatsAppConfig | null>(null);
+
+  useEffect(() => {
+    if (!profile?.cabinetId) return;
+    const unsub = onSnapshot(doc(db, 'cabinets', profile.cabinetId), (snap) => {
+      if (snap.exists()) {
+        setWaConfig(snap.data().whatsapp_config);
+      }
+    });
+    return () => unsub();
+  }, [profile?.cabinetId]);
+
+  const sendWAMessage = (item: any, trigger: 'welcome' | 'status_update') => {
+    const phone = item.solicitante_telefone || item.telefone;
+    if (!phone) return;
+    
+    const template = waConfig?.templates?.find(t => t.trigger === trigger);
+    const content = template?.content || (trigger === 'welcome' ? 'Olá {{nome}}, recebemos sua demanda.' : 'Olá {{nome}}, sua demanda foi atualizada para {{status}}.');
+    
+    const message = formatWhatsAppMessage(content, {
+      nome: item.solicitante_nome || 'Cidadão',
+      status: item.status,
+      id: item.protocolo || item.id,
+      titulo: item.assunto
+    });
+
+    window.open(getWhatsAppLink(phone, message), '_blank');
+  };
 
   useEffect(() => {
     if (!profile?.cabinetId) return;
@@ -115,6 +148,8 @@ export default function Demandas() {
     setFormData({
       protocolo: item.protocolo || '',
       assunto: item.assunto || '',
+      solicitante_nome: item.solicitante_nome || '',
+      solicitante_telefone: item.solicitante_telefone || '',
       orgao_responsavel: item.orgao_responsavel || '',
       prioridade: item.prioridade || 'Média',
       status: item.status || 'Pendente',
@@ -209,6 +244,15 @@ export default function Demandas() {
                       <Clock size={14} className="text-blue-400" />
                       <span>Status: <strong className="text-slate-300">{item.status}</strong></span>
                    </div>
+                   {item.solicitante_telefone && (
+                     <button 
+                       onClick={() => sendWAMessage(item, 'status_update')}
+                       className="flex items-center gap-1.5 text-emerald-500 hover:text-emerald-400 font-bold transition-all ml-4"
+                     >
+                        <MessageSquare size={14} />
+                        <span>Notificar WhatsApp</span>
+                     </button>
+                   )}
                 </div>
              </div>
              <div className="flex items-center gap-2 shrink-0">
@@ -261,6 +305,16 @@ export default function Demandas() {
                      <div className="space-y-1 col-span-2">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Assunto / Título</label>
                         <input required value={formData.assunto} onChange={e => setFormData({...formData, assunto: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none" />
+                     </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Solicitante (Nome)</label>
+                        <input value={formData.solicitante_nome} onChange={e => setFormData({...formData, solicitante_nome: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none" placeholder="Nome do Cidadão" />
+                     </div>
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Solicitante (WhatsApp)</label>
+                        <input value={formData.solicitante_telefone} onChange={e => setFormData({...formData, solicitante_telefone: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none" placeholder="(00) 00000-0000" />
                      </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
