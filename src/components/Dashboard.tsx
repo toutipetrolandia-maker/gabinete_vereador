@@ -34,7 +34,8 @@ export default function Dashboard() {
     atendimentos: 0,
     medicos: 0,
     malotes: 0,
-    demandas: 0
+    demandas: 0,
+    auxilios: 0
   });
   const [recent, setRecent] = useState<any[]>([]);
   const [appName, setAppName] = useState('Gabinete Digital');
@@ -73,19 +74,21 @@ export default function Dashboard() {
       try {
         const cabQuery = (col: string) => query(collection(db, col), where('cabinetId', '==', profile.cabinetId));
         
-        const [atendSnap, medSnap, malSnap, demSnap, sugSnap] = await Promise.all([
+        const [atendSnap, medSnap, malSnap, demSnap, sugSnap, auxSnap] = await Promise.all([
           getDocs(cabQuery('atendimentos')),
           getDocs(cabQuery('atendimentos_medicos')),
           getDocs(cabQuery('malotes')),
           getDocs(cabQuery('demandas_parlamentares')),
-          getDocs(cabQuery('sugestoes'))
+          getDocs(cabQuery('sugestoes')),
+          getDocs(cabQuery('auxilio_social'))
         ]);
 
         setStats({
           atendimentos: atendSnap.size,
           medicos: medSnap.size,
           malotes: malSnap.size,
-          demandas: demSnap.size
+          demandas: demSnap.size,
+          auxilios: auxSnap.size
         });
 
         const atendimentos = atendSnap.docs.map(doc => doc.data());
@@ -95,6 +98,7 @@ export default function Dashboard() {
           { name: 'Geral', value: atendSnap.size },
           { name: 'Médico', value: medSnap.size },
           { name: 'Demanda', value: demSnap.size },
+          { name: 'Auxílio', value: auxSnap.size },
           { name: 'Sugestão', value: sugSnap.size },
         ];
         setChartDataSync(distribution);
@@ -132,7 +136,7 @@ export default function Dashboard() {
     { day: 'Sex', total: 30 },
   ];
 
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#f97316', '#ef4444'];
 
   return (
     <div className="space-y-6 md:space-y-8 pb-10">
@@ -195,11 +199,12 @@ export default function Dashboard() {
       </header>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-1 md:px-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 px-1 md:px-0">
         {[
           { label: 'Atendimentos', value: stats.atendimentos, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
           { label: 'Atend. Médicos', value: stats.medicos, icon: Stethoscope, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-          { label: 'Malotes', value: stats.malotes, icon: Package, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+          { label: 'Auxílio Social', value: stats.auxilios, icon: Package, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+          { label: 'Malotes', value: stats.malotes, icon: Package, color: 'text-orange-500', bg: 'bg-orange-500/10' },
           { label: 'Demandas', value: stats.demandas, icon: FileText, color: 'text-purple-500', bg: 'bg-purple-500/10' },
         ].map((stat, i) => (
           <motion.div 

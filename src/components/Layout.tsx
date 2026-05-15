@@ -106,6 +106,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     { id: 'agenda', label: 'Agenda', icon: Clock },
     { id: 'atendimentos', label: 'Atendimentos', icon: Users },
     { id: 'medico', label: 'Atend. Médico', icon: Stethoscope },
+    { id: 'auxilio', label: 'Auxílio Social', icon: Package },
     { id: 'malotes', label: 'Malotes', icon: Package },
     { id: 'demandas', label: 'Demandas', icon: FileText },
     { id: 'sugestoes', label: 'Sugestões', icon: MessageSquare },

@@ -148,6 +148,29 @@
         "criado_em": { "type": "string", "format": "date-time" }
       },
       "required": ["cabinetId"]
+    },
+    "AuxilioSocial": {
+      "title": "Auxílio Social",
+      "description": "Control of social benefits like food baskets, medicine, and diapers",
+      "type": "object",
+      "properties": {
+        "cabinetId": { "type": "string" },
+        "beneficiado_nome": { "type": "string" },
+        "beneficiado_telefone": { "type": "string" },
+        "beneficiado_cpf": { "type": "string" },
+        "tipo_beneficio": { "type": "string", "enum": ["Cesta Básica", "Remédio", "Fralda", "Outro"] },
+        "quantidade": { "type": "number" },
+        "status": { "type": "string", "enum": ["Pendente", "Em Rota", "Entregue", "Cancelado"] },
+        "data_entrega_prevista": { "type": "string" },
+        "data_entrega_realizada": { "type": "string", "format": "date-time" },
+        "entregue_por_nome": { "type": "string" },
+        "observacoes": { "type": "string" },
+        "usuario_id": { "type": "string" },
+        "usuario_nome": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["cabinetId", "beneficiado_nome", "tipo_beneficio", "status"]
     }
   },
   "firestore": {
@@ -157,6 +180,7 @@
     "/atendimentos_medicos/{id}": { "schema": "AtendimentoMedico", "description": "Medical records" },
     "/agenda_vereador/{id}": { "schema": "Agenda", "description": "Schedule" },
     "/sugestoes/{id}": { "schema": "Sugestao", "description": "Feedback" },
-    "/logs/{id}": { "schema": "AuditLog", "description": "Audit trails" }
+    "/logs/{id}": { "schema": "AuditLog", "description": "Audit trails" },
+    "/auxilio_social/{id}": { "schema": "AuxilioSocial", "description": "Social assistance records" }
   }
 }

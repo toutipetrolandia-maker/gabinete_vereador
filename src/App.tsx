@@ -16,6 +16,7 @@ import SaaSAdmin from './components/SaaSAdmin';
 import ForcePasswordChange from './components/ForcePasswordChange';
 import History from './components/History';
 import WhatsAppAutomation from './components/WhatsAppAutomation';
+import SocialAssistance from './components/SocialAssistance';
 
 function AppContent() {
   const { user, profile, loading, isSuperAdmin } = useAuth();
@@ -45,6 +46,7 @@ function AppContent() {
         {activeTab === 'agenda' && <Agenda />}
         {activeTab === 'atendimentos' && <Atendimentos />}
         {activeTab === 'medico' && <AtendimentosMedicos />}
+        {activeTab === 'auxilio' && <SocialAssistance />}
         {activeTab === 'malotes' && <Malotes />}
         {activeTab === 'demandas' && <Demandas />}
         {activeTab === 'sugestoes' && <Sugestoes />}
