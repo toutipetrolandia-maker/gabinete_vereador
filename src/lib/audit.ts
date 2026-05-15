@@ -1,7 +1,12 @@
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from './firebase';
 
-export async function logAction(action: string, collectionName: string, docId: string, data?: { previous?: any; next?: any }) {
+export async function logAction(
+  action: string, 
+  collectionName: string, 
+  docId: string, 
+  data?: { previous?: any; next?: any; cabinetId?: string }
+) {
   try {
     const user = auth.currentUser;
     if (!user) return;
@@ -12,10 +17,11 @@ export async function logAction(action: string, collectionName: string, docId: s
       acao: action,
       colecao: collectionName,
       documento_id: docId,
+      cabinet_id: data?.cabinetId || null,
       dados_anteriores: data?.previous || null,
       dados_novos: data?.next || null,
       criado_em: serverTimestamp(),
-      ip: 'auto' // No firestore client-side, o IP não é facilmente acessível sem serviço externo
+      ip: 'auto'
     });
   } catch (error) {
     console.error('Failed to log action:', error);

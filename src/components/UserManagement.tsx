@@ -158,7 +158,8 @@ export default function UserManagement() {
 
       await setDoc(userRef, userData);
       await logAction('Criar Usuário', 'users', docId, { 
-        next: { ...userData, hasInitialPassword: !!formData.password } 
+        next: { ...userData, hasInitialPassword: !!formData.password },
+        cabinetId: profile.cabinetId
       });
       
       setShowAddModal(false);
@@ -189,7 +190,8 @@ export default function UserManagement() {
       await updateDoc(userRef, updates);
       await logAction('Atualizar Usuário', 'users', selectedUser.id, { 
         previous: selectedUser,
-        next: updates 
+        next: updates,
+        cabinetId: profile.cabinetId
       });
 
       setShowEditModal(false);
@@ -208,7 +210,8 @@ export default function UserManagement() {
       await updateDoc(userRef, { ativo: !user.ativo });
       await logAction(user.ativo ? 'Desativar Usuário' : 'Ativar Usuário', 'users', user.id, {
         previous: { ativo: user.ativo },
-        next: { ativo: !user.ativo }
+        next: { ativo: !user.ativo },
+        cabinetId: profile.cabinetId
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
@@ -231,7 +234,7 @@ export default function UserManagement() {
 
     try {
       await deleteDoc(doc(db, 'users', user.id));
-      await logAction('Excluir Usuário', 'users', user.id, { previous: user });
+      await logAction('Excluir Usuário', 'users', user.id, { previous: user, cabinetId: profile.cabinetId });
       alert("Usuário removido.");
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `users/${user.id}`);

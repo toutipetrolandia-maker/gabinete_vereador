@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Search,
   Globe,
+  History,
   ShieldCheck
 } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -107,9 +108,10 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     { id: 'demandas', label: 'Demandas', icon: FileText },
     { id: 'sugestoes', label: 'Sugestões', icon: MessageSquare },
     { id: 'relatorios', label: 'Relatórios', icon: FileDown },
+    { id: 'history', label: 'Logs / Auditoria', icon: History, adminOnly: true },
     { id: 'config', label: 'Configurações', icon: Settings },
   ].filter(item => {
-    if (item.id === 'config') {
+    if (item.id === 'config' || (item as any).adminOnly) {
       return profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' || isSuperAdmin;
     }
     if ((item as any).superOnly) {

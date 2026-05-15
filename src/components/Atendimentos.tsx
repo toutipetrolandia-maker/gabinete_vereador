@@ -240,13 +240,13 @@ export default function Atendimentos() {
       if (editingId) {
         const existingDoc = data.find(i => i.id === editingId);
         await updateDoc(doc(db, 'atendimentos', editingId), payload);
-        await logAction('Atualizar', 'atendimentos', editingId, { previous: existingDoc, next: formData });
+        await logAction('Atualizar', 'atendimentos', editingId, { previous: existingDoc, next: formData, cabinetId: profile.cabinetId });
       } else {
         const docRef = await addDoc(collection(db, 'atendimentos'), {
           ...payload,
           created_at: serverTimestamp(),
         });
-        await logAction('Criar', 'atendimentos', docRef.id, { next: formData });
+        await logAction('Criar', 'atendimentos', docRef.id, { next: formData, cabinetId: profile.cabinetId });
       }
       
       closeModal();
@@ -275,7 +275,7 @@ export default function Atendimentos() {
         status: newStatus,
         updated_at: serverTimestamp()
       });
-      await logAction('Atualizar', 'atendimentos', id, { previous: { status: existing?.status }, next: { status: newStatus } });
+      await logAction('Atualizar', 'atendimentos', id, { previous: { status: existing?.status }, next: { status: newStatus }, cabinetId: profile.cabinetId });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `atendimentos/${id}`);
     }
@@ -317,7 +317,7 @@ export default function Atendimentos() {
     try {
       const existing = data.find(i => i.id === id);
       await deleteDoc(doc(db, 'atendimentos', id));
-      await logAction('Excluir', 'atendimentos', id, { previous: existing });
+      await logAction('Excluir', 'atendimentos', id, { previous: existing, cabinetId: profile.cabinetId });
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `atendimentos/${id}`);
     }
