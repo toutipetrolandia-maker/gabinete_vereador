@@ -111,7 +111,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     { id: 'atendimentos', label: 'Atendimentos', icon: Users },
     { id: 'medico', label: 'Atend. Médico', icon: Stethoscope },
     { id: 'auxilio', label: 'Auxílio Social', icon: ShoppingBag },
-    { id: 'indicacoes', label: 'Indicações', icon: Briefcase },
+    { id: 'indicacoes', label: 'Indicações', icon: Briefcase, restrictedTo: ['vereador'] },
     { id: 'malotes', label: 'Malotes', icon: Package },
     { id: 'demandas', label: 'Demandas', icon: FileText },
     { id: 'sugestoes', label: 'Sugestões', icon: MessageSquare },
@@ -126,6 +126,9 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     }
     if ((item as any).superOnly) {
       return isSuperAdmin;
+    }
+    if ((item as any).restrictedTo) {
+      return (item as any).restrictedTo.includes(profile?.role) || isSuperAdmin;
     }
     return true;
   });

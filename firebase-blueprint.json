@@ -197,6 +197,29 @@
         "updated_at": { "type": "string", "format": "date-time" }
       },
       "required": ["cabinetId", "indicado_nome", "cargo_pretendido", "status"]
+    },
+    "DemandaParlamentar": {
+      "title": "Demanda Parlamentar",
+      "description": "Control of official requests, requirements and indications assigned to assessors",
+      "type": "object",
+      "properties": {
+        "cabinetId": { "type": "string" },
+        "protocolo": { "type": "string" },
+        "assunto": { "type": "string" },
+        "solicitante_nome": { "type": "string" },
+        "solicitante_telefone": { "type": "string" },
+        "orgao_responsavel": { "type": "string" },
+        "prioridade": { "type": "string", "enum": ["Baixa", "Média", "Alta"] },
+        "status": { "type": "string", "enum": ["Pendente", "Encaminhado", "Concluído"] },
+        "descricao": { "type": "string" },
+        "assessor_id": { "type": "string" },
+        "assessor_nome": { "type": "string" },
+        "attachments": { "type": "array" },
+        "usuario_id": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["cabinetId", "assunto", "status"]
     }
   },
   "firestore": {
@@ -208,6 +231,7 @@
     "/sugestoes/{id}": { "schema": "Sugestao", "description": "Feedback" },
     "/logs/{id}": { "schema": "AuditLog", "description": "Audit trails" },
     "/auxilio_social/{id}": { "schema": "AuxilioSocial", "description": "Social assistance records" },
-    "/indicacoes_cargos/{id}": { "schema": "IndicacaoCargo", "description": "Position nomination records" }
+    "/indicacoes_cargos/{id}": { "schema": "IndicacaoCargo", "description": "Position nomination records" },
+    "/demandas_parlamentares/{id}": { "schema": "DemandaParlamentar", "description": "Parliamentary official requests" }
   }
 }

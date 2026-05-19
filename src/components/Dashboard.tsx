@@ -101,16 +101,18 @@ export default function Dashboard() {
           setStats(prev => ({ ...prev, [col.statKey!]: snap.size }));
         }
 
-        // Update distribution chart
-        if (col.index !== -1) {
-          setChartDataSync(prev => {
-            const newState = [...prev];
-            if (newState[col.index]) {
-              newState[col.index].value = snap.size;
-            }
-            return newState;
-          });
-        }
+        const isAuthorizedIndicacoes = profile?.role === 'vereador' || profile?.id === 'superadmin' || (profile as any)?.role === 'admin'; // Using a liberal check or checking specifically for vereador/superadmin
+        
+        // Let's stick to the prompt: super admin and vereador
+        const canSeeIndicacoes = profile?.role === 'vereador' || (profile as any)?.isSuperAdmin; 
+
+        setChartDataSync(prev => {
+          const newState = [...prev];
+          if (newState[col.index]) {
+            newState[col.index].value = snap.size;
+          }
+          return newState;
+        });
 
         // Specific logic for atendimentos (Bar Chart)
         if (col.id === 'atendimentos') {
@@ -224,10 +226,10 @@ export default function Dashboard() {
           { label: 'Atendimentos', value: stats.atendimentos, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
           { label: 'Atend. Médicos', value: stats.medicos, icon: Stethoscope, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
           { label: 'Auxílio Social', value: stats.auxilios, icon: ShoppingBag, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-          { label: 'Indicações', value: stats.indicacoes, icon: Briefcase, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+          { label: 'Indicações', value: stats.indicacoes, icon: Briefcase, color: 'text-purple-500', bg: 'bg-purple-500/10', restricted: true },
           { label: 'Malotes', value: stats.malotes, icon: Package, color: 'text-orange-500', bg: 'bg-orange-500/10' },
           { label: 'Demandas', value: stats.demandas, icon: FileText, color: 'text-pink-500', bg: 'bg-pink-500/10' },
-        ].map((stat, i) => (
+        ].filter(stat => !stat.restricted || (profile?.role === 'vereador' || (profile as any)?.isSuperAdmin)).map((stat, i) => (
           <motion.div 
             key={i}
             initial={{ opacity: 0, y: 10 }}
@@ -278,7 +280,7 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={chartDataSync}
+                  data={chartDataSync.filter((_, idx) => idx !== 5 || (profile?.role === 'vereador' || (profile as any)?.isSuperAdmin))}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -297,7 +299,9 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
           <div className="grid grid-cols-2 gap-4 mt-4">
-            {chartDataSync.map((item, i) => (
+            {chartDataSync
+              .filter((_, i) => i !== 5 || (profile?.role === 'vereador' || (profile as any)?.isSuperAdmin))
+              .map((item, i) => (
               <div key={i} className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i] }} />
                 <span className="text-xs text-slate-400">{item.name}</span>

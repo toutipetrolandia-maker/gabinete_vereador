@@ -102,7 +102,7 @@ function AppContent() {
           {activeTab === 'atendimentos' && <Atendimentos />}
           {activeTab === 'medico' && <AtendimentosMedicos />}
           {activeTab === 'auxilio' && <SocialAssistance />}
-          {activeTab === 'indicacoes' && <IndicacoesCargos />}
+          {activeTab === 'indicacoes' && (profile?.role === 'vereador' || isSuperAdmin) && <IndicacoesCargos />}
           {activeTab === 'malotes' && <Malotes />}
           {activeTab === 'demandas' && <Demandas />}
           {activeTab === 'sugestoes' && <Sugestoes />}

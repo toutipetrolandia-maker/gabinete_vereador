@@ -52,12 +52,34 @@ export default function Demandas() {
     prioridade: 'Média',
     status: 'Pendente',
     descricao: '',
+    assessor_id: '',
+    assessor_nome: '',
     attachments: [] as { name: string, url: string, type: string }[]
   };
 
   const [formData, setFormData] = useState(initialForm);
+  const [assessors, setAssessors] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [waConfig, setWaConfig] = useState<WhatsAppConfig | null>(null);
+  const [filterMine, setFilterMine] = useState(false);
+
+  useEffect(() => {
+    if (!profile?.cabinetId) return;
+    
+    // Fetch assessors for assignment (only for admin/secretaria)
+    const canAssign = profile.role === 'admin' || profile.role === 'secretaria_parlamentar';
+    if (canAssign) {
+      const q = query(
+        collection(db, 'users'), 
+        where('cabinetId', '==', profile.cabinetId),
+        where('ativo', '==', true)
+      );
+      const unsub = onSnapshot(q, (snap) => {
+        setAssessors(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+      return () => unsub();
+    }
+  }, [profile?.cabinetId, profile?.role]);
 
   useEffect(() => {
     if (!profile?.cabinetId) return;
@@ -115,7 +137,7 @@ export default function Demandas() {
         await updateDoc(doc(db, 'demandas_parlamentares', editingId), {
           ...formData,
           cabinetId: profile?.cabinetId,
-          usuario_id: profile?.role === 'admin' ? existing?.usuario_id : profile?.nome || 'Assessor', // Just for consistency
+          usuario_id: existing?.usuario_id || profile?.id || 'system',
           updated_at: serverTimestamp()
         });
         await logAction('Atualizar', 'demandas_parlamentares', editingId, { previous: existing, next: formData });
@@ -123,7 +145,7 @@ export default function Demandas() {
         const docRef = await addDoc(collection(db, 'demandas_parlamentares'), {
           ...formData,
           cabinetId: profile?.cabinetId,
-          usuario_id: profile?.nome || 'Assessor',
+          usuario_id: profile?.id || 'system',
           created_at: serverTimestamp(),
         });
         await logAction('Criar', 'demandas_parlamentares', docRef.id, { next: formData });
@@ -154,6 +176,8 @@ export default function Demandas() {
       prioridade: item.prioridade || 'Média',
       status: item.status || 'Pendente',
       descricao: item.descricao || '',
+      assessor_id: item.assessor_id || '',
+      assessor_nome: item.assessor_nome || '',
       attachments: item.attachments || []
     });
     setShowModal(true);
@@ -180,13 +204,26 @@ export default function Demandas() {
           </h1>
           <p className="text-slate-400 text-sm">Ofícios, requerimentos e indicações.</p>
         </div>
-        <button 
-          onClick={() => setShowModal(true)}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 md:py-2 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-900/20 w-full sm:w-auto"
-        >
-          <Plus size={20} />
-          <span className="font-semibold text-sm">Nova Demanda</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setFilterMine(!filterMine)}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-bold transition-all border",
+              filterMine 
+                ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-900/40" 
+                : "bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200"
+            )}
+          >
+            {filterMine ? "Ver Todas" : "Minhas Demandas"}
+          </button>
+          <button 
+            onClick={() => setShowModal(true)}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 md:py-2 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-900/20 w-full sm:w-auto"
+          >
+            <Plus size={20} />
+            <span className="font-semibold text-sm">Nova Demanda</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
@@ -194,7 +231,9 @@ export default function Demandas() {
           <div className="py-20 text-center text-slate-500">Carregando demandas...</div>
         ) : data.length === 0 ? (
           <div className="py-20 text-center text-slate-600">Nenhuma demanda encontrada.</div>
-        ) : data.map((item) => (
+        ) : data
+          .filter(item => !filterMine || item.assessor_id === profile?.id)
+          .map((item) => (
           <motion.div 
             key={item.id}
             initial={{ opacity: 0, scale: 0.99 }}
@@ -244,6 +283,14 @@ export default function Demandas() {
                       <Clock size={14} className="text-blue-400" />
                       <span>Status: <strong className="text-slate-300">{item.status}</strong></span>
                    </div>
+                   {item.assessor_nome && (
+                     <div className="flex items-center gap-1.5 text-slate-500">
+                        <div className="w-4 h-4 rounded-full bg-purple-500/20 flex items-center justify-center">
+                          <span className="text-[8px] font-bold text-purple-400">{item.assessor_nome.substring(0, 1)}</span>
+                        </div>
+                        <span>Atribuído a: <strong className="text-purple-400">{item.assessor_nome}</strong></span>
+                     </div>
+                   )}
                    {item.solicitante_telefone && (
                      <button 
                        onClick={() => sendWAMessage(item, 'status_update')}
@@ -339,6 +386,29 @@ export default function Demandas() {
                           <option>Concluído</option>
                       </select>
                   </div>
+
+                  {(profile?.role === 'admin' || profile?.role === 'secretaria_parlamentar') && (
+                    <div className="space-y-1">
+                       <label className="text-[10px] font-bold text-slate-500 uppercase">Atribuir Assessor</label>
+                       <select 
+                         value={formData.assessor_id} 
+                         onChange={e => {
+                           const selected = assessors.find(a => a.id === e.target.value);
+                           setFormData({
+                             ...formData, 
+                             assessor_id: e.target.value,
+                             assessor_nome: selected ? selected.nome : ''
+                           });
+                         }} 
+                         className="w-full bg-slate-800 rounded-xl p-3 border-none"
+                       >
+                          <option value="">Não atribuído</option>
+                          {assessors.map(assessor => (
+                            <option key={assessor.id} value={assessor.id}>{assessor.nome} ({assessor.role})</option>
+                          ))}
+                       </select>
+                    </div>
+                  )}
                   <div className="space-y-1">
                      <label className="text-[10px] font-bold text-slate-500 uppercase">Descrição Detalhada</label>
                      <textarea rows={4} value={formData.descricao} onChange={e => setFormData({...formData, descricao: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none resize-none" />

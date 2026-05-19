@@ -37,6 +37,7 @@ import { logAction } from '../lib/audit';
 export default function Malotes() {
   const { profile } = useAuth();
   const [data, setData] = useState<any[]>([]);
+  const [cabinetData, setCabinetData] = useState<any>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,7 +82,17 @@ export default function Malotes() {
       console.error("Error listening to malotes:", error);
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    const unsubCabinet = onSnapshot(doc(db, 'cabinets', profile.cabinetId), (snap) => {
+      if (snap.exists()) {
+        setCabinetData(snap.data());
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      unsubCabinet();
+    };
   }, [profile?.cabinetId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -256,8 +267,11 @@ export default function Malotes() {
         </head>
         <body>
           <div class="header">
+            ${cabinetData?.cabinet_logo 
+              ? `<img src="${cabinetData.cabinet_logo}" style="max-height: 80px; width: auto; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto;" />` 
+              : ''}
             <h1>PROTOCOLO DE ENVIO</h1>
-            <p>Gabinete Parlamentar Municipal</p>
+            <p>${cabinetData?.app_name || 'Gabinete Parlamentar Municipal'}</p>
           </div>
 
           <div class="protocol-section">
