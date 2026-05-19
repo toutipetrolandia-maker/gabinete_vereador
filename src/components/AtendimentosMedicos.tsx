@@ -117,30 +117,58 @@ export default function AtendimentosMedicos() {
     
     setSearchingCitizen(true);
     try {
-      // Find in general assistances using masked CPF
-      const q = query(
+      // 1. Search in Medical Records first (more specific data like SUS card)
+      const qMed = query(
+        collection(db, 'atendimentos_medicos'),
+        where('cabinetId', '==', profile?.cabinetId),
+        where('cpf', '==', maskedCPF),
+        orderBy('created_at', 'desc')
+      );
+      
+      // 2. Search in General Assistances
+      const qGen = query(
         collection(db, 'atendimentos'), 
         where('cabinetId', '==', profile?.cabinetId),
         where('cpf', '==', maskedCPF), 
         orderBy('created_at', 'desc')
       );
-      const querySnapshot = await getDocs(q);
+
+      const [medSnap, genSnap] = await Promise.all([
+        getDocs(qMed),
+        getDocs(qGen)
+      ]);
       
-      if (!querySnapshot.empty) {
-        const latestInfo = querySnapshot.docs[0].data();
-        const history = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
+      let foundData: any = null;
+      let history: any[] = [];
+
+      if (!medSnap.empty) {
+        foundData = medSnap.docs[0].data();
+        history = [...medSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), source: 'Médico' }))];
+      }
+
+      if (!genSnap.empty) {
+        const latestGen = genSnap.docs[0].data();
+        // If we didn't find specific medical data yet, use general data
+        if (!foundData) {
+          foundData = latestGen;
+        }
+        history = [...history, ...genSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), source: 'Geral' }))];
+      }
+      
+      if (foundData) {
         setCitizenHistory(history);
         
-        // Auto-fill if it's a new entry and name is empty
-        if (!editingId && !formData.nome_completo) {
+        // Auto-fill if it's a new entry
+        if (!editingId) {
           setFormData(prev => ({
             ...prev,
-            nome_completo: latestInfo.nome_completo || '',
-            telefone: latestInfo.telefone || '',
-            endereco: latestInfo.endereco || '',
-            bairro: latestInfo.bairro || '',
-            zona_rural: latestInfo.zona_rural !== undefined ? latestInfo.zona_rural : prev.zona_rural
+            nome_completo: prev.nome_completo || foundData.nome_completo || '',
+            telefone: prev.telefone || foundData.telefone || '',
+            endereco: prev.endereco || foundData.endereco || '',
+            bairro: prev.bairro || foundData.bairro || '',
+            cartao_sus: prev.cartao_sus || foundData.cartao_sus || '',
+            unidade_saude: prev.unidade_saude || foundData.unidade_saude || '',
+            zona_rural: foundData.zona_rural !== undefined ? foundData.zona_rural : prev.zona_rural
           }));
         }
       } else {
@@ -926,11 +954,21 @@ export default function AtendimentosMedicos() {
                              <span className="text-[9px] font-bold text-slate-500 uppercase">
                                {h.created_at?.toDate ? format(h.created_at.toDate(), 'dd/MM/yyyy HH:mm') : '...'}
                              </span>
-                             <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[8px] font-black uppercase tracking-tighter">
-                               {h.tipo_atendimento}
-                             </span>
+                             <div className="flex gap-1">
+                                <span className={cn(
+                                  "px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter",
+                                  h.source === 'Médico' ? "bg-emerald-500/10 text-emerald-400" : "bg-blue-500/10 text-blue-400"
+                                )}>
+                                  {h.source || 'Geral'}
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[8px] font-black uppercase tracking-tighter">
+                                  {h.tipo_atendimento || h.especialidade}
+                                </span>
+                             </div>
                            </div>
-                           <p className="text-xs text-slate-300 font-medium line-clamp-3 leading-relaxed mb-1 italic">"{h.descricao}"</p>
+                           <p className="text-xs text-slate-300 font-medium line-clamp-3 leading-relaxed mb-1 italic">
+                             "{h.descricao || h.descricao_problema}"
+                           </p>
                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/50">
                               <span className="text-[9px] text-slate-600 font-bold uppercase tracking-tight">Status: {h.status}</span>
                               <span className="text-[9px] text-slate-600">Prioridade: {h.prioridade}</span>
@@ -959,11 +997,21 @@ export default function AtendimentosMedicos() {
                          <span className="text-[9px] font-bold text-slate-500 uppercase">
                            {h.created_at?.toDate ? format(h.created_at.toDate(), 'dd/MM/yyyy') : '...'}
                          </span>
-                         <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[8px] font-black uppercase tracking-tighter">
-                           {h.tipo_atendimento}
-                         </span>
+                         <div className="flex gap-1">
+                            <span className={cn(
+                              "px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter",
+                              h.source === 'Médico' ? "bg-emerald-500/10 text-emerald-400" : "bg-blue-500/10 text-blue-400"
+                            )}>
+                              {h.source || 'Geral'}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[8px] font-black uppercase tracking-tighter">
+                              {h.tipo_atendimento || h.especialidade}
+                            </span>
+                         </div>
                        </div>
-                       <p className="text-xs text-slate-300 font-medium line-clamp-3 leading-relaxed mb-2 italic">"{h.descricao}"</p>
+                       <p className="text-xs text-slate-300 font-medium line-clamp-3 leading-relaxed mb-2 italic">
+                         "{h.descricao || h.descricao_problema}"
+                       </p>
                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/50">
                           <div className="flex items-center gap-1">
                              <User size={10} className="text-slate-600" />
