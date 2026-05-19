@@ -205,7 +205,7 @@ export default function Dashboard() {
       </header>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 px-1 md:px-0">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 md:gap-4 px-1 md:px-0">
         {[
           { label: 'Atendimentos', value: stats.atendimentos, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
           { label: 'Atend. Médicos', value: stats.medicos, icon: Stethoscope, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
@@ -219,14 +219,14 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-slate-900 border border-slate-800 p-6 rounded-2xl flex items-center gap-4 hover:border-slate-700 transition-colors"
+            className="bg-slate-900 border border-slate-800 p-3 md:p-6 rounded-2xl flex flex-col sm:flex-row items-center sm:items-start gap-2 md:gap-4 hover:border-slate-700 transition-colors"
           >
-            <div className={`w-12 h-12 ${stat.bg} rounded-xl flex items-center justify-center shrink-0`}>
-              <stat.icon className={stat.color} size={24} />
+            <div className={`p-2 md:p-3 ${stat.bg} rounded-xl flex items-center justify-center shrink-0`}>
+              <stat.icon className={stat.color} size={20} />
             </div>
-            <div>
-              <p className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1">{stat.label}</p>
-              <p className="text-2xl font-bold text-slate-100">{stat.value}</p>
+            <div className="text-center sm:text-left min-w-0 w-full">
+              <p className="text-[9px] md:text-xs font-mono uppercase tracking-wider text-slate-400 mb-0.5 md:mb-1 truncate">{stat.label}</p>
+              <p className="text-xl md:text-2xl font-bold text-slate-100">{stat.value}</p>
             </div>
           </motion.div>
         ))}
