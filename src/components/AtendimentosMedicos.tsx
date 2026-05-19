@@ -30,7 +30,8 @@ import {
   Glasses,
   Printer,
   ChevronRight,
-  FileText
+  FileText,
+  Package
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -82,7 +83,10 @@ export default function AtendimentosMedicos() {
     grau_oe: '',
     status_oculos: 'não solicitado', // 'solicitado', 'em produção', 'pronto', 'entregue'
     data_entrega_oculos: '',
-    lgpd_consent: false
+    lgpd_consent: false,
+    satisfacao_nivel: 0,
+    satisfacao_comentario: '',
+    bem_atendido: null as boolean | null
   };
 
   // Masks
@@ -367,7 +371,10 @@ export default function AtendimentosMedicos() {
       grau_oe: item.grau_oe || '',
       status_oculos: item.status_oculos || 'não solicitado',
       data_entrega_oculos: item.data_entrega_oculos || '',
-      lgpd_consent: !!item.lgpd_consent
+      lgpd_consent: !!item.lgpd_consent,
+      satisfacao_nivel: item.satisfacao_nivel || 0,
+      satisfacao_comentario: item.satisfacao_comentario || '',
+      bem_atendido: item.bem_atendido !== undefined ? item.bem_atendido : null
     });
     if (item.cpf) searchCitizenData(item.cpf);
     setShowModal(true);
@@ -487,6 +494,19 @@ export default function AtendimentosMedicos() {
                 )}>
                   {item.prioridade}
                 </span>
+                {item.status === 'Encaminhado' && (
+                  <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded border border-blue-500/50 text-blue-400 bg-blue-500/5">
+                    Encaminhado
+                  </span>
+                )}
+                {item.bem_atendido !== undefined && item.bem_atendido !== null && (
+                  <span className={cn(
+                    "text-[10px] uppercase font-black px-2 py-0.5 rounded",
+                    item.bem_atendido ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+                  )}>
+                    {item.bem_atendido ? 'Satisfeito' : 'Insatisfeito'}
+                  </span>
+                )}
               </div>
             </div>
              <h3 className="text-lg font-bold text-slate-100 mb-1">{item.nome_completo}</h3>
@@ -523,6 +543,12 @@ export default function AtendimentosMedicos() {
               )}
               {item.cartao_sus && (
                 <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">SUS: {item.cartao_sus}</span>
+              )}
+              {item.malote_protocolo && (
+                <div className="flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded border border-amber-500/20 font-bold">
+                   <Package size={10} />
+                   MALOTE: {item.malote_protocolo}
+                </div>
               )}
             </div>
             
@@ -794,6 +820,68 @@ export default function AtendimentosMedicos() {
                              )}
                           </div>
                         )}
+                     </div>
+
+                     {/* Satisfaction Survey */}
+                     <div className="bg-slate-800/30 border border-slate-800 rounded-2xl p-6 space-y-6">
+                        <div className="flex items-center gap-2 text-emerald-400 font-bold text-[10px] uppercase tracking-widest">
+                           <MessageCircle size={16} />
+                           Pesquisa de Satisfação (Feedback)
+                        </div>
+
+                        <div className="space-y-4">
+                           <div className="flex flex-col gap-2">
+                              <label className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Foi bem atendido pelo Gabinete/Médico?</label>
+                              <div className="flex gap-4">
+                                 {[
+                                    { label: 'Sim', value: true, color: 'bg-emerald-500' },
+                                    { label: 'Não', value: false, color: 'bg-red-500' }
+                                 ].map((opt) => (
+                                    <button
+                                       key={opt.label}
+                                       type="button"
+                                       onClick={() => setFormData({...formData, bem_atendido: opt.value})}
+                                       className={cn(
+                                          "flex-1 py-3 px-4 rounded-xl border border-slate-700 font-bold text-sm transition-all",
+                                          formData.bem_atendido === opt.value ? `${opt.color} text-white border-transparent shadow-lg` : "bg-slate-900 text-slate-400 hover:bg-slate-800"
+                                       )}
+                                    >
+                                       {opt.label}
+                                    </button>
+                                 ))}
+                              </div>
+                           </div>
+
+                           <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Nível de Satisfação (1-5)</label>
+                              <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-700">
+                                 {[1, 2, 3, 4, 5].map((star) => (
+                                    <button
+                                       key={star}
+                                       type="button"
+                                       onClick={() => setFormData({...formData, satisfacao_nivel: star})}
+                                       className={cn(
+                                          "w-10 h-10 rounded-full flex items-center justify-center transition-all",
+                                          formData.satisfacao_nivel >= star ? "bg-amber-500 text-white" : "bg-slate-800 text-slate-500"
+                                       )}
+                                    >
+                                       {star}
+                                    </button>
+                                 ))}
+                              </div>
+                           </div>
+
+                           <div className="space-y-1">
+                              <label className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Comentários Adicionais</label>
+                              <textarea
+                                 rows={2}
+                                 placeholder="Relate aqui o feedback do cidadão..."
+                                 value={formData.satisfacao_comentario}
+                                 onChange={e => setFormData({...formData, satisfacao_comentario: e.target.value})}
+                                 className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-xs focus:ring-2 focus:ring-emerald-500/50 resize-none"
+                              />
+                           </div>
+                        </div>
                      </div>
                   </div>
                   <div className="flex items-start gap-3 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl mb-4">

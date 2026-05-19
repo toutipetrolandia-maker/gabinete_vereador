@@ -466,6 +466,19 @@ export default function SocialAssistance() {
                   </div>
 
                   <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">CPF do Beneficiado</label>
+                    <div className="relative">
+                      <Info className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={18} />
+                      <input 
+                        value={formData.beneficiado_cpf || ''}
+                        onChange={e => setFormData({...formData, beneficiado_cpf: e.target.value})}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-white focus:ring-2 focus:ring-blue-600/50 outline-none transition-all"
+                        placeholder="000.000.000-00"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">Tipo de Benefício</label>
                     <select 
                       value={formData.tipo_beneficio}

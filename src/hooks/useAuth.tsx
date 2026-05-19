@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, query, whe
 import { auth, db } from '../lib/firebase';
 
 interface UserProfile {
+  id: string; // Added ID field
   nome: string;
   username?: string;
   role: 'superadmin' | 'admin' | 'assessor' | 'vereador' | 'consulta' | 'secretaria_parlamentar';
@@ -99,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const activeProfile = profile ? {
     ...profile,
+    id: user?.uid || profile.id, // Ensure ID is present
     cabinetId: isCabinetOverridden ? overrideCabinetId! : (domainCabinetId || profile.cabinetId)
   } : null;
 
@@ -157,11 +159,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                if (data.role === 'consulta') updates.role = 'secretaria_parlamentar';
                if (data.nome === 'Usuário' || data.nome === 'Novo Usuário') updates.nome = 'Lorena Gomes';
                
-               const updatedProfile = { ...data, ...updates };
+               const updatedProfile = { ...data, id: user.uid, ...updates };
                setProfile(updatedProfile);
                updateDoc(docRef, updates).catch(err => console.error("Failed to update Lorena profile:", err));
             } else {
-               setProfile(data);
+               setProfile({ ...data, id: user.uid });
             }
             
             // Check for First Access
@@ -236,6 +238,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               }
 
               const newProfile: UserProfile = {
+                id: user.uid,
                 nome: user.displayName || 'Novo Usuário',
                 username: normalizedEmail.split('@')[0] || 'usuario',
                 email: normalizedEmail,
@@ -251,10 +254,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   created_at: serverTimestamp(),
                   last_seen: serverTimestamp()
                 });
-                setProfile(newProfile);
+                setProfile({ ...newProfile, id: user.uid });
               } catch (e) {
                 console.error("Erro ao criar perfil inicial:", e);
-                setProfile(newProfile);
+                setProfile({ ...newProfile, id: user.uid });
               }
             }
           }

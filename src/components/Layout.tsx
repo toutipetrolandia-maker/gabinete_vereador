@@ -20,7 +20,11 @@ import {
   Search,
   Globe,
   History,
-  ShieldCheck
+  ShieldCheck,
+  ShoppingBag,
+  BookOpen,
+  MessageCircle,
+  Briefcase
 } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -106,11 +110,13 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     { id: 'agenda', label: 'Agenda', icon: Clock },
     { id: 'atendimentos', label: 'Atendimentos', icon: Users },
     { id: 'medico', label: 'Atend. Médico', icon: Stethoscope },
-    { id: 'auxilio', label: 'Auxílio Social', icon: Package },
+    { id: 'auxilio', label: 'Auxílio Social', icon: ShoppingBag },
+    { id: 'indicacoes', label: 'Indicações', icon: Briefcase },
     { id: 'malotes', label: 'Malotes', icon: Package },
     { id: 'demandas', label: 'Demandas', icon: FileText },
     { id: 'sugestoes', label: 'Sugestões', icon: MessageSquare },
     { id: 'relatorios', label: 'Relatórios', icon: FileDown },
+    { id: 'training', label: 'Capacitação', icon: BookOpen },
     { id: 'whatsapp', label: 'Mensagens', icon: MessageSquare },
     { id: 'history', label: 'Logs / Auditoria', icon: History, adminOnly: true },
     { id: 'config', label: 'Configurações', icon: Settings },

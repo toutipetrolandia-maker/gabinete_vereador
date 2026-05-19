@@ -3,11 +3,13 @@ import {
   Users, 
   Stethoscope, 
   Package, 
+  ShoppingBag,
   FileText,
   TrendingUp,
   Clock,
   CheckCircle2,
   AlertCircle,
+  Briefcase,
   ExternalLink
 } from 'lucide-react';
 import { collection, query, limit, getDocs, orderBy, onSnapshot, doc, where } from 'firebase/firestore';
@@ -35,7 +37,8 @@ export default function Dashboard() {
     medicos: 0,
     malotes: 0,
     demandas: 0,
-    auxilios: 0
+    auxilios: 0,
+    indicacoes: 0
   });
   const [recent, setRecent] = useState<any[]>([]);
   const [appName, setAppName] = useState('Gabinete Digital');
@@ -74,13 +77,14 @@ export default function Dashboard() {
       try {
         const cabQuery = (col: string) => query(collection(db, col), where('cabinetId', '==', profile.cabinetId));
         
-        const [atendSnap, medSnap, malSnap, demSnap, sugSnap, auxSnap] = await Promise.all([
+        const [atendSnap, medSnap, malSnap, demSnap, sugSnap, auxSnap, indSnap] = await Promise.all([
           getDocs(cabQuery('atendimentos')),
           getDocs(cabQuery('atendimentos_medicos')),
           getDocs(cabQuery('malotes')),
           getDocs(cabQuery('demandas_parlamentares')),
           getDocs(cabQuery('sugestoes')),
-          getDocs(cabQuery('auxilio_social'))
+          getDocs(cabQuery('auxilio_social')),
+          getDocs(cabQuery('indicacoes_cargos'))
         ]);
 
         setStats({
@@ -88,7 +92,8 @@ export default function Dashboard() {
           medicos: medSnap.size,
           malotes: malSnap.size,
           demandas: demSnap.size,
-          auxilios: auxSnap.size
+          auxilios: auxSnap.size,
+          indicacoes: indSnap.size
         });
 
         const atendimentos = atendSnap.docs.map(doc => doc.data());
@@ -100,6 +105,7 @@ export default function Dashboard() {
           { name: 'Demanda', value: demSnap.size },
           { name: 'Auxílio', value: auxSnap.size },
           { name: 'Sugestão', value: sugSnap.size },
+          { name: 'Indicação', value: indSnap.size },
         ];
         setChartDataSync(distribution);
 
@@ -136,7 +142,7 @@ export default function Dashboard() {
     { day: 'Sex', total: 30 },
   ];
 
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#f97316', '#ef4444'];
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#f97316', '#ef4444', '#8b5cf6'];
 
   return (
     <div className="space-y-6 md:space-y-8 pb-10">
@@ -199,13 +205,14 @@ export default function Dashboard() {
       </header>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 px-1 md:px-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 px-1 md:px-0">
         {[
           { label: 'Atendimentos', value: stats.atendimentos, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
           { label: 'Atend. Médicos', value: stats.medicos, icon: Stethoscope, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-          { label: 'Auxílio Social', value: stats.auxilios, icon: Package, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+          { label: 'Auxílio Social', value: stats.auxilios, icon: ShoppingBag, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+          { label: 'Indicações', value: stats.indicacoes, icon: Briefcase, color: 'text-purple-500', bg: 'bg-purple-500/10' },
           { label: 'Malotes', value: stats.malotes, icon: Package, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-          { label: 'Demandas', value: stats.demandas, icon: FileText, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+          { label: 'Demandas', value: stats.demandas, icon: FileText, color: 'text-pink-500', bg: 'bg-pink-500/10' },
         ].map((stat, i) => (
           <motion.div 
             key={i}

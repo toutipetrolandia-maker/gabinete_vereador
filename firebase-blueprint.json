@@ -84,6 +84,9 @@
         "lembrete_exame": { "type": "string" },
         "usuario_id": { "type": "string" },
         "usuario_nome": { "type": "string" },
+        "satisfacao_nivel": { "type": "number", "minimum": 1, "maximum": 5 },
+        "satisfacao_comentario": { "type": "string" },
+        "bem_atendido": { "type": "boolean" },
         "created_at": { "type": "string", "format": "date-time" },
         "updated_at": { "type": "string", "format": "date-time" }
       },
@@ -171,6 +174,29 @@
         "updated_at": { "type": "string", "format": "date-time" }
       },
       "required": ["cabinetId", "beneficiado_nome", "tipo_beneficio", "status"]
+    },
+    "IndicacaoCargo": {
+      "title": "Indicação de Cargo",
+      "description": "Control of political nominations for trust positions",
+      "type": "object",
+      "properties": {
+        "cabinetId": { "type": "string" },
+        "indicado_nome": { "type": "string" },
+        "indicado_cpf": { "type": "string" },
+        "indicado_telefone": { "type": "string" },
+        "cargo_pretendido": { "type": "string" },
+        "orgao_destino": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pendente", "Em Análise", "Nomeado", "Exonerado", "Rejeitado"] },
+        "data_indicacao": { "type": "string" },
+        "data_nomeacao": { "type": "string" },
+        "qualificacao": { "type": "string" },
+        "observacoes": { "type": "string" },
+        "usuario_id": { "type": "string" },
+        "usuario_nome": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["cabinetId", "indicado_nome", "cargo_pretendido", "status"]
     }
   },
   "firestore": {
@@ -181,6 +207,7 @@
     "/agenda_vereador/{id}": { "schema": "Agenda", "description": "Schedule" },
     "/sugestoes/{id}": { "schema": "Sugestao", "description": "Feedback" },
     "/logs/{id}": { "schema": "AuditLog", "description": "Audit trails" },
-    "/auxilio_social/{id}": { "schema": "AuxilioSocial", "description": "Social assistance records" }
+    "/auxilio_social/{id}": { "schema": "AuxilioSocial", "description": "Social assistance records" },
+    "/indicacoes_cargos/{id}": { "schema": "IndicacaoCargo", "description": "Position nomination records" }
   }
 }
