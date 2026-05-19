@@ -66,6 +66,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!profile?.cabinetId) return;
 
+    // 1. Listen to Cabinet Settings
     const unsubSettings = onSnapshot(doc(db, 'cabinets', profile.cabinetId), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -78,101 +79,79 @@ export default function Dashboard() {
         setOfficeHours({ inicio: start, fim: end });
         setIsOfficeOpen(checkOfficeStatus(start, end));
       }
-    });
+    }, (error) => console.error("Dashboard settings listener error:", error));
 
     const cabQuery = (col: string) => query(collection(db, col), where('cabinetId', '==', profile.cabinetId));
 
-    // Listeners for stats
-    const unsubs = [
-      onSnapshot(cabQuery('atendimentos'), (snap) => {
-        setStats(prev => ({ ...prev, atendimentos: snap.size }));
-        setChartDataSync(prev => {
-          const newState = [...prev];
-          newState[0].value = snap.size;
-          return newState;
-        });
+    // 2. Real-time Listeners for all metrics
+    const collections = [
+      { id: 'atendimentos', index: 0, statKey: 'atendimentos' },
+      { id: 'atendimentos_medicos', index: 1, statKey: 'medicos' },
+      { id: 'demandas_parlamentares', index: 2, statKey: 'demandas' },
+      { id: 'auxilio_social', index: 3, statKey: 'auxilios' },
+      { id: 'sugestoes', index: 4, statKey: null },
+      { id: 'indicacoes_cargos', index: 5, statKey: 'indicacoes' },
+      { id: 'malotes', index: -1, statKey: 'malotes' }
+    ];
 
-        // Update bar chart based on atendimentos of last 5 days
-        const countsByDay: Record<string, number> = {
-          'Seg': 0, 'Ter': 0, 'Qua': 0, 'Qui': 0, 'Sex': 0
-        };
-        const daysMap: Record<number, string> = {
-          1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex', 6: 'Sáb', 0: 'Dom'
-        };
+    const unsubs = collections.map(col => 
+      onSnapshot(cabQuery(col.id), (snap) => {
+        // Update stats
+        if (col.statKey) {
+          setStats(prev => ({ ...prev, [col.statKey!]: snap.size }));
+        }
 
-        snap.docs.forEach(doc => {
-          const data = doc.data();
-          const date = data.created_at?.toDate ? data.created_at.toDate() : null;
-          if (date) {
-            const dayName = daysMap[date.getDay()];
-            if (countsByDay[dayName] !== undefined) {
-              countsByDay[dayName]++;
+        // Update distribution chart
+        if (col.index !== -1) {
+          setChartDataSync(prev => {
+            const newState = [...prev];
+            if (newState[col.index]) {
+              newState[col.index].value = snap.size;
             }
-          }
-        });
+            return newState;
+          });
+        }
 
-        setBarData([
-          { day: 'Seg', total: countsByDay['Seg'] },
-          { day: 'Ter', total: countsByDay['Ter'] },
-          { day: 'Qua', total: countsByDay['Qua'] },
-          { day: 'Qui', total: countsByDay['Qui'] },
-          { day: 'Sex', total: countsByDay['Sex'] },
-        ]);
-      }),
-      onSnapshot(cabQuery('atendimentos_medicos'), (snap) => {
-        setStats(prev => ({ ...prev, medicos: snap.size }));
-        setChartDataSync(prev => {
-          const newState = [...prev];
-          newState[1].value = snap.size;
-          return newState;
-        });
-      }),
-      onSnapshot(cabQuery('malotes'), (snap) => {
-        setStats(prev => ({ ...prev, malotes: snap.size }));
-      }),
-      onSnapshot(cabQuery('demandas_parlamentares'), (snap) => {
-        setStats(prev => ({ ...prev, demandas: snap.size }));
-        setChartDataSync(prev => {
-          const newState = [...prev];
-          newState[2].value = snap.size;
-          return newState;
-        });
-      }),
-      onSnapshot(cabQuery('auxilio_social'), (snap) => {
-        setStats(prev => ({ ...prev, auxilios: snap.size }));
-        setChartDataSync(prev => {
-          const newState = [...prev];
-          newState[3].value = snap.size;
-          return newState;
-        });
-      }),
-      onSnapshot(cabQuery('sugestoes'), (snap) => {
-        setChartDataSync(prev => {
-          const newState = [...prev];
-          newState[4].value = snap.size;
-          return newState;
-        });
-      }),
-      onSnapshot(cabQuery('indicacoes_cargos'), (snap) => {
-        setStats(prev => ({ ...prev, indicacoes: snap.size }));
-        setChartDataSync(prev => {
-          const newState = [...prev];
-          newState[5].value = snap.size;
-          return newState;
-        });
-      }),
-      // Recent activity listener
-      onSnapshot(query(collection(db, 'atendimentos'), where('cabinetId', '==', profile.cabinetId), orderBy('created_at', 'desc'), limit(8)), (snap) => {
+        // Specific logic for atendimentos (Bar Chart)
+        if (col.id === 'atendimentos') {
+          const countsByDay: Record<string, number> = { 'Seg': 0, 'Ter': 0, 'Qua': 0, 'Qui': 0, 'Sex': 0 };
+          const daysMap: Record<number, string> = { 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex' };
+          
+          snap.docs.forEach(doc => {
+            const date = doc.data().created_at?.toDate ? doc.data().created_at.toDate() : null;
+            if (date) {
+              const dayName = daysMap[date.getDay()];
+              if (dayName) countsByDay[dayName]++;
+            }
+          });
+
+          setBarData([
+            { day: 'Seg', total: countsByDay['Seg'] },
+            { day: 'Ter', total: countsByDay['Ter'] },
+            { day: 'Qua', total: countsByDay['Qua'] },
+            { day: 'Qui', total: countsByDay['Qui'] },
+            { day: 'Sex', total: countsByDay['Sex'] },
+          ]);
+        }
+      }, (error) => console.error(`Dashboard listener error for ${col.id}:`, error))
+    );
+
+    // 3. Recent Activity Listener
+    const unsubRecent = onSnapshot(
+      query(collection(db, 'atendimentos'), where('cabinetId', '==', profile.cabinetId), orderBy('created_at', 'desc'), limit(8)),
+      (snap) => {
         setRecent(snap.docs.map(doc => ({ 
           id: doc.id, 
           ...doc.data(),
           data_atendimento: doc.data().created_at?.toDate ? doc.data().created_at.toDate().toLocaleDateString('pt-BR') : '...'
         })));
-      })
-    ];
+      },
+      (error) => console.error("Dashboard recent activity listener error:", error)
+    );
 
     return () => {
       unsubSettings();
+      unsubRecent();
       unsubs.forEach(unsub => unsub());
     };
   }, [profile?.cabinetId]);
