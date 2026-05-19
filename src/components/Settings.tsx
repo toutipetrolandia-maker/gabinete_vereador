@@ -161,11 +161,11 @@ export default function Settings() {
     const unsubSettings = onSnapshot(doc(db, 'cabinets', profile.cabinetId), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        setAppName(data.app_name || 'Gabinete Digital');
+        setAppName(data.app_name || data.name || 'Gabinete Digital');
         setCustomDomain(data.custom_domain || '');
         setSubdomain(data.subdomain || '');
         setVereadorPhoto(data.vereador_photo || null);
-        setCabinetLogo(data.cabinet_logo || null);
+        setCabinetLogo(data.cabinet_logo || data.vereador_photo || null);
         setPerfilLink(data.perfil_link || '');
         setPerfilLabel(data.perfil_label || 'Câmara Municipal');
         setBiography(data.biography || '');

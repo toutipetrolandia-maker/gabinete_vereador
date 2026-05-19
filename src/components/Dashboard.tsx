@@ -70,8 +70,8 @@ export default function Dashboard() {
     const unsubSettings = onSnapshot(doc(db, 'cabinets', profile.cabinetId), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        setAppName(data.name || 'Gabinete Digital');
-        setVereadorPhoto(data.vereador_photo || null);
+        setAppName(data.app_name || data.name || 'Gabinete Digital');
+        setVereadorPhoto(data.vereador_photo || data.cabinet_logo || null);
         setPerfilLink(data.perfil_link || 'https://www.cmpa.ba.gov.br/vereador/gilmarkson-campos');
         setBillingStatus(data.status === 'suspended' ? 'suspended' : 'regular');
         const start = data.atendimento_inicio || '08:00';

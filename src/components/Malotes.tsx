@@ -267,11 +267,11 @@ export default function Malotes() {
         </head>
         <body>
           <div class="header">
-            ${cabinetData?.cabinet_logo 
-              ? `<img src="${cabinetData.cabinet_logo}" style="max-height: 80px; width: auto; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto;" />` 
+            ${(cabinetData?.cabinet_logo || cabinetData?.vereador_photo)
+              ? `<img src="${cabinetData.cabinet_logo || cabinetData.vereador_photo}" style="max-height: 80px; width: auto; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto;" />` 
               : ''}
             <h1>PROTOCOLO DE ENVIO</h1>
-            <p>${cabinetData?.app_name || 'Gabinete Parlamentar Municipal'}</p>
+            <p>${cabinetData?.app_name || cabinetData?.name || 'Gabinete Parlamentar Municipal'}</p>
           </div>
 
           <div class="protocol-section">
