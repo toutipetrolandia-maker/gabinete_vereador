@@ -38,7 +38,8 @@ export default function Dashboard() {
     malotes: 0,
     demandas: 0,
     auxilios: 0,
-    indicacoes: 0
+    indicacoes: 0,
+    cidadaos: 0
   });
   const [recent, setRecent] = useState<any[]>([]);
   const [appName, setAppName] = useState('Gabinete Digital');
@@ -55,7 +56,7 @@ export default function Dashboard() {
     { name: 'Sugestão', value: 0 },
     { name: 'Indicação', value: 0 },
   ]);
-  const [barData, setBarData] = useState<{day: string, total: number}[]>([]);
+  const [barData, setBarData] = useState<{day: string, atendimentos: number, medicos: number}[]>([]);
 
   const checkOfficeStatus = (inicio: string, fim: string) => {
     const now = new Date();
@@ -94,6 +95,26 @@ export default function Dashboard() {
       { id: 'malotes', index: -1, statKey: 'malotes' }
     ];
 
+    const counts: any = {
+      atendimentos: { 'Seg': 0, 'Ter': 0, 'Qua': 0, 'Qui': 0, 'Sex': 0 },
+      medicos: { 'Seg': 0, 'Ter': 0, 'Qua': 0, 'Qui': 0, 'Sex': 0 }
+    };
+
+    const updateBarChart = () => {
+      setBarData([
+        { day: 'Seg', atendimentos: counts.atendimentos['Seg'], medicos: counts.medicos['Seg'] },
+        { day: 'Ter', atendimentos: counts.atendimentos['Ter'], medicos: counts.medicos['Ter'] },
+        { day: 'Qua', atendimentos: counts.atendimentos['Qua'], medicos: counts.medicos['Qua'] },
+        { day: 'Qui', atendimentos: counts.atendimentos['Qui'], medicos: counts.medicos['Qui'] },
+        { day: 'Sex', atendimentos: counts.atendimentos['Sex'], medicos: counts.medicos['Sex'] },
+      ]);
+    };
+
+    const cpfs = new Set();
+    const updateCidadaosCount = () => {
+       setStats(prev => ({ ...prev, cidadaos: cpfs.size }));
+    };
+
     const unsubs = collections.map(col => 
       onSnapshot(cabQuery(col.id), (snap) => {
         // Update stats
@@ -101,10 +122,12 @@ export default function Dashboard() {
           setStats(prev => ({ ...prev, [col.statKey!]: snap.size }));
         }
 
-        const isAuthorizedIndicacoes = profile?.role === 'vereador' || profile?.id === 'superadmin' || (profile as any)?.role === 'admin'; // Using a liberal check or checking specifically for vereador/superadmin
-        
-        // Let's stick to the prompt: super admin and vereador
-        const canSeeIndicacoes = profile?.role === 'vereador' || isSuperAdmin; 
+        // Track unique CPFs for total citizens
+        snap.docs.forEach(doc => {
+          const cpf = doc.data().cpf || doc.data().beneficiado_cpf || doc.data().indicado_cpf || doc.data().solicitante_cpf || doc.data().solicitante_telefone; // Fallback to phone if no CPF
+          if (cpf) cpfs.add(cpf);
+        });
+        updateCidadaosCount();
 
         setChartDataSync(prev => {
           const newState = [...prev];
@@ -114,26 +137,22 @@ export default function Dashboard() {
           return newState;
         });
 
-        // Specific logic for atendimentos (Bar Chart)
-        if (col.id === 'atendimentos') {
-          const countsByDay: Record<string, number> = { 'Seg': 0, 'Ter': 0, 'Qua': 0, 'Qui': 0, 'Sex': 0 };
+        // Specific logic for daily tracking (Bar Chart)
+        if (col.id === 'atendimentos' || col.id === 'atendimentos_medicos') {
+          const type = col.id === 'atendimentos' ? 'atendimentos' : 'medicos';
+          const dayCounts = { 'Seg': 0, 'Ter': 0, 'Qua': 0, 'Qui': 0, 'Sex': 0 };
           const daysMap: Record<number, string> = { 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex' };
           
           snap.docs.forEach(doc => {
             const date = doc.data().created_at?.toDate ? doc.data().created_at.toDate() : null;
             if (date) {
               const dayName = daysMap[date.getDay()];
-              if (dayName) countsByDay[dayName]++;
+              if (dayName) dayCounts[dayName]++;
             }
           });
 
-          setBarData([
-            { day: 'Seg', total: countsByDay['Seg'] },
-            { day: 'Ter', total: countsByDay['Ter'] },
-            { day: 'Qua', total: countsByDay['Qua'] },
-            { day: 'Qui', total: countsByDay['Qui'] },
-            { day: 'Sex', total: countsByDay['Sex'] },
-          ]);
+          counts[type] = dayCounts;
+          updateBarChart();
         }
       }, (error) => console.error(`Dashboard listener error for ${col.id}:`, error))
     );
@@ -236,6 +255,7 @@ export default function Dashboard() {
       )}>
         {[
           { label: 'Atendimentos', value: stats.atendimentos, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+          { label: 'Cidadãos (CRM)', value: stats.cidadaos, icon: TrendingUp, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
           { label: 'Atend. Médicos', value: stats.medicos, icon: Stethoscope, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
           { label: 'Auxílio Social', value: stats.auxilios, icon: ShoppingBag, color: 'text-amber-500', bg: 'bg-amber-500/10' },
           { label: 'Indicações', value: stats.indicacoes, icon: Briefcase, color: 'text-purple-500', bg: 'bg-purple-500/10', restricted: true },
@@ -271,17 +291,28 @@ export default function Dashboard() {
           </div>
           <div className="h-[300px]">
              <ResponsiveContainer width="100%" height="100%">
-               <BarChart data={barData}>
+               <BarChart data={barData} barGap={8}>
                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
                  <Tooltip 
-                   contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px' }}
-                   cursor={{ fill: '#1e293b' }}
+                   contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px', border: 'none' }}
+                   cursor={{ fill: '#1e293b', opacity: 0.4 }}
                  />
-                 <Bar dataKey="total" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                 <Bar name="Geral" dataKey="atendimentos" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                 <Bar name="Médico" dataKey="medicos" fill="#10b981" radius={[4, 4, 0, 0]} />
                </BarChart>
              </ResponsiveContainer>
+          </div>
+          <div className="flex items-center gap-6 mt-4 justify-center">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-[#3b82f6]" />
+              <span className="text-xs text-slate-400 font-medium">Atendimento Geral</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-[#10b981]" />
+              <span className="text-xs text-slate-400 font-medium">Atendimento Médico</span>
+            </div>
           </div>
         </div>
 

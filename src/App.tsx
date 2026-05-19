@@ -6,6 +6,7 @@ import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import Atendimentos from './components/Atendimentos';
 import AtendimentosMedicos from './components/AtendimentosMedicos';
+import Cidadaos from './components/Cidadaos';
 import Malotes from './components/Malotes';
 import Settings from './components/Settings';
 import Demandas from './components/Demandas';
@@ -99,6 +100,7 @@ function AppContent() {
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'saas' && isSuperAdmin && <SaaSAdmin />}
           {activeTab === 'agenda' && <Agenda />}
+          {activeTab === 'cidadaos' && <Cidadaos />}
           {activeTab === 'atendimentos' && <Atendimentos />}
           {activeTab === 'medico' && <AtendimentosMedicos />}
           {activeTab === 'auxilio' && <SocialAssistance />}
