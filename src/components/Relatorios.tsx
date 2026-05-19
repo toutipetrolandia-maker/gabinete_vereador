@@ -11,7 +11,7 @@ import {
   ExternalLink,
   Map as MapIcon
 } from 'lucide-react';
-import { collection, query, getDocs, orderBy, where } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, where, onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { jsPDF } from 'jspdf';
@@ -24,6 +24,7 @@ export default function Relatorios() {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
+  const [cabinetData, setCabinetData] = useState<any>(null);
   const [filteredData, setFilteredData] = useState<any[]>([]);
   const [filterType, setFilterType] = useState('atendimentos');
   const [status, setStatus] = useState('Todos');
@@ -32,19 +33,52 @@ export default function Relatorios() {
   const [zonaRural, setZonaRural] = useState<'Todos' | 'Sim' | 'Não'>('Todos');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
+  useEffect(() => {
+    if (!profile?.cabinetId) return;
+    const unsub = onSnapshot(doc(db, 'cabinets', profile.cabinetId), (snap) => {
+      if (snap.exists()) setCabinetData(snap.data());
+    });
+    return () => unsub();
+  }, [profile?.cabinetId]);
+
   // Load all data from selected collection to filter locally for live preview
   useEffect(() => {
     const fetchData = async () => {
       if (!profile?.cabinetId) return;
       setLoading(true);
       try {
-        const q = query(
-          collection(db, filterType), 
-          where('cabinetId', '==', profile.cabinetId),
-          orderBy('created_at', 'desc')
-        );
-        const snap = await getDocs(q);
-        setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        if (filterType === 'unificado') {
+          const collections = ['atendimentos', 'atendimentos_medicos', 'demandas_parlamentares', 'auxilio_social'];
+          const results = await Promise.all(collections.map(async (coll) => {
+            const q = query(
+              collection(db, coll), 
+              where('cabinetId', '==', profile.cabinetId),
+              orderBy('created_at', 'desc')
+            );
+            const snap = await getDocs(q);
+            return snap.docs.map(doc => ({ 
+              id: doc.id, 
+              ...doc.data(),
+              sourceCollection: coll,
+              reportType: coll === 'atendimentos' ? 'Geral' :
+                         coll === 'atendimentos_medicos' ? 'Médico' :
+                         coll === 'demandas_parlamentares' ? 'Demanda' : 'Auxílio'
+            }));
+          }));
+          setData((results.flat() as any[]).sort((a, b) => {
+            const dateA = a.created_at?.toDate?.() || new Date(0);
+            const dateB = b.created_at?.toDate?.() || new Date(0);
+            return dateB.getTime() - dateA.getTime();
+          }));
+        } else {
+          const q = query(
+            collection(db, filterType), 
+            where('cabinetId', '==', profile.cabinetId),
+            orderBy('created_at', 'desc')
+          );
+          const snap = await getDocs(q);
+          setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }
       } catch (err) {
         console.error("Error fetching report data:", err);
       } finally {
@@ -97,15 +131,56 @@ export default function Relatorios() {
 
   const exportPDF = async () => {
     try {
+      setLoading(true);
       const doc = new jsPDF();
-      doc.setFontSize(22);
-      doc.text(`Relatório de ${filterType.charAt(0).toUpperCase() + filterType.slice(1).replace('_', ' ')}`, 14, 20);
+      
+      // Add Logo if available
+      let startY = 20;
+      const logoUrl = cabinetData?.cabinet_logo || cabinetData?.vereador_photo;
+      if (logoUrl) {
+        try {
+          const imgProps = await new Promise<any>((resolve, reject) => {
+             const img = new Image();
+             img.crossOrigin = "Anonymous";
+             img.onload = () => resolve(img);
+             img.onerror = reject;
+             img.src = logoUrl;
+          });
+          const logoWidth = 30;
+          const logoHeight = (imgProps.height / imgProps.width) * logoWidth;
+          doc.addImage(imgProps, 'PNG', 14, 10, logoWidth, logoHeight);
+          startY = 15 + logoHeight;
+        } catch (e) {
+          console.error("Error adding logo to PDF:", e);
+        }
+      }
+
+      doc.setFontSize(18);
+      doc.setTextColor(30, 41, 59);
+      doc.text(
+        `Relatório: ${filterType === 'unificado' ? 'Base Unificada (Todos Atendimentos)' : filterType.charAt(0).toUpperCase() + filterType.slice(1).replace('_', ' ')}`, 
+        logoUrl ? 14 : 14, 
+        logoUrl ? startY + 10 : 20
+      );
+      
       doc.setFontSize(10);
       doc.setTextColor(100);
-      doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, 28);
+      doc.text(`Gabinete: ${cabinetData?.app_name || cabinetData?.name || 'Gabinete Digital'}`, 14, logoUrl ? startY + 16 : 28);
+      doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, logoUrl ? startY + 21 : 33);
 
       const getTableConfig = () => {
         switch (filterType) {
+          case 'unificado':
+            return {
+              head: [['Tipo', 'Cidadão/Assunto', 'Status', 'Data', 'Bairro']],
+              body: filteredData.map((item: any) => [
+                item.reportType || '-',
+                item.nome_completo || item.beneficiado_nome || item.assunto || '-',
+                item.status || '-',
+                item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-',
+                item.bairro || '-'
+              ])
+            };
           case 'demandas_parlamentares':
             return {
               head: [['Assunto', 'Órgão Resp.', 'Prioridade', 'Status', 'Data']],
@@ -145,16 +220,19 @@ export default function Relatorios() {
       const config = getTableConfig();
 
       autoTable(doc, {
-        startY: 35,
+        startY: logoUrl ? startY + 28 : 40,
         head: config.head,
         body: config.body,
         theme: 'striped',
         headStyles: { fillColor: [59, 130, 246] },
+        styles: { fontSize: 8 }
       });
 
       doc.save(`relatorio_${filterType}_${format(new Date(), "yyyyMMdd")}.pdf`);
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -164,15 +242,37 @@ export default function Relatorios() {
       const doc = new jsPDF();
       const now = new Date();
       
+      // Add Logo 
+      let startY = 20;
+      const logoUrl = cabinetData?.cabinet_logo || cabinetData?.vereador_photo;
+      if (logoUrl) {
+        try {
+          const imgProps = await new Promise<any>((resolve, reject) => {
+             const img = new Image();
+             img.crossOrigin = "Anonymous";
+             img.onload = () => resolve(img);
+             img.onerror = reject;
+             img.src = logoUrl;
+          });
+          const logoWidth = 30;
+          const logoHeight = (imgProps.height / imgProps.width) * logoWidth;
+          doc.addImage(imgProps, 'PNG', 14, 10, logoWidth, logoHeight);
+          startY = 15 + logoHeight;
+        } catch (e) {
+          console.error("Error adding logo:", e);
+        }
+      }
+
       // Header
-      doc.setFontSize(22);
+      doc.setFontSize(20);
       doc.setTextColor(30, 41, 59);
-      doc.text('Relatório de Atendimentos por Bairro', 14, 20);
+      doc.text('Relatório de Atendimentos por Bairro', 14, logoUrl ? startY + 8 : 20);
       
       doc.setFontSize(10);
       doc.setTextColor(100);
-      doc.text(`Período: ${dateRange.start ? format(new Date(dateRange.start + 'T00:00:00'), "dd/MM/yy") : 'Início'} até ${dateRange.end ? format(new Date(dateRange.end + 'T00:00:00'), "dd/MM/yy") : 'Hoje'}`, 14, 28);
-      doc.text(`Gerado em: ${format(now, "dd/MM/yyyy HH:mm")}`, 14, 33);
+      doc.text(`Gabinete: ${cabinetData?.app_name || cabinetData?.name || 'Gabinete Digital'}`, 14, logoUrl ? startY + 14 : 28);
+      doc.text(`Período: ${dateRange.start ? format(new Date(dateRange.start + 'T00:00:00'), "dd/MM/yy") : 'Início'} até ${dateRange.end ? format(new Date(dateRange.end + 'T00:00:00'), "dd/MM/yy") : 'Hoje'}`, 14, logoUrl ? startY + 19 : 33);
+      doc.text(`Gerado em: ${format(now, "dd/MM/yyyy HH:mm")}`, 14, logoUrl ? startY + 24 : 38);
 
       // Grouping logic
       const groupedData: Record<string, { count: number; items: any[] }> = {};
@@ -189,7 +289,7 @@ export default function Relatorios() {
       // Sort neighborhoods by count (descending)
       const sortedBairros = Object.entries(groupedData).sort((a, b) => b[1].count - a[1].count);
 
-      let currentY = 45;
+      let currentY = logoUrl ? startY + 35 : 45;
 
       // Overview Table
       doc.setFontSize(14);
@@ -280,6 +380,7 @@ export default function Relatorios() {
                       onChange={e => setFilterType(e.target.value)}
                       className="w-full bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500/50"
                     >
+                       <option value="unificado">Relatório Unificado (Todos)</option>
                        <option value="atendimentos">Atendimentos Gerais</option>
                        <option value="atendimentos_medicos">Atendimentos Médicos</option>
                        <option value="malotes">Malotes e Ofícios</option>
@@ -434,7 +535,15 @@ export default function Relatorios() {
                  <table className="w-full text-left">
                      <thead>
                         <tr className="text-[10px] uppercase text-slate-500 bg-slate-950/50">
-                           {filterType === 'atendimentos_medicos' ? (
+                           {filterType === 'unificado' ? (
+                             <>
+                               <th className="px-6 py-3">Tipo</th>
+                               <th className="px-6 py-3">Cidadão / Assunto</th>
+                               <th className="px-6 py-3">Status</th>
+                               <th className="px-6 py-3">Data</th>
+                               <th className="px-6 py-3">Bairro</th>
+                             </>
+                           ) : filterType === 'atendimentos_medicos' ? (
                              <>
                                <th className="px-6 py-3">Paciente</th>
                                <th className="px-6 py-3">Especialidade</th>
@@ -460,7 +569,27 @@ export default function Relatorios() {
                          <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-600 text-sm italic">Nenhum registro para os filtros selecionados.</td></tr>
                        ) : filteredData.slice(0, 5).map((item, i) => (
                           <tr key={i} className="hover:bg-slate-800/20">
-                             {filterType === 'atendimentos_medicos' ? (
+                             {filterType === 'unificado' ? (
+                               <>
+                                 <td className="px-6 py-4 text-[10px] font-bold text-blue-400 uppercase tracking-tighter">{item.reportType}</td>
+                                 <td className="px-6 py-4 text-xs text-slate-300 font-medium truncate max-w-[200px]">{item.nome_completo || item.beneficiado_nome || item.assunto || '-'}</td>
+                                 <td className="px-6 py-4">
+                                    <span className={cn(
+                                       "text-[10px] px-2 py-0.5 rounded-full border",
+                                       item.status === 'Concluído' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : 
+                                       item.status === 'Encaminhado' ? "bg-purple-500/10 text-purple-400 border-purple-500/20" :
+                                       item.status === 'Em andamento' ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                                       "bg-slate-800 text-slate-400 border-slate-700"
+                                     )}>
+                                       {item.status}
+                                    </span>
+                                 </td>
+                                 <td className="px-6 py-4 text-[10px] text-slate-500 font-mono">
+                                   {item.created_at?.toDate ? format(item.created_at.toDate(), "dd/MM/yy") : '-'}
+                                 </td>
+                                 <td className="px-6 py-4 text-xs text-slate-500">{item.bairro || '-'}</td>
+                               </>
+                             ) : filterType === 'atendimentos_medicos' ? (
                                <>
                                  <td className="px-6 py-4 text-xs text-slate-300 font-medium">{item.nome_completo || '-'}</td>
                                  <td className="px-6 py-4 text-xs text-slate-400">{item.especialidade || '-'}</td>
