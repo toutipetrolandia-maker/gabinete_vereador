@@ -47,6 +47,15 @@ export default function Dashboard() {
   const [billingStatus, setBillingStatus] = useState<'regular' | 'pending' | 'suspended'>('regular');
   const [officeHours, setOfficeHours] = useState({ inicio: '08:00', fim: '13:00' });
   const [isOfficeOpen, setIsOfficeOpen] = useState(false);
+  const [chartDataSync, setChartDataSync] = useState([
+    { name: 'Geral', value: 0 },
+    { name: 'Médico', value: 0 },
+    { name: 'Demanda', value: 0 },
+    { name: 'Auxílio', value: 0 },
+    { name: 'Sugestão', value: 0 },
+    { name: 'Indicação', value: 0 },
+  ]);
+  const [barData, setBarData] = useState<{day: string, total: number}[]>([]);
 
   const checkOfficeStatus = (inicio: string, fim: string) => {
     const now = new Date();
@@ -69,78 +78,104 @@ export default function Dashboard() {
         setOfficeHours({ inicio: start, fim: end });
         setIsOfficeOpen(checkOfficeStatus(start, end));
       }
-    }, (error) => {
-      console.error("Error listening to settings in Dashboard:", error);
     });
 
-    const fetchData = async () => {
-      try {
-        const cabQuery = (col: string) => query(collection(db, col), where('cabinetId', '==', profile.cabinetId));
-        
-        const [atendSnap, medSnap, malSnap, demSnap, sugSnap, auxSnap, indSnap] = await Promise.all([
-          getDocs(cabQuery('atendimentos')),
-          getDocs(cabQuery('atendimentos_medicos')),
-          getDocs(cabQuery('malotes')),
-          getDocs(cabQuery('demandas_parlamentares')),
-          getDocs(cabQuery('sugestoes')),
-          getDocs(cabQuery('auxilio_social')),
-          getDocs(cabQuery('indicacoes_cargos'))
-        ]);
+    const cabQuery = (col: string) => query(collection(db, col), where('cabinetId', '==', profile.cabinetId));
 
-        setStats({
-          atendimentos: atendSnap.size,
-          medicos: medSnap.size,
-          malotes: malSnap.size,
-          demandas: demSnap.size,
-          auxilios: auxSnap.size,
-          indicacoes: indSnap.size
+    // Listeners for stats
+    const unsubs = [
+      onSnapshot(cabQuery('atendimentos'), (snap) => {
+        setStats(prev => ({ ...prev, atendimentos: snap.size }));
+        setChartDataSync(prev => {
+          const newState = [...prev];
+          newState[0].value = snap.size;
+          return newState;
         });
 
-        const atendimentos = atendSnap.docs.map(doc => doc.data());
-        
-        // Distribution Data
-        const distribution = [
-          { name: 'Geral', value: atendSnap.size },
-          { name: 'Médico', value: medSnap.size },
-          { name: 'Demanda', value: demSnap.size },
-          { name: 'Auxílio', value: auxSnap.size },
-          { name: 'Sugestão', value: sugSnap.size },
-          { name: 'Indicação', value: indSnap.size },
-        ];
-        setChartDataSync(distribution);
+        // Update bar chart based on atendimentos of last 5 days
+        const countsByDay: Record<string, number> = {
+          'Seg': 0, 'Ter': 0, 'Qua': 0, 'Qui': 0, 'Sex': 0
+        };
+        const daysMap: Record<number, string> = {
+          1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex', 6: 'Sáb', 0: 'Dom'
+        };
 
-        // Recent limit 8
-        const qRecent = query(
-          collection(db, 'atendimentos'), 
-          where('cabinetId', '==', profile.cabinetId),
-          orderBy('created_at', 'desc'), 
-          limit(8)
-        );
-        const snapRecent = await getDocs(qRecent);
-        setRecent(snapRecent.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } catch (e) {
-        console.error("Dashboard data fetch error:", e);
-      }
+        snap.docs.forEach(doc => {
+          const data = doc.data();
+          const date = data.created_at?.toDate ? data.created_at.toDate() : null;
+          if (date) {
+            const dayName = daysMap[date.getDay()];
+            if (countsByDay[dayName] !== undefined) {
+              countsByDay[dayName]++;
+            }
+          }
+        });
+
+        setBarData([
+          { day: 'Seg', total: countsByDay['Seg'] },
+          { day: 'Ter', total: countsByDay['Ter'] },
+          { day: 'Qua', total: countsByDay['Qua'] },
+          { day: 'Qui', total: countsByDay['Qui'] },
+          { day: 'Sex', total: countsByDay['Sex'] },
+        ]);
+      }),
+      onSnapshot(cabQuery('atendimentos_medicos'), (snap) => {
+        setStats(prev => ({ ...prev, medicos: snap.size }));
+        setChartDataSync(prev => {
+          const newState = [...prev];
+          newState[1].value = snap.size;
+          return newState;
+        });
+      }),
+      onSnapshot(cabQuery('malotes'), (snap) => {
+        setStats(prev => ({ ...prev, malotes: snap.size }));
+      }),
+      onSnapshot(cabQuery('demandas_parlamentares'), (snap) => {
+        setStats(prev => ({ ...prev, demandas: snap.size }));
+        setChartDataSync(prev => {
+          const newState = [...prev];
+          newState[2].value = snap.size;
+          return newState;
+        });
+      }),
+      onSnapshot(cabQuery('auxilio_social'), (snap) => {
+        setStats(prev => ({ ...prev, auxilios: snap.size }));
+        setChartDataSync(prev => {
+          const newState = [...prev];
+          newState[3].value = snap.size;
+          return newState;
+        });
+      }),
+      onSnapshot(cabQuery('sugestoes'), (snap) => {
+        setChartDataSync(prev => {
+          const newState = [...prev];
+          newState[4].value = snap.size;
+          return newState;
+        });
+      }),
+      onSnapshot(cabQuery('indicacoes_cargos'), (snap) => {
+        setStats(prev => ({ ...prev, indicacoes: snap.size }));
+        setChartDataSync(prev => {
+          const newState = [...prev];
+          newState[5].value = snap.size;
+          return newState;
+        });
+      }),
+      // Recent activity listener
+      onSnapshot(query(collection(db, 'atendimentos'), where('cabinetId', '==', profile.cabinetId), orderBy('created_at', 'desc'), limit(8)), (snap) => {
+        setRecent(snap.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data(),
+          data_atendimento: doc.data().created_at?.toDate ? doc.data().created_at.toDate().toLocaleDateString('pt-BR') : '...'
+        })));
+      })
+    ];
+
+    return () => {
+      unsubSettings();
+      unsubs.forEach(unsub => unsub());
     };
-    fetchData();
-
-    return () => unsubSettings();
-  }, [profile]);
-
-  const [chartDataSync, setChartDataSync] = useState([
-    { name: 'Geral', value: 0 },
-    { name: 'Médico', value: 0 },
-    { name: 'Demanda', value: 0 },
-    { name: 'Sugestão', value: 0 },
-  ]);
-
-  const barData = [
-    { day: 'Seg', total: 12 },
-    { day: 'Ter', total: 19 },
-    { day: 'Qua', total: 15 },
-    { day: 'Qui', total: 22 },
-    { day: 'Sex', total: 30 },
-  ];
+  }, [profile?.cabinetId]);
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#f97316', '#ef4444', '#8b5cf6'];
 
