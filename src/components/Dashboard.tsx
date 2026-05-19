@@ -31,7 +31,7 @@ import {
 } from 'recharts';
 
 export default function Dashboard() {
-  const { profile } = useAuth();
+  const { profile, isSuperAdmin } = useAuth();
   const [stats, setStats] = useState({
     atendimentos: 0,
     medicos: 0,
@@ -104,7 +104,7 @@ export default function Dashboard() {
         const isAuthorizedIndicacoes = profile?.role === 'vereador' || profile?.id === 'superadmin' || (profile as any)?.role === 'admin'; // Using a liberal check or checking specifically for vereador/superadmin
         
         // Let's stick to the prompt: super admin and vereador
-        const canSeeIndicacoes = profile?.role === 'vereador' || (profile as any)?.isSuperAdmin; 
+        const canSeeIndicacoes = profile?.role === 'vereador' || isSuperAdmin; 
 
         setChartDataSync(prev => {
           const newState = [...prev];
@@ -221,7 +221,19 @@ export default function Dashboard() {
       </header>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 md:gap-4 px-1 md:px-0">
+      <div className={cn(
+        "grid grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4 px-1 md:px-0",
+        [
+          'atendimentos', 
+          'medicos', 
+          'demandas', 
+          'auxilios', 
+          'sugestoes', 
+          'indicacoes'
+        ].filter(id => id !== 'indicacoes' || (profile?.role === 'vereador' || isSuperAdmin)).length === 6 
+          ? "xl:grid-cols-6" 
+          : "xl:grid-cols-5"
+      )}>
         {[
           { label: 'Atendimentos', value: stats.atendimentos, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
           { label: 'Atend. Médicos', value: stats.medicos, icon: Stethoscope, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
@@ -229,7 +241,7 @@ export default function Dashboard() {
           { label: 'Indicações', value: stats.indicacoes, icon: Briefcase, color: 'text-purple-500', bg: 'bg-purple-500/10', restricted: true },
           { label: 'Malotes', value: stats.malotes, icon: Package, color: 'text-orange-500', bg: 'bg-orange-500/10' },
           { label: 'Demandas', value: stats.demandas, icon: FileText, color: 'text-pink-500', bg: 'bg-pink-500/10' },
-        ].filter(stat => !stat.restricted || (profile?.role === 'vereador' || (profile as any)?.isSuperAdmin)).map((stat, i) => (
+        ].filter(stat => !stat.restricted || (profile?.role === 'vereador' || isSuperAdmin)).map((stat, i) => (
           <motion.div 
             key={i}
             initial={{ opacity: 0, y: 10 }}
@@ -280,7 +292,7 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={chartDataSync.filter((_, idx) => idx !== 5 || (profile?.role === 'vereador' || (profile as any)?.isSuperAdmin))}
+                  data={chartDataSync.filter((_, idx) => idx !== 5 || (profile?.role === 'vereador' || isSuperAdmin))}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -300,7 +312,7 @@ export default function Dashboard() {
           </div>
           <div className="grid grid-cols-2 gap-4 mt-4">
             {chartDataSync
-              .filter((_, i) => i !== 5 || (profile?.role === 'vereador' || (profile as any)?.isSuperAdmin))
+              .filter((_, i) => i !== 5 || (profile?.role === 'vereador' || isSuperAdmin))
               .map((item, i) => (
               <div key={i} className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i] }} />

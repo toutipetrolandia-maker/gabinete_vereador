@@ -209,31 +209,31 @@ export default function Malotes() {
           <title>Protocolo de Malote - ${item.protocolo || '#000'}</title>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono:wght@700&display=swap');
-            body { font-family: 'Inter', sans-serif; padding: 50px; color: #1a1a1a; line-height: 1.6; }
-            .header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 30px; margin-bottom: 40px; }
-            .header h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; color: #111; }
-            .header p { margin: 5px 0; color: #666; font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; }
+            body { font-family: 'Inter', sans-serif; padding: 40px; color: #1a1a1a; line-height: 1.5; }
+            .header { text-align: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; margin-bottom: 30px; }
+            .header h1 { margin: 0; font-size: 24px; letter-spacing: -0.02em; color: #111; font-weight: 800; }
+            .header p { margin: 5px 0; color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; }
             
-            .protocol-section { text-align: center; margin-bottom: 50px; }
+            .protocol-section { text-align: center; margin-bottom: 40px; }
             .protocol-box { 
               display: inline-block;
               background: #f8fafc;
-              border: 2px solid #e2e8f0;
-              padding: 24px 40px; 
-              border-radius: 20px;
+              border: 1px solid #e2e8f0;
+              padding: 16px 32px; 
+              border-radius: 16px;
             }
-            .protocol-label { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 800; letter-spacing: 0.1em; margin-bottom: 8px; }
-            .protocol-number { font-size: 32px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: #d97706; }
+            .protocol-label { font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 800; letter-spacing: 0.1em; margin-bottom: 6px; }
+            .protocol-number { font-size: 28px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: #d97706; margin: 0; }
             
             .details-grid { 
               display: grid; 
               grid-template-columns: 1fr 1fr; 
-              gap: 30px; 
+              gap: 20px; 
               background: #fff;
               border: 1px solid #f1f5f9;
-              padding: 30px;
+              padding: 24px;
               border-radius: 20px;
-              margin-bottom: 50px;
+              margin-bottom: 40px;
             }
             .field-group { border-bottom: 1px solid #f8fafc; padding-bottom: 12px; }
             .label { font-size: 10px; text-transform: uppercase; color: #94a3b8; font-weight: 800; margin-bottom: 4px; display: block; }
