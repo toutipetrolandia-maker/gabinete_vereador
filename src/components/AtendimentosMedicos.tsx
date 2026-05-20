@@ -527,6 +527,21 @@ export default function AtendimentosMedicos() {
                     Encaminhado
                   </span>
                 )}
+                {(item.status === 'Finalizado' || item.status === 'Concluído') && (
+                  <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded border border-emerald-500/50 text-emerald-400 bg-emerald-500/5">
+                    {item.status}
+                  </span>
+                )}
+                {item.status === 'Novo' && (
+                  <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded border border-blue-500/50 text-blue-400 bg-blue-500/5">
+                    Novo
+                  </span>
+                )}
+                {item.status === 'Em andamento' && (
+                  <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded border border-amber-500/50 text-amber-400 bg-amber-500/5 animate-pulse">
+                    Em andamento
+                  </span>
+                )}
                 {item.bem_atendido !== undefined && item.bem_atendido !== null && (
                   <span className={cn(
                     "text-[10px] uppercase font-black px-2 py-0.5 rounded",
@@ -746,10 +761,11 @@ export default function AtendimentosMedicos() {
                         </div>
                         <div className="space-y-1 col-span-2">
                             <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Status</label>
-                            <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50 appearance-none">
+                            <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50 appearance-none bg-none">
                                 <option>Novo</option>
                                 <option>Em andamento</option>
                                 <option>Concluído</option>
+                                <option>Finalizado</option>
                                 <option>Encaminhado</option>
                             </select>
                         </div>
@@ -1019,7 +1035,7 @@ export default function AtendimentosMedicos() {
                           </div>
                           <span className={cn(
                             "px-1.5 py-0.5 rounded text-[8px] font-bold uppercase",
-                            h.status === 'Concluído' ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"
+                            h.status === 'Concluído' || h.status === 'Finalizado' ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"
                           )}>
                             {h.status}
                           </span>

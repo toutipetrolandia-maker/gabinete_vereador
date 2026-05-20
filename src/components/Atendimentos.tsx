@@ -549,14 +549,14 @@ export default function Atendimentos() {
                         <div className="flex items-center gap-1.5">
                           <div className={cn(
                             "w-1.5 h-1.5 rounded-full",
-                            item.status === 'Concluído' ? "bg-emerald-400" :
+                            item.status === 'Concluído' || item.status === 'Finalizado' ? "bg-emerald-400" :
                             item.status === 'Novo' ? "bg-blue-400" :
                             item.status === 'Encaminhado' ? "bg-purple-400" :
                             "bg-amber-400"
                           )} />
                           <span className={cn(
                             "text-xs font-medium",
-                            item.status === 'Concluído' ? "text-emerald-400" :
+                            item.status === 'Concluído' || item.status === 'Finalizado' ? "text-emerald-400" :
                             item.status === 'Novo' ? "text-blue-400" :
                             item.status === 'Encaminhado' ? "text-purple-400" :
                             "text-amber-400"
@@ -578,7 +578,7 @@ export default function Atendimentos() {
                          {profile?.role !== 'consulta' && (
                            <>
                              <button 
-                               onClick={() => updateStatus(item.id, 'Concluído')}
+                               onClick={() => updateStatus(item.id, 'Finalizado')}
                                className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400 transition-all opacity-0 group-hover:opacity-100"
                                title="Concluir"
                              >
@@ -672,7 +672,7 @@ export default function Atendimentos() {
                           onClick={() => handleEdit(item)}
                           className={cn(
                             "group cursor-pointer px-2 py-1 rounded-md border text-[10px] font-medium transition-all hover:translate-x-1",
-                            item.status === 'Concluído' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20" :
+                            item.status === 'Concluído' || item.status === 'Finalizado' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20" :
                             item.status === 'Novo' ? "bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20" :
                             item.status === 'Encaminhado' ? "bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20" :
                             "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20"
@@ -933,6 +933,7 @@ export default function Atendimentos() {
                       <option>Novo</option>
                       <option>Em andamento</option>
                       <option>Concluído</option>
+                      <option>Finalizado</option>
                       <option>Encaminhado</option>
                     </select>
                   </div>
