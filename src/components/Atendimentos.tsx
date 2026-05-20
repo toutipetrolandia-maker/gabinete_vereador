@@ -206,19 +206,62 @@ export default function Atendimentos() {
   useEffect(() => {
     if (!profile?.cabinetId) return;
 
-    const q = query(
+    setLoading(true);
+    let atendimentosData: any[] = [];
+    let medicosData: any[] = [];
+
+    const q1 = query(
       collection(db, 'atendimentos'), 
       where('cabinetId', '==', profile.cabinetId),
       orderBy('created_at', 'desc')
     );
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+    const q2 = query(
+      collection(db, 'atendimentos_medicos'),
+      where('cabinetId', '==', profile.cabinetId),
+      orderBy('created_at', 'desc')
+    );
+
+    const combineAndSet = () => {
+      const combined = [...atendimentosData, ...medicosData];
+      combined.sort((a, b) => {
+        const dateA = a.created_at?.toDate ? a.created_at.toDate() : a.created_at ? new Date(a.created_at) : new Date(0);
+        const dateB = b.created_at?.toDate ? b.created_at.toDate() : b.created_at ? new Date(b.created_at) : new Date(0);
+        return dateB.getTime() - dateA.getTime();
+      });
+      setData(combined);
       setLoading(false);
+    };
+
+    const unsubscribe1 = onSnapshot(q1, (snap) => {
+      atendimentosData = snap.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data(), 
+        sourceCollection: 'atendimentos' 
+      }));
+      combineAndSet();
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'atendimentos');
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    const unsubscribe2 = onSnapshot(q2, (snap) => {
+      medicosData = snap.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data(), 
+        tipo_atendimento: 'Médico',
+        sourceCollection: 'atendimentos_medicos' 
+      }));
+      combineAndSet();
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'atendimentos_medicos');
+      setLoading(false);
+    });
+
+    return () => {
+      unsubscribe1();
+      unsubscribe2();
+    };
   }, [profile?.cabinetId]);
 
   const [submitting, setSubmitting] = useState(false);
@@ -267,8 +310,9 @@ export default function Atendimentos() {
 
       if (editingId) {
         const existingDoc = data.find(i => i.id === editingId);
-        await updateDoc(doc(db, 'atendimentos', editingId), payload);
-        await logAction('Atualizar', 'atendimentos', editingId, { previous: existingDoc, next: formData, cabinetId: profile.cabinetId });
+        const collectionName = existingDoc?.sourceCollection === 'atendimentos_medicos' ? 'atendimentos_medicos' : 'atendimentos';
+        await updateDoc(doc(db, collectionName, editingId), payload);
+        await logAction('Atualizar', collectionName, editingId, { previous: existingDoc, next: formData, cabinetId: profile.cabinetId });
       } else {
         const docRef = await addDoc(collection(db, 'atendimentos'), {
           ...payload,
@@ -299,13 +343,16 @@ export default function Atendimentos() {
   const updateStatus = async (id: string, newStatus: string) => {
     try {
       const existing = data.find(i => i.id === id);
-      await updateDoc(doc(db, 'atendimentos', id), {
+      const collectionName = existing?.sourceCollection === 'atendimentos_medicos' ? 'atendimentos_medicos' : 'atendimentos';
+      await updateDoc(doc(db, collectionName, id), {
         status: newStatus,
         updated_at: serverTimestamp()
       });
-      await logAction('Atualizar', 'atendimentos', id, { previous: { status: existing?.status }, next: { status: newStatus }, cabinetId: profile.cabinetId });
+      await logAction('Atualizar', collectionName, id, { previous: { status: existing?.status }, next: { status: newStatus }, cabinetId: profile.cabinetId });
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `atendimentos/${id}`);
+      const existing = data.find(i => i.id === id);
+      const collectionName = existing?.sourceCollection === 'atendimentos_medicos' ? 'atendimentos_medicos' : 'atendimentos';
+      handleFirestoreError(err, OperationType.UPDATE, `${collectionName}/${id}`);
     }
   };
 
@@ -344,10 +391,13 @@ export default function Atendimentos() {
     if (!window.confirm('Tem certeza que deseja excluir este atendimento?')) return;
     try {
       const existing = data.find(i => i.id === id);
-      await deleteDoc(doc(db, 'atendimentos', id));
-      await logAction('Excluir', 'atendimentos', id, { previous: existing, cabinetId: profile.cabinetId });
+      const collectionName = existing?.sourceCollection === 'atendimentos_medicos' ? 'atendimentos_medicos' : 'atendimentos';
+      await deleteDoc(doc(db, collectionName, id));
+      await logAction('Excluir', collectionName, id, { previous: existing, cabinetId: profile.cabinetId });
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `atendimentos/${id}`);
+      const existing = data.find(i => i.id === id);
+      const collectionName = existing?.sourceCollection === 'atendimentos_medicos' ? 'atendimentos_medicos' : 'atendimentos';
+      handleFirestoreError(err, OperationType.DELETE, `${collectionName}/${id}`);
     }
   };
 

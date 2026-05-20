@@ -70,6 +70,27 @@ export default function Relatorios() {
             const dateB = b.created_at?.toDate?.() || new Date(0);
             return dateB.getTime() - dateA.getTime();
           }));
+        } else if (filterType === 'atendimentos') {
+          const q1 = query(
+            collection(db, 'atendimentos'), 
+            where('cabinetId', '==', profile.cabinetId),
+            orderBy('created_at', 'desc')
+          );
+          const q2 = query(
+            collection(db, 'atendimentos_medicos'), 
+            where('cabinetId', '==', profile.cabinetId),
+            orderBy('created_at', 'desc')
+          );
+          const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+          const list1 = snap1.docs.map(doc => ({ id: doc.id, ...doc.data(), sourceCollection: 'atendimentos' }));
+          const list2 = snap2.docs.map(doc => ({ id: doc.id, ...doc.data(), tipo_atendimento: 'Médico', sourceCollection: 'atendimentos_medicos' }));
+          const combined = [...list1, ...list2];
+          combined.sort((a: any, b: any) => {
+            const dateA = a.created_at?.toDate?.() || (a.created_at ? new Date(a.created_at) : new Date(0));
+            const dateB = b.created_at?.toDate?.() || (b.created_at ? new Date(b.created_at) : new Date(0));
+            return dateB.getTime() - dateA.getTime();
+          });
+          setData(combined);
         } else {
           const q = query(
             collection(db, filterType), 
@@ -77,7 +98,7 @@ export default function Relatorios() {
             orderBy('created_at', 'desc')
           );
           const snap = await getDocs(q);
-          setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), sourceCollection: filterType })));
         }
       } catch (err) {
         console.error("Error fetching report data:", err);

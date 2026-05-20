@@ -321,6 +321,41 @@ export default function SocialAssistance() {
     }
   };
 
+  const populateDefaultStock = async () => {
+    if (!profile?.cabinetId) return;
+    setLoadingStock(true);
+    const defaults = [
+      { nome: 'Cesta Básica Completa', tipo_beneficio: 'Cesta Básica', quantidade_atual: 100, quantidade_minima: 10, observacoes: 'Contém arroz, feijão, óleo, açúcar, macarrão, café, farinha e sal.' },
+      { nome: 'Cesta Básica Simples', tipo_beneficio: 'Cesta Básica', quantidade_atual: 50, quantidade_minima: 5, observacoes: 'Contém itens alimentícios essenciais compactos.' },
+      { nome: 'Dipirona Sódica 500mg (Comprimido)', tipo_beneficio: 'Remédio', quantidade_atual: 500, quantidade_minima: 50, observacoes: 'Analgésico e antitérmico para atendimento social.' },
+      { nome: 'Paracetamol 500mg', tipo_beneficio: 'Remédio', quantidade_atual: 300, quantidade_minima: 30, observacoes: 'Medicamento contra dores e febre sob demanda.' },
+      { nome: 'Fralda Geriátrica G', tipo_beneficio: 'Fralda', quantidade_atual: 80, quantidade_minima: 10, observacoes: 'Fraldas para idosos ou enfermos assistidos.' },
+      { nome: 'Fralda Infantil M', tipo_beneficio: 'Fralda', quantidade_atual: 150, quantidade_minima: 20, observacoes: 'Fralda descartável infantil em tamanho médio.' },
+      { nome: 'Kit Higiene Pessoal', tipo_beneficio: 'Kit Higiene', quantidade_atual: 60, quantidade_minima: 10, observacoes: 'Contém sabonetes, escova de dente, creme dental e xampu.' },
+      { nome: 'Kit Material Escolar', tipo_beneficio: 'Material Escolar', quantidade_atual: 40, quantidade_minima: 5, observacoes: 'Contém cadernos, lápis, borrachas, canetas e estojo.' }
+    ];
+
+    try {
+      for (const item of defaults) {
+        await addDoc(collection(db, 'auxilio_estoque'), {
+          ...item,
+          cabinetId: profile.cabinetId,
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp()
+        });
+      }
+      await logAction('Gerar Estoque Inicial', 'auxilio_estoque', 'default_generation', {
+        cabinetId: profile.cabinetId,
+        next: { mensagem: 'Geração automática de estoque inicial com itens padrão.' }
+      });
+    } catch (err) {
+      console.error("Error populating default stock:", err);
+      handleFirestoreError(err, OperationType.WRITE, 'auxilio_estoque');
+    } finally {
+      setLoadingStock(false);
+    }
+  };
+
   const sendWAMessage = (item: any) => {
     if (!item.beneficiado_telefone) return;
     const trigger = item.status === 'Entregue' ? 'status_update' : 'welcome';
@@ -638,6 +673,25 @@ export default function SocialAssistance() {
                 Array(3).fill(0).map((_, i) => (
                   <div key={i} className="h-48 bg-slate-900 rounded-3xl border border-slate-800 animate-pulse" />
                 ))
+              ) : stockItems.length === 0 ? (
+                <div className="col-span-full py-16 text-center space-y-6 max-w-md mx-auto bg-slate-950 p-8 rounded-[32px] border border-slate-900">
+                  <div className="w-16 h-16 bg-blue-500/10 text-blue-400 rounded-2xl flex items-center justify-center mx-auto border border-blue-500/20">
+                    <Package size={32} />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="font-bold text-white text-lg">Estoque Vazio</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">
+                      Não há nenhum item registrado para controle em seu gabinete ainda. Gostaria de cadastrar uma lista inicial dos itens mais comuns (Cestas Básicas, Higiene, Remédios, Fraldas) automaticamente?
+                    </p>
+                  </div>
+                  <button
+                    onClick={populateDefaultStock}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-2xl transition-all shadow-md shadow-blue-900/10 active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Plus size={18} />
+                    Cadastrar Itens Padrão no Estoque
+                  </button>
+                </div>
               ) : stockItems.filter(item => {
                 const matchesSearch = item.nome.toLowerCase().includes(searchQuery.toLowerCase());
                 const matchesType = typeFilter === 'all' || item.tipo_beneficio === typeFilter;
@@ -647,7 +701,7 @@ export default function SocialAssistance() {
                   <div className="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center mx-auto text-slate-700">
                     <Package size={40} />
                   </div>
-                  <p className="text-slate-500 font-medium">Nenhum item em estoque cadastrado.</p>
+                  <p className="text-slate-500 font-medium">Nenhum item em estoque corresponde aos filtros selecionados.</p>
                 </div>
               ) : stockItems
                   .filter(item => {
