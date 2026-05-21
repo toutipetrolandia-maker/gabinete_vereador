@@ -315,7 +315,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Fallback to default role checks
     if (moduleId === 'saas') return false; // superadmin and support only (handled above)
-    if (moduleId === 'history' || moduleId === 'config') {
+    if (moduleId === 'history' || moduleId === 'config' || moduleId === 'users') {
       return role === 'admin' || role === 'vereador' || role === 'secretaria_parlamentar';
     }
     if (moduleId === 'indicacoes') {

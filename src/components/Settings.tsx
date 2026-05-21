@@ -58,7 +58,7 @@ import { logAction } from "../lib/audit";
 import UserManagement from "./UserManagement";
 
 export default function Settings() {
-  const { profile, isSuperAdmin } = useAuth();
+  const { profile, isSuperAdmin, hasModuleAccess } = useAuth();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState<
@@ -549,12 +549,7 @@ export default function Settings() {
               Auditoria
             </button>
           )}
-          {(profile?.role === "admin" ||
-            profile?.role === "vereador" ||
-            profile?.role === "assessor" ||
-            profile?.role === "secretaria_parlamentar" ||
-            profile?.role === "suporte_ti" ||
-            isSuperAdmin) && (
+          {hasModuleAccess("users") && (
             <button
               onClick={() => setActiveSubTab("users")}
               className={cn(

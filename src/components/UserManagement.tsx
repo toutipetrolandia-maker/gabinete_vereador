@@ -97,6 +97,7 @@ export default function UserManagement() {
     { id: 'whatsapp', label: 'Automação WhatsApp' },
     { id: 'history', label: 'Logs & Auditoria (Histórico)' },
     { id: 'config', label: 'Configurações Globais' },
+    { id: 'users', label: 'Gerenciamento de Usuários' },
   ];
 
   const SYSTEM_ACTIONS = [
@@ -127,6 +128,7 @@ export default function UserManagement() {
         whatsapp: true,
         history: IsAdminOrSec || isVereadorOrSuper,
         config: IsAdminOrSec || isVereadorOrSuper,
+        users: IsAdminOrSec || isVereadorOrSuper,
       },
       actions: {
         create: !isConsulta,
@@ -554,229 +556,233 @@ export default function UserManagement() {
 
               <form 
                 onSubmit={showAddModal ? handleCreateUser : handleUpdateUser} 
-                className="flex-1 overflow-y-auto space-y-5 pr-2 -mr-2 text-left"
+                className="flex-1 flex flex-col overflow-hidden text-left"
               >
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Nome Completo</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={formData.nome}
-                    onChange={e => setFormData({ ...formData, nome: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
-                    placeholder="Ex: João da Silva"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Scrollable Form Fields Content */}
+                <div className="flex-1 overflow-y-auto space-y-5 pr-2 -mr-2 text-left">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Email</label>
-                    <input 
-                      type="email" 
-                      required
-                      disabled={showEditModal}
-                      value={formData.email}
-                      onChange={e => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all disabled:opacity-50"
-                      placeholder="email@gabinete.com"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Nome de Usuário</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Nome Completo</label>
                     <input 
                       type="text" 
-                      value={formData.username}
-                      onChange={e => setFormData({ ...formData, username: e.target.value.toLowerCase().replace(/\s/g, '.') })}
+                      required
+                      value={formData.nome}
+                      onChange={e => setFormData({ ...formData, nome: e.target.value })}
                       className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
-                      placeholder="Ex: joao.silva"
+                      placeholder="Ex: João da Silva"
                     />
                   </div>
-                </div>
 
-                {showAddModal && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between px-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Senha Temporária (Opcional)</label>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%";
-                          let retVal = "";
-                          for (let i = 0, n = charset.length; i < 10; ++i) {
-                              retVal += charset.charAt(Math.floor(Math.random() * n));
-                          }
-                          setFormData({ ...formData, password: retVal });
-                          setShowPassword(true);
-                        }}
-                        className="text-[10px] font-bold text-blue-500 hover:text-blue-400 flex items-center gap-1 transition-colors"
-                      >
-                        <Plus size={10} />
-                        Gerar Senha
-                      </button>
-                    </div>
-                    <div className="relative">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Email</label>
                       <input 
-                        type={showPassword ? "text" : "password"}
-                        value={formData.password}
-                        onChange={e => setFormData({ ...formData, password: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 pr-12 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
-                        placeholder="Deixe vazio para login via Google"
+                        type="email" 
+                        required
+                        disabled={showEditModal}
+                        value={formData.email}
+                        onChange={e => setFormData({ ...formData, email: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all disabled:opacity-50"
+                        placeholder="email@gabinete.com"
                       />
-                      <button 
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                      >
-                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
                     </div>
-                    <p className="text-[10px] text-slate-500 px-1 italic">
-                      Se definida, o usuário terá que mudar a senha no primeiro acesso.
-                    </p>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Nome de Usuário</label>
+                      <input 
+                        type="text" 
+                        value={formData.username}
+                        onChange={e => setFormData({ ...formData, username: e.target.value.toLowerCase().replace(/\s/g, '.') })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
+                        placeholder="Ex: joao.silva"
+                      />
+                    </div>
                   </div>
-                )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Cargo / Permissão</label>
-                    <select 
-                      value={formData.role}
-                      onChange={e => {
-                        const newRole = e.target.value;
-                        setFormData({ ...formData, role: newRole });
-                        setCustomPermissions(getDefaultsForRole(newRole));
-                      }}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all appearance-none cursor-pointer"
-                    >
-                      <option value="assessor">Assessor</option>
-                      <option value="admin">Administrador</option>
-                      <option value="vereador">Vereador</option>
-                      <option value="secretaria_parlamentar">Secretária Parlamentar</option>
-                      <option value="suporte_ti">Suporte TI</option>
-                      <option value="consulta">Apenas Consulta</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Status da Conta</label>
-                    <div className="flex h-[58px] bg-slate-950 border border-slate-800 rounded-2xl p-1">
-                      <button 
-                        type="button"
-                        onClick={() => setFormData({ ...formData, ativo: true })}
-                        className={cn(
-                          "flex-1 rounded-xl text-xs font-bold transition-all",
-                          formData.ativo ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20" : "text-slate-500 hover:text-slate-300"
-                        )}
+                  {showAddModal && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between px-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Senha Temporária (Opcional)</label>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%";
+                            let retVal = "";
+                            for (let i = 0, n = charset.length; i < 10; ++i) {
+                                retVal += charset.charAt(Math.floor(Math.random() * n));
+                            }
+                            setFormData({ ...formData, password: retVal });
+                            setShowPassword(true);
+                          }}
+                          className="text-[10px] font-bold text-blue-500 hover:text-blue-400 flex items-center gap-1 transition-colors"
+                        >
+                          <Plus size={10} />
+                          Gerar Senha
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input 
+                          type={showPassword ? "text" : "password"}
+                          value={formData.password}
+                          onChange={e => setFormData({ ...formData, password: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 pr-12 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
+                          placeholder="Deixe vazio para login via Google"
+                        />
+                        <button 
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                        >
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-500 px-1 italic">
+                        Se definida, o usuário terá que mudar a senha no primeiro acesso.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Cargo / Permissão</label>
+                      <select 
+                        value={formData.role}
+                        onChange={e => {
+                          const newRole = e.target.value;
+                          setFormData({ ...formData, role: newRole });
+                          setCustomPermissions(getDefaultsForRole(newRole));
+                        }}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all appearance-none cursor-pointer"
                       >
-                        Ativo
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => setFormData({ ...formData, ativo: false })}
-                        className={cn(
-                          "flex-1 rounded-xl text-xs font-bold transition-all",
-                          !formData.ativo ? "bg-red-600 text-white shadow-lg shadow-red-900/20" : "text-slate-500 hover:text-slate-300"
-                        )}
-                      >
-                        Inativo
-                      </button>
+                        <option value="assessor">Assessor</option>
+                        <option value="admin">Administrador</option>
+                        <option value="vereador">Vereador</option>
+                        <option value="secretaria_parlamentar">Secretária Parlamentar</option>
+                        <option value="suporte_ti">Suporte TI</option>
+                        <option value="consulta">Apenas Consulta</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Status da Conta</label>
+                      <div className="flex h-[58px] bg-slate-950 border border-slate-800 rounded-2xl p-1">
+                        <button 
+                          type="button"
+                          onClick={() => setFormData({ ...formData, ativo: true })}
+                          className={cn(
+                            "flex-1 rounded-xl text-xs font-bold transition-all",
+                            formData.ativo ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20" : "text-slate-500 hover:text-slate-300"
+                          )}
+                        >
+                          Ativo
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setFormData({ ...formData, ativo: false })}
+                          className={cn(
+                            "flex-1 rounded-xl text-xs font-bold transition-all",
+                            !formData.ativo ? "bg-red-600 text-white shadow-lg shadow-red-900/20" : "text-slate-500 hover:text-slate-300"
+                          )}
+                        >
+                          Inativo
+                        </button>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Custom Permissions Panel */}
+                  {formData.role !== 'assessor' && formData.role !== 'consulta' && (
+                    <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-800 space-y-4 max-h-[300px] overflow-y-auto text-left col-span-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Permissões de Acesso</h4>
+                          <p className="text-[10px] text-slate-500">Defina o que este usuário pode ver ou fazer</p>
+                        </div>
+                        {!canManage && (
+                          <span className="text-[9px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-medium">Apenas Leitura</span>
+                        )}
+                      </div>
+
+                      {!canManage && (
+                        <p className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/10 rounded-xl p-2 font-medium">
+                          Apenas administradores, o vereador ou a secretaria parlamentar podem modificar permissões específicas de usuários.
+                        </p>
+                      )}
+
+                      {/* Modules Permissions */}
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block border-b border-slate-800/50 pb-1">Visualizar Páginas (Menu Lateral)</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {SYSTEM_MODULES.map((m) => {
+                            const isChecked = customPermissions.modules?.[m.id] !== false;
+                            return (
+                              <label key={m.id} className={cn(
+                                "flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition-all",
+                                isChecked 
+                                  ? "bg-blue-600/10 border-blue-500/20 text-slate-200 font-medium" 
+                                  : "bg-slate-950/20 border-slate-900 text-slate-500 hover:text-slate-400",
+                                !canManage && "cursor-not-allowed opacity-75"
+                              )}>
+                                <input 
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={!canManage}
+                                  onChange={(e) => {
+                                    setCustomPermissions({
+                                      ...customPermissions,
+                                      modules: {
+                                        ...customPermissions.modules,
+                                        [m.id]: e.target.checked
+                                      }
+                                    });
+                                  }}
+                                  className="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer disabled:cursor-not-allowed"
+                                />
+                                <span>{m.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Actions Permissions */}
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block border-b border-slate-800/50 pb-1">Permissões de Escrita (Ações)</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          {SYSTEM_ACTIONS.map((act) => {
+                            const isChecked = customPermissions.actions?.[act.id as 'create'|'edit'|'delete'] !== false;
+                            return (
+                              <label key={act.id} className={cn(
+                                "flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition-all",
+                                isChecked 
+                                  ? "bg-blue-600/10 border-blue-500/20 text-slate-200 font-medium" 
+                                  : "bg-slate-950/20 border-slate-900 text-slate-500 hover:text-slate-400",
+                                !canManage && "cursor-not-allowed opacity-75"
+                              )}>
+                                <input 
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={!canManage}
+                                  onChange={(e) => {
+                                    setCustomPermissions({
+                                      ...customPermissions,
+                                      actions: {
+                                        ...customPermissions.actions,
+                                        [act.id]: e.target.checked
+                                      }
+                                    });
+                                  }}
+                                  className="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer disabled:cursor-not-allowed"
+                                />
+                                <span>{act.id === 'create' ? 'Cadastrar' : act.id === 'edit' ? 'Editar' : 'Excluir'}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Custom Permissions Panel */}
-                {formData.role !== 'assessor' && formData.role !== 'consulta' && (
-                  <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-800 space-y-4 max-h-[300px] overflow-y-auto text-left">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Permissões de Acesso</h4>
-                        <p className="text-[10px] text-slate-500">Defina o que este usuário pode ver ou fazer</p>
-                      </div>
-                      {!canManage && (
-                        <span className="text-[9px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-medium">Apenas Leitura</span>
-                      )}
-                    </div>
-
-                    {!canManage && (
-                      <p className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/10 rounded-xl p-2 font-medium">
-                        Apenas administradores, o vereador ou a secretaria parlamentar podem modificar permissões específicas de usuários.
-                      </p>
-                    )}
-
-                    {/* Modules Permissions */}
-                    <div className="space-y-2">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block border-b border-slate-800/50 pb-1">Visualizar Páginas (Menu Lateral)</span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {SYSTEM_MODULES.map((m) => {
-                          const isChecked = customPermissions.modules?.[m.id] !== false;
-                          return (
-                            <label key={m.id} className={cn(
-                              "flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition-all",
-                              isChecked 
-                                ? "bg-blue-600/10 border-blue-500/20 text-slate-200 font-medium" 
-                                : "bg-slate-950/20 border-slate-900 text-slate-500 hover:text-slate-400",
-                              !canManage && "cursor-not-allowed opacity-75"
-                            )}>
-                              <input 
-                                type="checkbox"
-                                checked={isChecked}
-                                disabled={!canManage}
-                                onChange={(e) => {
-                                  setCustomPermissions({
-                                    ...customPermissions,
-                                    modules: {
-                                      ...customPermissions.modules,
-                                      [m.id]: e.target.checked
-                                    }
-                                  });
-                                }}
-                                className="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer disabled:cursor-not-allowed"
-                              />
-                              <span>{m.label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Actions Permissions */}
-                    <div className="space-y-2">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block border-b border-slate-800/50 pb-1">Permissões de Escrita (Ações)</span>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        {SYSTEM_ACTIONS.map((act) => {
-                          const isChecked = customPermissions.actions?.[act.id as 'create'|'edit'|'delete'] !== false;
-                          return (
-                            <label key={act.id} className={cn(
-                              "flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition-all",
-                              isChecked 
-                                ? "bg-blue-600/10 border-blue-500/20 text-slate-200 font-medium" 
-                                : "bg-slate-950/20 border-slate-900 text-slate-500 hover:text-slate-400",
-                              !canManage && "cursor-not-allowed opacity-75"
-                            )}>
-                              <input 
-                                type="checkbox"
-                                checked={isChecked}
-                                disabled={!canManage}
-                                onChange={(e) => {
-                                  setCustomPermissions({
-                                    ...customPermissions,
-                                    actions: {
-                                      ...customPermissions.actions,
-                                      [act.id]: e.target.checked
-                                    }
-                                  });
-                                }}
-                                className="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer disabled:cursor-not-allowed"
-                              />
-                              <span>{act.id === 'create' ? 'Cadastrar' : act.id === 'edit' ? 'Editar' : 'Excluir'}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="pt-6">
+                {/* Sticky/Fixed buttons container at the bottom */}
+                <div className="pt-4 border-t border-slate-800 mt-4 shrink-0 bg-slate-900">
                   <button 
                     type="submit"
                     disabled={submitting}
