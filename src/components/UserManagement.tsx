@@ -688,8 +688,7 @@ export default function UserManagement() {
                   </div>
 
                   {/* Custom Permissions Panel */}
-                  {formData.role !== 'assessor' && formData.role !== 'consulta' && (
-                    <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-800 space-y-4 max-h-[300px] overflow-y-auto text-left col-span-2">
+                  <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-800 space-y-4 max-h-[300px] overflow-y-auto text-left col-span-2">
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Permissões de Acesso</h4>
@@ -778,8 +777,7 @@ export default function UserManagement() {
                         </div>
                       </div>
                     </div>
-                  )}
-                </div>
+                  </div>
 
                 {/* Sticky/Fixed buttons container at the bottom */}
                 <div className="pt-4 border-t border-slate-800 mt-4 shrink-0 bg-slate-900">

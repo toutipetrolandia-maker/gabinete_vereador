@@ -166,7 +166,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Auto-correction for Lorena Gomes as requested
             const normalizedEmail = user.email?.toLowerCase().trim() || '';
             const isLorena = normalizedEmail === 'lorena.goamaral@gmail.com' || 
-                             normalizedEmail === 'lorena.gomes@gmail.com';
+                             normalizedEmail === 'lorena.gomes@gmail.com' ||
+                             normalizedEmail === 'gabineteverneivormanfredi@gmail.com';
             
             if (isLorena && (data.role === 'consulta' || data.nome === 'Usuário' || data.nome === 'Novo Usuário')) {
                console.log("Applying auto-correction for Lorena Gomes profile in useAuth...");
@@ -244,7 +245,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const isSuper = normalizedEmail === 'cleciotecnologia@gmail.com' ||
                               normalizedEmail === 'toutipetrolandia@gmail.com';
               const isLorena = normalizedEmail === 'lorena.goamaral@gmail.com' || 
-                               normalizedEmail === 'lorena.gomes@gmail.com';
+                               normalizedEmail === 'lorena.gomes@gmail.com' ||
+                               normalizedEmail === 'gabineteverneivormanfredi@gmail.com';
               const isInitialAdmin = isSuper ||
                                      isLorena;
               
