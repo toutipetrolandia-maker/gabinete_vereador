@@ -16,7 +16,7 @@ interface UserProfile {
   id: string; // Added ID field
   nome: string;
   username?: string;
-  role: 'superadmin' | 'admin' | 'assessor' | 'vereador' | 'consulta' | 'secretaria_parlamentar';
+  role: 'superadmin' | 'admin' | 'assessor' | 'vereador' | 'consulta' | 'secretaria_parlamentar' | 'suporte_ti';
   email: string;
   cabinetId: string;
   photo_url?: string;
@@ -97,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isSuperAdmin = profile?.role === 'superadmin' || 
+                      profile?.role === 'suporte_ti' ||
                       user?.email === 'cleciotecnologia@gmail.com' || 
                       user?.email === 'toutipetrolandia@gmail.com';
 
@@ -301,8 +302,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     const role = activeProfile.role as string;
     
-    // Superadmins can do anything
-    if (role === 'superadmin') return true;
+    // Superadmins and Suporte TI can do anything
+    if (role === 'superadmin' || role === 'suporte_ti') return true;
     
     // Vereadores can do anything
     if (role === 'vereador') return true;
@@ -313,7 +314,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     
     // Fallback to default role checks
-    if (moduleId === 'saas') return false; // superadmin only
+    if (moduleId === 'saas') return false; // superadmin and support only (handled above)
     if (moduleId === 'history' || moduleId === 'config') {
       return role === 'admin' || role === 'vereador' || role === 'secretaria_parlamentar';
     }
@@ -329,8 +330,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     const role = activeProfile.role as string;
     
-    // Superadmins and Vereadores have all permissions
-    if (role === 'superadmin' || role === 'vereador') return true;
+    // Superadmins, Suporte TI and Vereadores have all permissions
+    if (role === 'superadmin' || role === 'vereador' || role === 'suporte_ti') return true;
     
     // Check custom action permissions if explicitly defined
     if (activeProfile.permissions?.actions && activeProfile.permissions.actions[action] !== undefined) {

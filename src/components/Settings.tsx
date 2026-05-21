@@ -58,7 +58,7 @@ import { logAction } from "../lib/audit";
 import UserManagement from "./UserManagement";
 
 export default function Settings() {
-  const { profile } = useAuth();
+  const { profile, isSuperAdmin } = useAuth();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState<
@@ -152,9 +152,7 @@ export default function Settings() {
   const [cabinetsList, setCabinetsList] = useState<any[]>([]);
   const [allUsersList, setAllUsersList] = useState<any[]>([]);
 
-  const isSuperAdmin =
-    profile?.email === "cleciotecnologia@gmail.com" ||
-    profile?.email === "toutipetrolandia@gmail.com";
+
 
   useEffect(() => {
     if (!profile?.cabinetId) return;

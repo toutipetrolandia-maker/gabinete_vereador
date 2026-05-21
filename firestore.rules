@@ -25,7 +25,7 @@ service cloud.firestore {
       return isSignedIn() && (
         request.auth.token.email == 'cleciotecnologia@gmail.com' || 
         request.auth.token.email == 'toutipetrolandia@gmail.com' ||
-        (exists(docPath) && get(docPath).data.role == 'superadmin')
+        (exists(docPath) && (get(docPath).data.role == 'superadmin' || get(docPath).data.role == 'suporte_ti'))
       );
     }
 
@@ -33,8 +33,8 @@ service cloud.firestore {
       let docPath = /databases/$(database)/documents/users/$(request.auth.uid);
       return isSignedIn() && 
              exists(docPath) && 
-             (get(docPath).data.ativo == true || get(docPath).data.role == 'admin' || get(docPath).data.role == 'superadmin' || get(docPath).data.role == 'secretaria_parlamentar') && 
-             get(docPath).data.role in ['superadmin', 'admin', 'vereador', 'assessor', 'secretaria_parlamentar', 'consulta'];
+             (get(docPath).data.ativo == true || get(docPath).data.role == 'admin' || get(docPath).data.role == 'superadmin' || get(docPath).data.role == 'secretaria_parlamentar' || get(docPath).data.role == 'suporte_ti') && 
+             get(docPath).data.role in ['superadmin', 'admin', 'vereador', 'assessor', 'secretaria_parlamentar', 'consulta', 'suporte_ti'];
     }
 
     function belongsToCabinet(cabinetId) {
@@ -97,7 +97,7 @@ service cloud.firestore {
       
       function isValidUser(data) {
         return data.nome is string && data.nome.size() <= 100 &&
-               data.role in ['superadmin', 'admin', 'assessor', 'vereador', 'consulta', 'secretaria_parlamentar'];
+               data.role in ['superadmin', 'admin', 'assessor', 'vereador', 'consulta', 'secretaria_parlamentar', 'suporte_ti'];
       }
 
       allow create: if isSignedIn() && (isOwner(userId) || isSuper() || ((isAdmin() || isVereador()) && dataBelongsToUserCabinet())) && isValidUser(incoming());

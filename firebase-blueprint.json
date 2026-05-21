@@ -9,7 +9,7 @@
         "nome": { "type": "string" },
         "username": { "type": "string" },
         "email": { "type": "string", "format": "email" },
-        "role": { "type": "string", "enum": ["superadmin", "admin", "assessor", "vereador", "consulta", "secretaria_parlamentar"] },
+        "role": { "type": "string", "enum": ["superadmin", "admin", "assessor", "vereador", "consulta", "secretaria_parlamentar", "suporte_ti"] },
         "ativo": { "type": "boolean" },
         "status": { "type": "string", "enum": ["online", "offline"] },
         "last_seen": { "type": "string", "format": "date-time" },

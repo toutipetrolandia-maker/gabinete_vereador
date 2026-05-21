@@ -101,7 +101,8 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     vereador: 'Vereador',
     secretaria_parlamentar: 'Assessora Parlamentar',
     assessor: 'Assessor',
-    consulta: 'Consulta'
+    consulta: 'Consulta',
+    suporte_ti: 'Suporte TI'
   };
 
   const menuItems = [

@@ -107,7 +107,7 @@ export default function UserManagement() {
 
   const getDefaultsForRole = (role: string) => {
     const isConsulta = role === 'consulta';
-    const isVereadorOrSuper = role === 'vereador' || role === 'superadmin';
+    const isVereadorOrSuper = role === 'vereador' || role === 'superadmin' || role === 'suporte_ti';
     const IsAdminOrSec = role === 'admin' || role === 'secretaria_parlamentar';
     
     return {
@@ -376,6 +376,7 @@ export default function UserManagement() {
             <option value="vereador">Vereador</option>
             <option value="assessor">Assessor</option>
             <option value="secretaria_parlamentar">Secretária Parlamentar</option>
+            <option value="suporte_ti">Suporte TI</option>
             <option value="consulta">Apenas Consulta</option>
           </select>
         </div>
@@ -431,10 +432,11 @@ export default function UserManagement() {
                       user.role === 'vereador' ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
                       user.role === 'assessor' ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" :
                       user.role === 'secretaria_parlamentar' ? "bg-pink-500/10 text-pink-400 border border-pink-500/20" :
+                      user.role === 'suporte_ti' ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" :
                       "bg-slate-500/10 text-slate-400 border border-slate-500/20"
                     )}>
                       <Shield size={10} />
-                      {user.role === 'secretaria_parlamentar' ? 'SEC. PARLAMENTAR' : user.role.replace('_', ' ')}
+                      {user.role === 'secretaria_parlamentar' ? 'SEC. PARLAMENTAR' : user.role === 'suporte_ti' ? 'SUPORTE TI' : user.role.replace('_', ' ')}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -647,6 +649,7 @@ export default function UserManagement() {
                       <option value="admin">Administrador</option>
                       <option value="vereador">Vereador</option>
                       <option value="secretaria_parlamentar">Secretária Parlamentar</option>
+                      <option value="suporte_ti">Suporte TI</option>
                       <option value="consulta">Apenas Consulta</option>
                     </select>
                   </div>
