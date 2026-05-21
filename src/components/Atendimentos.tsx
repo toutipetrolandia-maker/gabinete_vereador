@@ -84,6 +84,8 @@ import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig } from '../lib/w
 export default function Atendimentos() {
   const { profile, user } = useAuth();
   const [data, setData] = useState<any[]>([]);
+  const [atendimentos, setAtendimentos] = useState<any[]>([]);
+  const [medicos, setMedicos] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -207,14 +209,28 @@ export default function Atendimentos() {
     if (!profile?.cabinetId) return;
 
     setLoading(true);
-    let atendimentosData: any[] = [];
-    let medicosData: any[] = [];
-
     const q1 = query(
       collection(db, 'atendimentos'), 
       where('cabinetId', '==', profile.cabinetId),
       orderBy('created_at', 'desc')
     );
+
+    const unsubscribe = onSnapshot(q1, (snap) => {
+      setAtendimentos(snap.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data(), 
+        sourceCollection: 'atendimentos' 
+      })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'atendimentos');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [profile?.cabinetId]);
+
+  useEffect(() => {
+    if (!profile?.cabinetId) return;
 
     const q2 = query(
       collection(db, 'atendimentos_medicos'),
@@ -222,47 +238,31 @@ export default function Atendimentos() {
       orderBy('created_at', 'desc')
     );
 
-    const combineAndSet = () => {
-      const combined = [...atendimentosData, ...medicosData];
-      combined.sort((a, b) => {
-        const dateA = a.created_at?.toDate ? a.created_at.toDate() : a.created_at ? new Date(a.created_at) : new Date(0);
-        const dateB = b.created_at?.toDate ? b.created_at.toDate() : b.created_at ? new Date(b.created_at) : new Date(0);
-        return dateB.getTime() - dateA.getTime();
-      });
-      setData(combined);
-      setLoading(false);
-    };
-
-    const unsubscribe1 = onSnapshot(q1, (snap) => {
-      atendimentosData = snap.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data(), 
-        sourceCollection: 'atendimentos' 
-      }));
-      combineAndSet();
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'atendimentos');
-      setLoading(false);
-    });
-
-    const unsubscribe2 = onSnapshot(q2, (snap) => {
-      medicosData = snap.docs.map(doc => ({ 
+    const unsubscribe = onSnapshot(q2, (snap) => {
+      setMedicos(snap.docs.map(doc => ({ 
         id: doc.id, 
         ...doc.data(), 
         tipo_atendimento: 'Médico',
         sourceCollection: 'atendimentos_medicos' 
-      }));
-      combineAndSet();
+      })));
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'atendimentos_medicos');
       setLoading(false);
     });
 
-    return () => {
-      unsubscribe1();
-      unsubscribe2();
-    };
+    return () => unsubscribe();
   }, [profile?.cabinetId]);
+
+  useEffect(() => {
+    const combined = [...atendimentos, ...medicos];
+    combined.sort((a, b) => {
+      const dateA = a.created_at?.toDate ? a.created_at.toDate() : a.created_at ? new Date(a.created_at) : new Date(0);
+      const dateB = b.created_at?.toDate ? b.created_at.toDate() : b.created_at ? new Date(b.created_at) : new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
+    setData(combined);
+    setLoading(false);
+  }, [atendimentos, medicos]);
 
   const [submitting, setSubmitting] = useState(false);
 
