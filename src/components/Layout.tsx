@@ -43,7 +43,7 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
-  const { profile, isOnline, isSuperAdmin: authIsSuper, isCabinetOverridden, switchCabinet } = useAuth();
+  const { profile, isOnline, isSuperAdmin: authIsSuper, isCabinetOverridden, switchCabinet, hasModuleAccess } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [appName, setAppName] = useState('Gabinete Digital');
   const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
@@ -106,32 +106,23 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-    { id: 'saas', label: 'Admin SaaS', icon: Globe, superOnly: true },
+    { id: 'saas', label: 'Admin SaaS', icon: Globe },
     { id: 'agenda', label: 'Agenda', icon: Clock },
     { id: 'cidadaos', label: 'Cidadãos CRM', icon: Users },
     { id: 'atendimentos', label: 'Atendimentos', icon: Briefcase },
     { id: 'medico', label: 'Atend. Médico', icon: Stethoscope },
     { id: 'auxilio', label: 'Auxílio Social', icon: ShoppingBag },
-    { id: 'indicacoes', label: 'Indicações', icon: Briefcase, restrictedTo: ['vereador'] },
+    { id: 'indicacoes', label: 'Indicações', icon: Briefcase },
     { id: 'malotes', label: 'Malotes', icon: Package },
     { id: 'demandas', label: 'Demandas', icon: FileText },
     { id: 'sugestoes', label: 'Sugestões', icon: MessageSquare },
     { id: 'relatorios', label: 'Relatórios', icon: FileDown },
     { id: 'training', label: 'Manual do Sistema', icon: BookOpen },
     { id: 'whatsapp', label: 'Mensagens', icon: MessageSquare },
-    { id: 'history', label: 'Logs / Auditoria', icon: History, adminOnly: true },
+    { id: 'history', label: 'Logs / Auditoria', icon: History },
     { id: 'config', label: 'Configurações', icon: Settings },
   ].filter(item => {
-    if (item.id === 'config' || (item as any).adminOnly) {
-      return profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' || isSuperAdmin;
-    }
-    if ((item as any).superOnly) {
-      return isSuperAdmin;
-    }
-    if ((item as any).restrictedTo) {
-      return (item as any).restrictedTo.includes(profile?.role) || isSuperAdmin;
-    }
-    return true;
+    return hasModuleAccess(item.id);
   });
 
   const handleLogout = () => auth.signOut();

@@ -3,6 +3,15 @@ import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, deleteDoc, getDocFromServer } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
+interface UserPermissions {
+  modules?: Record<string, boolean>;
+  actions?: {
+    create?: boolean;
+    edit?: boolean;
+    delete?: boolean;
+  };
+}
+
 interface UserProfile {
   id: string; // Added ID field
   nome: string;
@@ -15,6 +24,7 @@ interface UserProfile {
   ativo?: boolean;
   status?: 'online' | 'offline';
   requirePasswordChange?: boolean; // New field
+  permissions?: UserPermissions; // Optional fine-grained permissions
 }
 
 interface AuthContextType {
@@ -25,6 +35,8 @@ interface AuthContextType {
   isSuperAdmin: boolean;
   isCabinetOverridden: boolean;
   switchCabinet: (id: string | null) => void;
+  hasModuleAccess: (moduleId: string) => boolean;
+  canPerformAction: (action: 'create' | 'edit' | 'delete') => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({ 
@@ -34,7 +46,9 @@ const AuthContext = createContext<AuthContextType>({
   isOnline: true,
   isSuperAdmin: false,
   isCabinetOverridden: false,
-  switchCabinet: () => {}
+  switchCabinet: () => {},
+  hasModuleAccess: () => true,
+  canPerformAction: () => true
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -282,6 +296,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const hasModuleAccess = (moduleId: string): boolean => {
+    if (!activeProfile) return false;
+    
+    const role = activeProfile.role as string;
+    
+    // Superadmins can do anything
+    if (role === 'superadmin') return true;
+    
+    // Vereadores can do anything
+    if (role === 'vereador') return true;
+    
+    // Check custom permissions first if they are explicitly configured for this module
+    if (activeProfile.permissions?.modules && activeProfile.permissions.modules[moduleId] !== undefined) {
+      return activeProfile.permissions.modules[moduleId];
+    }
+    
+    // Fallback to default role checks
+    if (moduleId === 'saas') return false; // superadmin only
+    if (moduleId === 'history' || moduleId === 'config') {
+      return role === 'admin' || role === 'vereador' || role === 'secretaria_parlamentar';
+    }
+    if (moduleId === 'indicacoes') {
+      return role === 'vereador';
+    }
+    
+    return true;
+  };
+
+  const canPerformAction = (action: 'create' | 'edit' | 'delete'): boolean => {
+    if (!activeProfile) return false;
+    
+    const role = activeProfile.role as string;
+    
+    // Superadmins and Vereadores have all permissions
+    if (role === 'superadmin' || role === 'vereador') return true;
+    
+    // Check custom action permissions if explicitly defined
+    if (activeProfile.permissions?.actions && activeProfile.permissions.actions[action] !== undefined) {
+      return activeProfile.permissions.actions[action];
+    }
+    
+    // Fallback to default role actions limits
+    if (role === 'consulta') return false;
+    
+    if (action === 'delete') {
+      return role === 'admin' || role === 'secretaria_parlamentar';
+    }
+    
+    return true;
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -290,7 +355,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isOnline, 
       isSuperAdmin,
       isCabinetOverridden,
-      switchCabinet
+      switchCabinet,
+      hasModuleAccess,
+      canPerformAction
     }}>
       {children}
     </AuthContext.Provider>

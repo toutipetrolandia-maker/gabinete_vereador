@@ -74,7 +74,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 function AppContent() {
-  const { user, profile, loading, isSuperAdmin } = useAuth();
+  const { user, profile, loading, isSuperAdmin, hasModuleAccess } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
   if (loading) {
@@ -97,22 +97,22 @@ function AppContent() {
     <ErrorBoundary>
       <LocalAuthBarrier>
         <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
-          {activeTab === 'dashboard' && <Dashboard />}
+          {activeTab === 'dashboard' && hasModuleAccess('dashboard') && <Dashboard />}
           {activeTab === 'saas' && isSuperAdmin && <SaaSAdmin />}
-          {activeTab === 'agenda' && <Agenda />}
-          {activeTab === 'cidadaos' && <Cidadaos />}
-          {activeTab === 'atendimentos' && <Atendimentos />}
-          {activeTab === 'medico' && <AtendimentosMedicos />}
-          {activeTab === 'auxilio' && <SocialAssistance />}
-          {activeTab === 'indicacoes' && (profile?.role === 'vereador' || isSuperAdmin) && <IndicacoesCargos />}
-          {activeTab === 'malotes' && <Malotes />}
-          {activeTab === 'demandas' && <Demandas />}
-          {activeTab === 'sugestoes' && <Sugestoes />}
-          {activeTab === 'relatorios' && <Relatorios />}
-          {activeTab === 'training' && <Training />}
-          {activeTab === 'whatsapp' && <WhatsAppAutomation />}
-          {activeTab === 'history' && <History />}
-          {activeTab === 'config' && <Settings />}
+          {activeTab === 'agenda' && hasModuleAccess('agenda') && <Agenda />}
+          {activeTab === 'cidadaos' && hasModuleAccess('cidadaos') && <Cidadaos />}
+          {activeTab === 'atendimentos' && hasModuleAccess('atendimentos') && <Atendimentos />}
+          {activeTab === 'medico' && hasModuleAccess('medico') && <AtendimentosMedicos />}
+          {activeTab === 'auxilio' && hasModuleAccess('auxilio') && <SocialAssistance />}
+          {activeTab === 'indicacoes' && hasModuleAccess('indicacoes') && <IndicacoesCargos />}
+          {activeTab === 'malotes' && hasModuleAccess('malotes') && <Malotes />}
+          {activeTab === 'demandas' && hasModuleAccess('demandas') && <Demandas />}
+          {activeTab === 'sugestoes' && hasModuleAccess('sugestoes') && <Sugestoes />}
+          {activeTab === 'relatorios' && hasModuleAccess('relatorios') && <Relatorios />}
+          {activeTab === 'training' && hasModuleAccess('training') && <Training />}
+          {activeTab === 'whatsapp' && hasModuleAccess('whatsapp') && <WhatsAppAutomation />}
+          {activeTab === 'history' && hasModuleAccess('history') && <History />}
+          {activeTab === 'config' && hasModuleAccess('config') && <Settings />}
         </Layout>
       </LocalAuthBarrier>
     </ErrorBoundary>

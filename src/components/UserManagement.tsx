@@ -49,6 +49,14 @@ interface User {
   cabinetId: string;
   criado_em?: any;
   requirePasswordChange?: boolean;
+  permissions?: {
+    modules?: Record<string, boolean>;
+    actions?: {
+      create?: boolean;
+      edit?: boolean;
+      delete?: boolean;
+    };
+  };
 }
 
 export default function UserManagement() {
@@ -71,6 +79,73 @@ export default function UserManagement() {
     role: 'assessor',
     ativo: true,
     password: '', // New field for temporary password
+  });
+
+  const SYSTEM_MODULES = [
+    { id: 'dashboard', label: 'Dashboard / Resumo' },
+    { id: 'agenda', label: 'Agenda de Compromissos' },
+    { id: 'cidadaos', label: 'Cidadão CRM (Cadastros)' },
+    { id: 'atendimentos', label: 'Atendimentos Geral' },
+    { id: 'medico', label: 'Atendimentos Médicos' },
+    { id: 'auxilio', label: 'Auxílio Social' },
+    { id: 'indicacoes', label: 'Indicações de Cargo' },
+    { id: 'malotes', label: 'Malotes & Ofícios' },
+    { id: 'demandas', label: 'Demandas Parlamentares' },
+    { id: 'sugestoes', label: 'Sugestões & Ouvidoria' },
+    { id: 'relatorios', label: 'Gerador de Relatórios' },
+    { id: 'training', label: 'Manual do Sistema' },
+    { id: 'whatsapp', label: 'Automação WhatsApp' },
+    { id: 'history', label: 'Logs & Auditoria (Histórico)' },
+    { id: 'config', label: 'Configurações Globais' },
+  ];
+
+  const SYSTEM_ACTIONS = [
+    { id: 'create', label: 'Cadastrar / Criar registros' },
+    { id: 'edit', label: 'Editar / Atualizar registros' },
+    { id: 'delete', label: 'Excluir / Deletar registros' },
+  ];
+
+  const getDefaultsForRole = (role: string) => {
+    const isConsulta = role === 'consulta';
+    const isVereadorOrSuper = role === 'vereador' || role === 'superadmin';
+    const IsAdminOrSec = role === 'admin' || role === 'secretaria_parlamentar';
+    
+    return {
+      modules: {
+        dashboard: true,
+        agenda: true,
+        cidadaos: true,
+        atendimentos: true,
+        medico: true,
+        auxilio: true,
+        indicacoes: isVereadorOrSuper,
+        malotes: true,
+        demandas: true,
+        sugestoes: true,
+        relatorios: true,
+        training: true,
+        whatsapp: true,
+        history: IsAdminOrSec || isVereadorOrSuper,
+        config: IsAdminOrSec || isVereadorOrSuper,
+      },
+      actions: {
+        create: !isConsulta,
+        edit: !isConsulta,
+        delete: IsAdminOrSec || isVereadorOrSuper,
+      }
+    };
+  };
+
+  const [customPermissions, setCustomPermissions] = useState<{
+    modules: Record<string, boolean>;
+    actions: {
+      create: boolean;
+      edit: boolean;
+      delete: boolean;
+    };
+  }>({
+    modules: getDefaultsForRole('assessor').modules,
+    actions: getDefaultsForRole('assessor').actions
   });
 
   const canManage = profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' || isSuperAdmin;
@@ -108,6 +183,10 @@ export default function UserManagement() {
       role: 'assessor',
       ativo: true,
       password: '',
+    });
+    setCustomPermissions({
+      modules: getDefaultsForRole('assessor').modules,
+      actions: getDefaultsForRole('assessor').actions
     });
     setSelectedUser(null);
     setShowPassword(false);
@@ -153,7 +232,8 @@ export default function UserManagement() {
         email: formData.email.toLowerCase().trim(),
         cabinetId: profile.cabinetId,
         criado_em: serverTimestamp(),
-        requirePasswordChange: !!formData.password // Force change if admin set a temp password
+        requirePasswordChange: !!formData.password, // Force change if admin set a temp password
+        permissions: customPermissions
       };
 
       await setDoc(userRef, userData);
@@ -184,7 +264,8 @@ export default function UserManagement() {
         nome: formData.nome,
         role: formData.role,
         ativo: formData.ativo,
-        username: formData.username
+        username: formData.username,
+        permissions: customPermissions
       };
 
       await updateDoc(userRef, updates);
@@ -385,6 +466,17 @@ export default function UserManagement() {
                                 ativo: user.ativo,
                                 password: ''
                               });
+                              const defaultPerms = getDefaultsForRole(user.role);
+                              setCustomPermissions({
+                                modules: {
+                                  ...defaultPerms.modules,
+                                  ...(user.permissions?.modules || {})
+                                },
+                                actions: {
+                                  ...defaultPerms.actions,
+                                  ...(user.permissions?.actions || {})
+                                }
+                              });
                               setShowEditModal(true);
                             }}
                             className="p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-all"
@@ -544,7 +636,11 @@ export default function UserManagement() {
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Cargo / Permissão</label>
                     <select 
                       value={formData.role}
-                      onChange={e => setFormData({ ...formData, role: e.target.value })}
+                      onChange={e => {
+                        const newRole = e.target.value;
+                        setFormData({ ...formData, role: newRole });
+                        setCustomPermissions(getDefaultsForRole(newRole));
+                      }}
                       className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all appearance-none cursor-pointer"
                     >
                       <option value="assessor">Assessor</option>
@@ -577,6 +673,97 @@ export default function UserManagement() {
                       >
                         Inativo
                       </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Custom Permissions Panel */}
+                <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-800 space-y-4 max-h-[300px] overflow-y-auto text-left">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Permissões de Acesso</h4>
+                      <p className="text-[10px] text-slate-500">Defina o que este usuário pode ver ou fazer</p>
+                    </div>
+                    {!(isSuperAdmin || profile?.role === 'vereador') && (
+                      <span className="text-[9px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-medium">Apenas Leitura</span>
+                    )}
+                  </div>
+
+                  {!(isSuperAdmin || profile?.role === 'vereador') && (
+                    <p className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/10 rounded-xl p-2 font-medium">
+                      Apenas o Super Admin ou o Vereador podem modificar permissões específicas de usuários.
+                    </p>
+                  )}
+
+                  {/* Modules Permissions */}
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block border-b border-slate-800/50 pb-1">Visualizar Páginas (Menu Lateral)</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {SYSTEM_MODULES.map((m) => {
+                        const isChecked = customPermissions.modules?.[m.id] !== false;
+                        return (
+                          <label key={m.id} className={cn(
+                            "flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition-all",
+                            isChecked 
+                              ? "bg-blue-600/10 border-blue-500/20 text-slate-200 font-medium" 
+                              : "bg-slate-950/20 border-slate-900 text-slate-500 hover:text-slate-400",
+                            !(isSuperAdmin || profile?.role === 'vereador') && "cursor-not-allowed opacity-75"
+                          )}>
+                            <input 
+                              type="checkbox"
+                              checked={isChecked}
+                              disabled={!(isSuperAdmin || profile?.role === 'vereador')}
+                              onChange={(e) => {
+                                setCustomPermissions({
+                                  ...customPermissions,
+                                  modules: {
+                                    ...customPermissions.modules,
+                                    [m.id]: e.target.checked
+                                  }
+                                });
+                              }}
+                              className="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer disabled:cursor-not-allowed"
+                            />
+                            <span>{m.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Actions Permissions */}
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block border-b border-slate-800/50 pb-1">Permissões de Escrita (Ações)</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {SYSTEM_ACTIONS.map((act) => {
+                        const isChecked = customPermissions.actions?.[act.id as 'create'|'edit'|'delete'] !== false;
+                        return (
+                          <label key={act.id} className={cn(
+                            "flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition-all",
+                            isChecked 
+                              ? "bg-blue-600/10 border-blue-500/20 text-slate-200 font-medium" 
+                              : "bg-slate-950/20 border-slate-900 text-slate-500 hover:text-slate-400",
+                            !(isSuperAdmin || profile?.role === 'vereador') && "cursor-not-allowed opacity-75"
+                          )}>
+                            <input 
+                              type="checkbox"
+                              checked={isChecked}
+                              disabled={!(isSuperAdmin || profile?.role === 'vereador')}
+                              onChange={(e) => {
+                                setCustomPermissions({
+                                  ...customPermissions,
+                                  actions: {
+                                    ...customPermissions.actions,
+                                    [act.id]: e.target.checked
+                                  }
+                                });
+                              }}
+                              className="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer disabled:cursor-not-allowed"
+                            />
+                            <span>{act.id === 'create' ? 'Cadastrar' : act.id === 'edit' ? 'Editar' : 'Excluir'}</span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
