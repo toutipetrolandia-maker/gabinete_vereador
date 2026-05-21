@@ -101,9 +101,9 @@ export default function Training() {
       <header className="space-y-2">
         <h1 className="text-3xl font-bold text-white flex items-center gap-3">
           <BookOpen className="text-blue-500" size={32} />
-          Central de Capacitação
+          Manual do Sistema
         </h1>
-        <p className="text-slate-400">Aprenda a extrair o máximo potencial do Gabinete Digital.</p>
+        <p className="text-slate-400">Aprenda as principais funcionalidades e como operar o Gabinete Digital.</p>
       </header>
 
       {/* Categories Toggle */}
