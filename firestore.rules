@@ -100,14 +100,14 @@ service cloud.firestore {
                data.role in ['superadmin', 'admin', 'assessor', 'vereador', 'consulta', 'secretaria_parlamentar'];
       }
 
-      allow create: if isSignedIn() && (isOwner(userId) || isSuper()) && isValidUser(incoming());
+      allow create: if isSignedIn() && (isOwner(userId) || isSuper() || ((isAdmin() || isVereador()) && dataBelongsToUserCabinet())) && isValidUser(incoming());
       
       allow update: if isSignedIn() && (
-        isSuper() || (isAdmin() && resourceBelongsToUserCabinet()) ||
+        isSuper() || ((isAdmin() || isVereador()) && resourceBelongsToUserCabinet() && dataBelongsToUserCabinet()) ||
         (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'last_seen', 'primeiro_acesso_concluido', 'status_oculos', 'updated_at']))
       );
 
-      allow delete: if isSuper();
+      allow delete: if isSuper() || ((isAdmin() || isVereador()) && resourceBelongsToUserCabinet());
     }
 
     // ATENDIMENTOS
