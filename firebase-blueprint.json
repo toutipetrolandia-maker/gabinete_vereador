@@ -161,7 +161,7 @@
         "beneficiado_nome": { "type": "string" },
         "beneficiado_telefone": { "type": "string" },
         "beneficiado_cpf": { "type": "string" },
-        "tipo_beneficio": { "type": "string", "enum": ["Cesta Básica", "Remédio", "Fralda", "Outro"] },
+        "tipo_beneficio": { "type": "string", "enum": ["Cesta Básica", "Remédio", "Fralda", "Kit Higiene", "Material Escolar", "Outro"] },
         "quantidade": { "type": "number" },
         "status": { "type": "string", "enum": ["Pendente", "Em Rota", "Entregue", "Cancelado"] },
         "data_entrega_prevista": { "type": "string" },
@@ -170,10 +170,27 @@
         "observacoes": { "type": "string" },
         "usuario_id": { "type": "string" },
         "usuario_nome": { "type": "string" },
+        "item_estoque_id": { "type": "string" },
         "created_at": { "type": "string", "format": "date-time" },
         "updated_at": { "type": "string", "format": "date-time" }
       },
       "required": ["cabinetId", "beneficiado_nome", "tipo_beneficio", "status"]
+    },
+    "AuxilioEstoque": {
+      "title": "Controle de Estoque de Auxílio Social",
+      "description": "Inventory control for social benefits",
+      "type": "object",
+      "properties": {
+        "cabinetId": { "type": "string" },
+        "nome": { "type": "string" },
+        "tipo_beneficio": { "type": "string", "enum": ["Cesta Básica", "Remédio", "Fralda", "Kit Higiene", "Material Escolar", "Outro"] },
+        "quantidade_atual": { "type": "number" },
+        "quantidade_minima": { "type": "number" },
+        "observacoes": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["cabinetId", "nome", "tipo_beneficio", "quantidade_atual", "quantidade_minima"]
     },
     "IndicacaoCargo": {
       "title": "Indicação de Cargo",
@@ -231,6 +248,7 @@
     "/sugestoes/{id}": { "schema": "Sugestao", "description": "Feedback" },
     "/logs/{id}": { "schema": "AuditLog", "description": "Audit trails" },
     "/auxilio_social/{id}": { "schema": "AuxilioSocial", "description": "Social assistance records" },
+    "/auxilio_estoque/{id}": { "schema": "AuxilioEstoque", "description": "Stock inventory records" },
     "/indicacoes_cargos/{id}": { "schema": "IndicacaoCargo", "description": "Position nomination records" },
     "/demandas_parlamentares/{id}": { "schema": "DemandaParlamentar", "description": "Parliamentary official requests" }
   }

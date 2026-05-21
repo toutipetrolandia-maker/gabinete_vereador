@@ -162,6 +162,51 @@ service cloud.firestore {
       allow delete: if isSuper() || (isAdmin() && resourceBelongsToUserCabinet());
     }
     
+    // AUXÍLIO SOCIAL
+    match /auxilio_social/{id} {
+      allow read: if resourceBelongsToUserCabinet();
+      
+      function isValidAuxilioSocial(data) {
+        return data.beneficiado_nome is string && data.beneficiado_nome.size() <= 150 &&
+               data.cabinetId is string &&
+               data.tipo_beneficio is string;
+      }
+      
+      allow create: if isCabinetMember() && dataBelongsToUserCabinet() && isValidAuxilioSocial(incoming());
+      allow update: if isCabinetMember() && resourceBelongsToUserCabinet() && dataBelongsToUserCabinet() && isValidAuxilioSocial(incoming());
+      allow delete: if isCabinetMember() && resourceBelongsToUserCabinet();
+    }
+
+    // AUXÍLIO ESTOQUE
+    match /auxilio_estoque/{id} {
+      allow read: if resourceBelongsToUserCabinet();
+      
+      function isValidAuxilioEstoque(data) {
+        return data.nome is string && data.nome.size() <= 150 &&
+               data.cabinetId is string &&
+               data.tipo_beneficio is string;
+      }
+      
+      allow create: if isCabinetMember() && dataBelongsToUserCabinet() && isValidAuxilioEstoque(incoming());
+      allow update: if isCabinetMember() && resourceBelongsToUserCabinet() && dataBelongsToUserCabinet() && isValidAuxilioEstoque(incoming());
+      allow delete: if isCabinetMember() && resourceBelongsToUserCabinet();
+    }
+
+    // INDICAÇÕES CARGOS
+    match /indicacoes_cargos/{id} {
+      allow read: if resourceBelongsToUserCabinet();
+      
+      function isValidIndicacaoCargo(data) {
+        return data.indicado_nome is string && data.indicado_nome.size() <= 150 &&
+               data.cabinetId is string &&
+               data.cargo_pretendido is string;
+      }
+      
+      allow create: if isCabinetMember() && dataBelongsToUserCabinet() && isValidIndicacaoCargo(incoming());
+      allow update: if isCabinetMember() && resourceBelongsToUserCabinet() && dataBelongsToUserCabinet() && isValidIndicacaoCargo(incoming());
+      allow delete: if isCabinetMember() && resourceBelongsToUserCabinet();
+    }
+
     // DEMANDAS PARLAMENTARES
     match /demandas_parlamentares/{id} {
       allow read: if resourceBelongsToUserCabinet();
