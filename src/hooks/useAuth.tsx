@@ -303,7 +303,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const role = activeProfile.role as string;
     
     // Superadmins and Suporte TI can do anything
-    if (role === 'superadmin' || role === 'suporte_ti') return true;
+    if (role === 'superadmin' || role === 'suporte_ti' || isSuperAdmin) return true;
     
     // Vereadores can do anything
     if (role === 'vereador') return true;
@@ -331,7 +331,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const role = activeProfile.role as string;
     
     // Superadmins, Suporte TI and Vereadores have all permissions
-    if (role === 'superadmin' || role === 'vereador' || role === 'suporte_ti') return true;
+    if (role === 'superadmin' || role === 'vereador' || role === 'suporte_ti' || isSuperAdmin) return true;
     
     // Check custom action permissions if explicitly defined
     if (activeProfile.permissions?.actions && activeProfile.permissions.actions[action] !== undefined) {
