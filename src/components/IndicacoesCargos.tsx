@@ -34,7 +34,7 @@ import {
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, formatProperName } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
@@ -91,6 +91,7 @@ export default function IndicacoesCargos() {
     try {
       const payload = {
         ...formData,
+        indicado_nome: formatProperName(formData.indicado_nome),
         cabinetId: profile.cabinetId,
         usuario_id: profile.id,
         usuario_nome: profile.nome,

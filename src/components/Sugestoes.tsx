@@ -28,7 +28,7 @@ import {
   User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, formatProperName } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -87,24 +87,29 @@ export default function Sugestoes() {
     }
     setSubmitting(true);
     try {
+      const payload = {
+        ...formData,
+        nome_completo: formatProperName(formData.nome_completo)
+      };
+
       if (editingId) {
         const existing = data.find(i => i.id === editingId);
         await updateDoc(doc(db, 'sugestoes', editingId), {
-          ...formData,
+          ...payload,
           cabinetId: profile?.cabinetId,
           usuario_id: user?.uid,
           updated_at: serverTimestamp()
         });
-        await logAction('Atualizar', 'sugestoes', editingId, { previous: existing, next: formData });
+        await logAction('Atualizar', 'sugestoes', editingId, { previous: existing, next: payload });
       } else {
         const docRef = await addDoc(collection(db, 'sugestoes'), {
-          ...formData,
+          ...payload,
           cabinetId: profile?.cabinetId,
           usuario_id: user?.uid,
           created_at: serverTimestamp(),
           updated_at: serverTimestamp(),
         });
-        await logAction('Criar', 'sugestoes', docRef.id, { next: formData });
+        await logAction('Criar', 'sugestoes', docRef.id, { next: payload });
       }
       closeModal();
     } catch (err) {

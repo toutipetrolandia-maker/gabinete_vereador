@@ -38,7 +38,7 @@ import {
   Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, formatProperName } from '../lib/utils';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -302,6 +302,7 @@ export default function Atendimentos() {
 
       const payload = {
         ...formData,
+        nome_completo: formatProperName(formData.nome_completo),
         cabinetId: profile?.cabinetId,
         usuario_id: user?.uid,
         assessor_id: user?.uid, // Send both for compatibility

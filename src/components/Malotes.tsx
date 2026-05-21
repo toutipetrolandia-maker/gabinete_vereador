@@ -29,7 +29,7 @@ import {
   MessageCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, formatProperName } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
@@ -98,23 +98,28 @@ export default function Malotes() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...formData,
+        destinatario: formatProperName(formData.destinatario)
+      };
+
       let maloteId = editingId;
       if (editingId) {
         const existing = data.find(i => i.id === editingId);
         await updateDoc(doc(db, 'malotes', editingId), {
-          ...formData,
+          ...payload,
           cabinetId: profile?.cabinetId,
           updated_at: serverTimestamp()
         });
-        await logAction('Atualizar', 'malotes', editingId, { previous: existing, next: formData });
+        await logAction('Atualizar', 'malotes', editingId, { previous: existing, next: payload });
       } else {
         const docRef = await addDoc(collection(db, 'malotes'), {
-          ...formData,
+          ...payload,
           cabinetId: profile?.cabinetId,
           created_at: serverTimestamp(),
         });
         maloteId = docRef.id;
-        await logAction('Criar', 'malotes', docRef.id, { next: formData });
+        await logAction('Criar', 'malotes', docRef.id, { next: payload });
       }
 
       // Update medical appointments status/pouch_id
