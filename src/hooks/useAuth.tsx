@@ -241,11 +241,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               });
             } else {
               // First time user? Let's check if we should create a profile
-              const isSuper = normalizedEmail === 'cleciotecnologia@gmail.com';
+              const isSuper = normalizedEmail === 'cleciotecnologia@gmail.com' ||
+                              normalizedEmail === 'toutipetrolandia@gmail.com';
               const isLorena = normalizedEmail === 'lorena.goamaral@gmail.com' || 
                                normalizedEmail === 'lorena.gomes@gmail.com';
               const isInitialAdmin = isSuper ||
-                                     normalizedEmail === 'toutipetrolandia@gmail.com' || 
                                      isLorena;
               
               if (isInitialAdmin) {
