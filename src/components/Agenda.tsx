@@ -45,7 +45,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
-import { cn, formatProperName } from '../lib/utils';
+import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
@@ -129,7 +129,6 @@ export default function Agenda() {
     try {
       const eventData = {
         ...formData,
-        contato_nome: formatProperName(formData.contato_nome),
         cabinetId: profile.cabinetId,
         updated_at: serverTimestamp(),
         usuario_id: user.uid,

@@ -27,7 +27,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn, formatProperName } from '../lib/utils';
+import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
@@ -132,28 +132,23 @@ export default function Demandas() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const payload = {
-        ...formData,
-        solicitante_nome: formatProperName(formData.solicitante_nome)
-      };
-
       if (editingId) {
         const existing = data.find(i => i.id === editingId);
         await updateDoc(doc(db, 'demandas_parlamentares', editingId), {
-          ...payload,
+          ...formData,
           cabinetId: profile?.cabinetId,
           usuario_id: existing?.usuario_id || profile?.id || 'system',
           updated_at: serverTimestamp()
         });
-        await logAction('Atualizar', 'demandas_parlamentares', editingId, { previous: existing, next: payload });
+        await logAction('Atualizar', 'demandas_parlamentares', editingId, { previous: existing, next: formData });
       } else {
         const docRef = await addDoc(collection(db, 'demandas_parlamentares'), {
-          ...payload,
+          ...formData,
           cabinetId: profile?.cabinetId,
           usuario_id: profile?.id || 'system',
           created_at: serverTimestamp(),
         });
-        await logAction('Criar', 'demandas_parlamentares', docRef.id, { next: payload });
+        await logAction('Criar', 'demandas_parlamentares', docRef.id, { next: formData });
       }
       closeModal();
     } catch (err) {

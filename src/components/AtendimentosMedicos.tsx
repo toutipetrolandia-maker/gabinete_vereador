@@ -34,7 +34,7 @@ import {
   Package
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn, formatProperName } from '../lib/utils';
+import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
@@ -212,7 +212,6 @@ export default function AtendimentosMedicos() {
     try {
       const payload = {
         ...formData,
-        nome_completo: formatProperName(formData.nome_completo),
         cabinetId: profile?.cabinetId,
         usuario_id: user?.uid,
         assessor_id: user?.uid, // Added for rule compatibility
