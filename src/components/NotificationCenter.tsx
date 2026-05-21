@@ -126,7 +126,7 @@ export default function NotificationCenter() {
     if (profile.role === 'admin' || profile.role === 'vereador' || profile.role === 'secretaria_parlamentar' || profile.email === 'cleciotecnologia@gmail.com' || profile.email === 'toutipetrolandia@gmail.com') {
       const qLogs = query(
         collection(db, 'logs'),
-        where('cabinetId', '==', profile.cabinetId),
+        where('cabinet_id', '==', profile.cabinetId),
         where('acao', '==', 'Primeiro Acesso'),
         orderBy('criado_em', 'desc'),
         limit(5)

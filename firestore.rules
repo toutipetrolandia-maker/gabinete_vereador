@@ -42,11 +42,17 @@ service cloud.firestore {
     }
     
     function dataBelongsToUserCabinet() {
-      return isSuper() || (isCabinetMember() && request.resource.data.cabinetId == getUserData().cabinetId);
+      return isSuper() || (isCabinetMember() && (
+        (request.resource.data.cabinetId != null && request.resource.data.cabinetId == getUserData().cabinetId) ||
+        (request.resource.data.cabinet_id != null && request.resource.data.cabinet_id == getUserData().cabinetId)
+      ));
     }
 
     function resourceBelongsToUserCabinet() {
-      return isSuper() || (isCabinetMember() && resource.data.cabinetId == getUserData().cabinetId);
+      return isSuper() || (isCabinetMember() && (
+        (resource.data.cabinetId != null && resource.data.cabinetId == getUserData().cabinetId) ||
+        (resource.data.cabinet_id != null && resource.data.cabinet_id == getUserData().cabinetId)
+      ));
     }
 
     function isVereador() {

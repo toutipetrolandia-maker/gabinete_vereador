@@ -247,8 +247,10 @@ export default function UserManagement() {
       setShowAddModal(false);
       handleResetForm();
       alert("Usuário criado com sucesso!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating user:", error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      alert("Erro ao criar usuário: " + (errorMsg.includes("permission") ? "Permissão negada no Firestore." : errorMsg));
       handleFirestoreError(error, OperationType.WRITE, 'users');
     } finally {
       setSubmitting(false);
@@ -280,7 +282,10 @@ export default function UserManagement() {
       setShowEditModal(false);
       handleResetForm();
       alert("Usuário atualizado com sucesso!");
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error updating user:", error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      alert("Erro ao atualizar usuário: " + (errorMsg.includes("permission") ? "Permissão negada no Firestore." : errorMsg));
       handleFirestoreError(error, OperationType.UPDATE, `users/${selectedUser.id}`);
     } finally {
       setSubmitting(false);
@@ -296,7 +301,10 @@ export default function UserManagement() {
         next: { ativo: !user.ativo },
         cabinetId: profile.cabinetId
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error toggling status:", error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      alert("Erro ao alterar status do usuário: " + (errorMsg.includes("permission") ? "Permissão negada no Firestore." : errorMsg));
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
     }
   };
@@ -319,7 +327,10 @@ export default function UserManagement() {
       await deleteDoc(doc(db, 'users', user.id));
       await logAction('Excluir Usuário', 'users', user.id, { previous: user, cabinetId: profile.cabinetId });
       alert("Usuário removido.");
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error deleting user:", error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      alert("Erro ao excluir usuário: " + (errorMsg.includes("permission") ? "Permissão negada." : errorMsg));
       handleFirestoreError(error, OperationType.DELETE, `users/${user.id}`);
     }
   };

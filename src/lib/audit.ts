@@ -18,6 +18,7 @@ export async function logAction(
       colecao: collectionName,
       documento_id: docId,
       cabinet_id: data?.cabinetId || null,
+      cabinetId: data?.cabinetId || null,
       dados_anteriores: data?.previous || null,
       dados_novos: data?.next || null,
       criado_em: serverTimestamp(),

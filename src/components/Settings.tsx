@@ -185,7 +185,7 @@ export default function Settings() {
     ) {
       const qLogs = query(
         collection(db, "logs"),
-        where("cabinetId", "==", profile.cabinetId),
+        where("cabinet_id", "==", profile.cabinetId),
         orderBy("criado_em", "desc"),
         limit(50),
       );
