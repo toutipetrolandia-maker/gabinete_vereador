@@ -681,20 +681,20 @@ export default function UserManagement() {
                 </div>
 
                 {/* Custom Permissions Panel */}
-                <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-800 space-y-4 max-h-[300px] overflow-y-auto text-left">
+                <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-800 space-y-4 max-h-[400px] overflow-y-auto text-left">
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Permissões de Acesso</h4>
                       <p className="text-[10px] text-slate-500">Defina o que este usuário pode ver ou fazer</p>
                     </div>
-                    {!(isSuperAdmin || profile?.role === 'vereador') && (
+                    {!canManage && (
                       <span className="text-[9px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-medium">Apenas Leitura</span>
                     )}
                   </div>
 
-                  {!(isSuperAdmin || profile?.role === 'vereador') && (
+                  {!canManage && (
                     <p className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/10 rounded-xl p-2 font-medium">
-                      Apenas o Super Admin ou o Vereador podem modificar permissões específicas de usuários.
+                      Apenas administradores, o vereador ou a secretaria parlamentar podem modificar permissões específicas de usuários.
                     </p>
                   )}
 
@@ -710,12 +710,12 @@ export default function UserManagement() {
                             isChecked 
                               ? "bg-blue-600/10 border-blue-500/20 text-slate-200 font-medium" 
                               : "bg-slate-950/20 border-slate-900 text-slate-500 hover:text-slate-400",
-                            !(isSuperAdmin || profile?.role === 'vereador') && "cursor-not-allowed opacity-75"
+                            !canManage && "cursor-not-allowed opacity-75"
                           )}>
                             <input 
                               type="checkbox"
                               checked={isChecked}
-                              disabled={!(isSuperAdmin || profile?.role === 'vereador')}
+                              disabled={!canManage}
                               onChange={(e) => {
                                 setCustomPermissions({
                                   ...customPermissions,
@@ -746,12 +746,12 @@ export default function UserManagement() {
                             isChecked 
                               ? "bg-blue-600/10 border-blue-500/20 text-slate-200 font-medium" 
                               : "bg-slate-950/20 border-slate-900 text-slate-500 hover:text-slate-400",
-                            !(isSuperAdmin || profile?.role === 'vereador') && "cursor-not-allowed opacity-75"
+                            !canManage && "cursor-not-allowed opacity-75"
                           )}>
                             <input 
                               type="checkbox"
                               checked={isChecked}
-                              disabled={!(isSuperAdmin || profile?.role === 'vereador')}
+                              disabled={!canManage}
                               onChange={(e) => {
                                 setCustomPermissions({
                                   ...customPermissions,
