@@ -102,6 +102,31 @@ export default function Atendimentos() {
   const [medicalHistory, setMedicalHistory] = useState<any[]>([]);
   const [searchingMedical, setSearchingMedical] = useState(false);
   const [waConfig, setWaConfig] = useState<WhatsAppConfig | null>(null);
+  const [cabinetUsers, setCabinetUsers] = useState<any[]>([]);
+  const [onlyMyAtendimentos, setOnlyMyAtendimentos] = useState(false);
+
+  useEffect(() => {
+    if (!profile?.cabinetId) return;
+    const q = query(
+      collection(db, 'users'),
+      where('cabinetId', '==', profile.cabinetId)
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      const uList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setCabinetUsers(uList);
+    }, (error) => {
+      console.error("Error fetching cabinet users:", error);
+    });
+    return () => unsub();
+  }, [profile?.cabinetId]);
+
+  const getAssessorName = (assessorId: string) => {
+    const userObj = cabinetUsers.find(u => u.id === assessorId);
+    return userObj ? userObj.nome : 'Não atribuído';
+  };
 
   useEffect(() => {
     if (!profile?.cabinetId) return;
@@ -144,6 +169,7 @@ export default function Atendimentos() {
     lgpd_consent: false,
     latitude: null as number | null,
     longitude: null as number | null,
+    assessor_id: '',
   };
 
   // Masks
@@ -305,7 +331,7 @@ export default function Atendimentos() {
         nome_completo: formatProperName(formData.nome_completo),
         cabinetId: profile?.cabinetId,
         usuario_id: user?.uid,
-        assessor_id: user?.uid, // Send both for compatibility
+        assessor_id: formData.assessor_id || user?.uid || '',
         updated_at: serverTimestamp(),
       };
 
@@ -383,6 +409,7 @@ export default function Atendimentos() {
       lgpd_consent: item.lgpd_consent || false,
       latitude: item.latitude || null,
       longitude: item.longitude || null,
+      assessor_id: item.assessor_id || '',
     });
     if (item.cpf) fetchMedicalHistory(item.cpf);
     setShowModal(true);
@@ -413,7 +440,9 @@ export default function Atendimentos() {
     
     const matchesType = activeTypeFilter === 'Todos' || item.tipo_atendimento === activeTypeFilter;
     
-    return matchesSearch && matchesCPF && matchesPhone && matchesType;
+    const matchesAssigned = !onlyMyAtendimentos || item.assessor_id === user?.uid || (!item.assessor_id && item.usuario_id === user?.uid);
+
+    return matchesSearch && matchesCPF && matchesPhone && matchesType && matchesAssigned;
   });
 
   return (
@@ -424,6 +453,19 @@ export default function Atendimentos() {
           <p className="text-slate-400 text-sm">Gerencie os atendimentos gerais do gabinete.</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setOnlyMyAtendimentos(!onlyMyAtendimentos)}
+            className={cn(
+              "flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold uppercase transition-all border shrink-0",
+              onlyMyAtendimentos
+                ? "bg-amber-500/10 border-amber-500/30 text-amber-400 font-bold"
+                : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-300"
+            )}
+          >
+            <User size={14} />
+            <span>Meus Atendimentos</span>
+          </button>
+          
           <div className="flex bg-slate-900 border border-slate-800 rounded-xl p-1 shrink-0">
             <button 
               onClick={() => setViewMode('list')}
@@ -587,6 +629,10 @@ export default function Atendimentos() {
                               </span>
                             </>
                           )}
+                          <span className="text-[10px] text-slate-600">•</span>
+                          <span className="inline-flex items-center gap-1 text-[10px] bg-slate-800/80 text-blue-300 border border-slate-700/50 px-1.5 py-0.5 rounded font-medium">
+                            <span className="text-slate-500 font-bold">Assessor:</span> {getAssessorName(item.assessor_id || item.usuario_id)}
+                          </span>
                         </div>
                       </div>
                     </td>
@@ -998,6 +1044,19 @@ export default function Atendimentos() {
                       <option>Baixa</option>
                       <option>Média</option>
                       <option>Alta</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Assessor Responsável</label>
+                    <select 
+                      value={formData.assessor_id || ''}
+                      onChange={e => setFormData({...formData, assessor_id: e.target.value})}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors appearance-none"
+                    >
+                      <option value="">Selecione um assessor...</option>
+                      {cabinetUsers.map(u => (
+                        <option key={u.id} value={u.id}>{u.nome}</option>
+                      ))}
                     </select>
                   </div>
                 </div>

@@ -491,7 +491,7 @@ export default function AtendimentosMedicos() {
             </div>
 
             <div class="footer">
-              Este documento foi gerado pelo Sistema de Gestão de Gabinete em ${format(new Date(), "dd/MM/yyyy HH:mm:ss")} por ${user?.email || "Sistema"}.
+              Este documento foi gerado pelo Sistema de Gestão de Gabinete em ${format(new Date(), "dd/MM/yyyy HH:mm:ss")} por ${profile?.nome || user?.email || "Sistema"}.
             </div>
             
             <div class="btn-print no-print">

@@ -125,6 +125,11 @@ export default function Settings() {
   };
   const [appName, setAppName] = useState("Gabinete Digital");
   const [customDomain, setCustomDomain] = useState("");
+  const [checkingDns, setCheckingDns] = useState(false);
+  const [dnsStatus, setDnsStatus] = useState<"idle" | "success" | "failed" | "checking">("idle");
+  const [dnsError, setDnsError] = useState<string | null>(null);
+  const [detectedCNAME, setDetectedCNAME] = useState<string | null>(null);
+  const [activeDnsTipProvider, setActiveDnsTipProvider] = useState<"registro" | "cloudflare" | "godaddy" | "hostgator">("registro");
   const [subdomain, setSubdomain] = useState("");
   const [vereadorPhoto, setVereadorPhoto] = useState<string | null>(null);
   const [cabinetLogo, setCabinetLogo] = useState<string | null>(null);
@@ -282,6 +287,75 @@ export default function Settings() {
       alert("Erro ao salvar configurações. Verifique o console.");
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleVerifyDNS = async () => {
+    if (!customDomain) {
+      alert("Por favor, digite o seu Domínio Próprio no campo acima antes de verificar.");
+      return;
+    }
+    setCheckingDns(true);
+    setDnsStatus("checking");
+    setDnsError(null);
+    setDetectedCNAME(null);
+
+    // Ensure no protocol prefix or path or space is in the domain
+    const cleanDomain = customDomain
+      .replace(/^(https?:\/\/)?(www\.)?/, "")
+      .replace(/\/.*$/, "")
+      .trim();
+
+    try {
+      const response = await fetch(
+        `https://dns.google/resolve?name=${encodeURIComponent(cleanDomain)}&type=CNAME`
+      );
+      const data = await response.json();
+      
+      if (data.Answer && data.Answer.length > 0) {
+        // CNAME records list
+        const cnameAnswer = data.Answer.find((ans: any) => ans.type === 5); // Type 5 is CNAME
+        if (cnameAnswer) {
+          const target = cnameAnswer.data.replace(/\.$/, ""); // strip trailing dot
+          setDetectedCNAME(target);
+          
+          const expectedTarget = "ais-pre-zx4erixn2wolzm2s7tegu6-193265993046.us-east5.run.app";
+          if (target.toLowerCase().includes("run.app") || target.toLowerCase().includes(expectedTarget)) {
+            setDnsStatus("success");
+          } else {
+            setDnsStatus("failed");
+            setDnsError(`O domínio possui um CNAME apontando para "${target}", mas o correto seria apontar para "${expectedTarget}".`);
+          }
+        } else {
+          setDnsStatus("failed");
+          setDnsError("Nenhum registro CNAME foi retornado. É possível que o domínio esteja usando um registro A direto para IP.");
+        }
+      } else {
+        // Look for A record as fallback warning
+        const aResponse = await fetch(
+          `https://dns.google/resolve?name=${encodeURIComponent(cleanDomain)}&type=A`
+        );
+        const aData = await aResponse.json();
+        if (aData.Answer && aData.Answer.length > 0) {
+          const aAnswer = aData.Answer.find((ans: any) => ans.type === 1); // Type 1 is A
+          if (aAnswer) {
+            setDnsStatus("failed");
+            setDnsError(`Foi encontrado um registro do tipo A apontando para IP "${aAnswer.data}". Para o correto funcionamento de subdomínios, mude o tipo da entrada de "A" para "CNAME" e defina o destino correto.`);
+          } else {
+            setDnsStatus("failed");
+            setDnsError("Nenhum registro DNS do tipo CNAME foi encontrado na consulta direta.");
+          }
+        } else {
+          setDnsStatus("failed");
+          setDnsError("Nenhum registro DNS do tipo CNAME ou A foi detectado para este domínio. Verifique a grafia e se a entrada já foi criada no seu registrador.");
+        }
+      }
+    } catch (err: any) {
+      console.error("Erro ao verificar DNS:", err);
+      setDnsStatus("failed");
+      setDnsError("Erro na requisição. Verifique sua conexão ou se o domínio é válido.");
+    } finally {
+      setCheckingDns(false);
     }
   };
 
@@ -972,21 +1046,22 @@ export default function Settings() {
                     </div>
 
                     {/* DNS Configuration Guide Panel */}
-                    <div className="p-5 bg-slate-900/60 border border-slate-800 rounded-2xl space-y-4">
+                    <div className="p-6 bg-slate-900/60 border border-slate-800 rounded-3xl space-y-6">
                       <div className="flex items-center gap-2">
-                        <Globe className="text-emerald-500" size={18} />
+                        <Globe className="text-emerald-500 animate-pulse" size={18} />
                         <span className="text-xs font-black uppercase text-slate-300 tracking-wider">
-                          Instruções para Apontamento de DNS
+                          Guia de Domínio & Dicas de Apontamento
                         </span>
                       </div>
 
                       <p className="text-xs text-slate-400">
-                        Para que o seu <strong>Domínio Próprio</strong> aponte corretamente para este Gabinete Digital, acesse o painel de controle do seu registrador de domínio (Registro.br, Cloudflare, GoDaddy, etc.) e configure a sua zona de DNS adicionando uma das seguintes regras CNAME:
+                        Para que o seu <strong>Domínio Próprio</strong> aponte corretamente para este Gabinete Digital, acesse o painel de controle do seu registrador de domínio e configure a zona de DNS adicionando um registro CNAME.
                       </p>
 
+                      {/* Regras CNAME Recomendadas */}
                       <div className="space-y-3">
                         <div className="bg-slate-950/50 rounded-xl p-4 border border-slate-800/80">
-                          <p className="text-[10px] font-black uppercase text-indigo-400 tracking-wider mb-2">
+                          <p className="text-[10px] font-black uppercase text-blue-400 tracking-wider mb-2">
                             Para Subdomínios (Opção Recomendada - ex: gabinete.seusite.com.br)
                           </p>
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -1018,7 +1093,7 @@ export default function Settings() {
                         </div>
 
                         <div className="bg-slate-950/50 rounded-xl p-4 border border-slate-800/80">
-                          <p className="text-[10px] font-black uppercase text-indigo-400 tracking-wider mb-2">
+                          <p className="text-[10px] font-black uppercase text-blue-400 tracking-wider mb-2">
                             Para Domínio com WWW (ex: www.seusite.com.br)
                           </p>
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -1049,10 +1124,176 @@ export default function Settings() {
                         </div>
                       </div>
 
+                      {/* Dicas por Provedor */}
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-widest">
+                          Dicas de Configuração por Provedor
+                        </label>
+                        <div className="flex flex-wrap gap-1.5 p-1 bg-slate-950/45 rounded-xl border border-slate-850">
+                          {(["registro", "cloudflare", "godaddy", "hostgator"] as const).map((prov) => (
+                            <button
+                              key={prov}
+                              type="button"
+                              onClick={() => setActiveDnsTipProvider(prov)}
+                              className={cn(
+                                "flex-1 text-center py-2 px-2 text-xs rounded-lg font-bold uppercase tracking-wider transition-all",
+                                activeDnsTipProvider === prov
+                                  ? "bg-slate-850 text-white shadow-md border border-slate-700"
+                                  : "text-slate-400 hover:text-slate-300 hover:bg-slate-900/50"
+                              )}
+                            >
+                              {prov === "registro" ? "Registro.br" : prov === "cloudflare" ? "Cloudflare" : prov === "godaddy" ? "GoDaddy" : "HostGator"}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="bg-slate-950/30 rounded-xl p-4 border border-slate-800 space-y-2 text-xs leading-relaxed text-slate-400">
+                          {activeDnsTipProvider === "registro" && (
+                            <ul className="list-decimal list-inside space-y-1.5">
+                              <li>Acesse sua conta no <strong className="text-slate-200">Registro.br</strong> e clique no domínio.</li>
+                              <li>Role até a seção <strong className="text-slate-200">DNS</strong> e clique em <strong className="text-slate-200">Editar Zona</strong> (ou Configurar se já estiver ativo).</li>
+                              <li>Selecione <strong className="text-slate-200">Nova Entrada</strong>.</li>
+                              <li>Selecione o tipo <strong className="text-emerald-400 font-mono">CNAME</strong>.</li>
+                              <li>No campo <strong className="text-slate-200">Nome</strong>, digite o subdomínio desejado (ex: <code className="font-mono bg-slate-900 px-1 py-0.5 rounded text-indigo-400">gabinete</code>).</li>
+                              <li>No campo <strong className="text-slate-200">Dados (Destino)</strong>, insira: <code className="font-mono bg-slate-900 px-1 py-0.5 rounded text-blue-400 text-[10px] break-all">ais-pre-zx4erixn2wolzm2s7tegu6-193265993046.us-east5.run.app</code>.</li>
+                              <li>Clique em <strong className="text-slate-200">Adicionar</strong> e depois em <strong className="text-slate-200">Salvar</strong>.</li>
+                            </ul>
+                          )}
+
+                          {activeDnsTipProvider === "cloudflare" && (
+                            <ul className="list-decimal list-inside space-y-1.5">
+                              <li>Acesse sua conta na <strong className="text-slate-200">Cloudflare</strong>, selecione seu site.</li>
+                              <li>No menu lateral, selecione <strong className="text-slate-200">DNS</strong> &gt; <strong className="text-slate-200">Records</strong>.</li>
+                              <li>Clique em <strong className="text-slate-200">Add Record</strong>.</li>
+                              <li>Altere o tipo para <strong className="text-emerald-400 font-mono">CNAME</strong>.</li>
+                              <li>No campo <strong className="text-slate-200">Name</strong>, coloque seu subdomínio (ex: <code className="font-mono bg-slate-900 px-1 py-0.5 rounded text-indigo-400">gabinete</code> ou <code className="font-mono bg-slate-900 px-1 py-0.5 rounded text-indigo-400">www</code>).</li>
+                              <li>No campo <strong className="text-slate-200">Target</strong>, digite o valor: <code className="font-mono bg-slate-900 px-1 py-0.5 rounded text-blue-400 text-[10px] break-all">ais-pre-zx4erixn2wolzm2s7tegu6-193265993046.us-east5.run.app</code>.</li>
+                              <li><strong className="text-amber-400">Dica crucial:</strong> Altere o status de <strong className="text-orange-400">Proxy status</strong> para <strong className="text-slate-300">DNS Only (Nuvem cinza)</strong> para evitar problemas de certificado SSL direto.</li>
+                              <li>Clique em <strong className="text-slate-200">Save</strong>.</li>
+                            </ul>
+                          )}
+
+                          {activeDnsTipProvider === "godaddy" && (
+                            <ul className="list-decimal list-inside space-y-1.5">
+                              <li>Acesse a <strong className="text-slate-200">GoDaddy</strong>, vá na página de portfólio de domínios.</li>
+                              <li>Clique em <strong className="text-slate-200">Ações de Domínio</strong> &gt; <strong className="text-slate-200">Configurações de DNS</strong>.</li>
+                              <li>Clique em <strong className="text-slate-200">Adicionar Novo Registro</strong>.</li>
+                              <li>Selecione o tipo <strong className="text-emerald-400 font-mono">CNAME</strong>.</li>
+                              <li>No campo <strong className="text-slate-200">Host (Nome)</strong>, insira seu subdomínio (ex: <code className="font-mono bg-slate-900 px-1 py-0.5 rounded text-indigo-400">gabinete</code>).</li>
+                              <li>No campo <strong className="text-slate-200">Value (Valor/Aponta para)</strong>, preencha com: <code className="font-mono bg-slate-900 px-1 py-0.5 rounded text-blue-400 text-[10px] break-all">ais-pre-zx4erixn2wolzm2s7tegu6-193265993046.us-east5.run.app</code>.</li>
+                              <li>Deixe o TTL em padrão (ou <code className="font-mono">1 hora</code>) e clique em <strong className="text-slate-200">Salvar</strong>.</li>
+                            </ul>
+                          )}
+
+                          {activeDnsTipProvider === "hostgator" && (
+                            <ul className="list-decimal list-inside space-y-1.5">
+                              <li>Entre no portal da <strong className="text-slate-200">HostGator</strong> e vá no cPanel.</li>
+                              <li>Localize a ferramenta <strong className="text-slate-200">Editor de Zona DNS (Zone Editor)</strong>.</li>
+                              <li>Selecione o domínio desejado e clique em <strong className="text-slate-200">Gerenciar</strong>.</li>
+                              <li>Clique em <strong className="text-slate-200">+ Adicionar Registro</strong> do tipo <strong className="text-emerald-400 font-mono">CNAME</strong>.</li>
+                              <li>Defina a entrada <strong className="text-slate-200">Nome</strong> como o subdomínio completo (ex: <code className="font-mono bg-slate-900 px-1 py-0.5 rounded text-indigo-400">gabinete.seusite.com.br</code>).</li>
+                              <li>No campo <strong className="text-slate-200">Registrar/Record</strong>, preencha com o endereço de destino: <code className="font-mono bg-slate-900 px-1 py-0.5 rounded text-blue-400 text-[10px] break-all">ais-pre-zx4erixn2wolzm2s7tegu6-193265993046.us-east5.run.app</code>.</li>
+                              <li>Clique em <strong className="text-slate-200">Adicionar Registro</strong>.</li>
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Live Diagnostic Checker Widget */}
+                      <div className="bg-slate-950/60 rounded-2xl p-5 border border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 font-semibold">
+                            <Activity className="text-blue-500 animate-pulse" size={16} />
+                            <span className="text-xs font-extrabold uppercase text-slate-300 tracking-wider">
+                              Painel de Diagnóstico DNS em Tempo Real
+                            </span>
+                          </div>
+                          {customDomain && (
+                            <span className="text-[10px] font-mono text-slate-500 px-2 py-0.5 bg-slate-900 rounded-md border border-slate-800">
+                              {customDomain}
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          Consulte diretamente os servidores de DNS públicos em tempo real para verificar se o seu apontamento CNAME já está funcionando perfeitamente.
+                        </p>
+
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <button
+                            type="button"
+                            onClick={handleVerifyDNS}
+                            disabled={checkingDns || !customDomain}
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold py-2.5 px-5 rounded-xl text-xs transition-all flex items-center justify-center gap-2 border border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            {checkingDns ? (
+                              <>
+                                <span className="w-3 h-3 border-2 border-slate-400 border-t-white rounded-full animate-spin"></span>
+                                Consultando Servidores...
+                              </>
+                            ) : (
+                              <>
+                                <Activity size={13} />
+                                Testar Apontamento Agora
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {dnsStatus !== "idle" && (
+                          <div className="space-y-3 pt-2">
+                            {dnsStatus === "checking" && (
+                              <div className="border border-slate-800 bg-slate-900/40 rounded-xl p-3 flex items-center justify-center text-slate-500 gap-2 text-xs">
+                                <span className="w-4 h-4 border-2 border-slate-500 border-t-blue-500 rounded-full animate-spin"></span>
+                                Verificando registros CNAME em servidores DNS mundiais...
+                              </div>
+                            )}
+
+                            {dnsStatus === "success" && (
+                              <div className="border border-emerald-950 bg-emerald-950/20 rounded-xl p-4 space-y-2">
+                                <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+                                  <CheckCircle2 size={16} className="text-emerald-500" />
+                                  <span>DNS Configurado com Sucesso!</span>
+                                </div>
+                                <p className="text-[11px] text-slate-400">
+                                  Excelente! O domínio <strong className="text-slate-300 font-mono text-xs">{customDomain}</strong> está resolvendo corretamente para o CNAME esperado.
+                                </p>
+                                {detectedCNAME && (
+                                  <div className="bg-slate-950/70 p-2 rounded-lg border border-slate-800 text-[10px] font-mono text-slate-500">
+                                    <span className="text-slate-400 select-all font-mono">CNAME Detectado: <strong>{detectedCNAME}</strong></span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {dnsStatus === "failed" && (
+                              <div className="border border-amber-900/60 bg-amber-950/10 rounded-xl p-4 space-y-2">
+                                <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
+                                  <AlertCircle size={16} className="text-amber-500" />
+                                  <span>Apontamento Pendente ou Incorreto</span>
+                                </div>
+                                <p className="text-[11px] text-slate-400">
+                                  {dnsError}
+                                </p>
+                                {detectedCNAME && (
+                                  <div className="bg-slate-950/70 p-2 rounded-lg border border-slate-800 text-[10px] font-mono text-slate-400">
+                                    <span className="text-slate-400 select-all font-mono">Valor Atual: <strong>{detectedCNAME}</strong></span>
+                                  </div>
+                                )}
+                                <div className="pt-1.5 flex items-start gap-2 border-t border-slate-800 mt-2 text-[10px] text-slate-500 leading-relaxed italic">
+                                  <span className="text-amber-500 font-bold shrink-0">💡 Dica:</span>
+                                  <span>Se você acabou de fazer a alteração no painel, aguarde o tempo de propagação (normalmente de 5 minutos até algumas horas) e tente novamente. Certifique-se de salvar suas configurações antes de sair.</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
                       <div className="bg-slate-950/30 p-3 rounded-xl border border-slate-800/40 flex items-start gap-2.5">
                         <AlertCircle className="text-amber-500 shrink-0 mt-0.5" size={14} />
                         <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                          A propagação das alterações DNS pode levar de alguns minutos até 24 horas dependendo do seu serviço de registro de domínios. Guarde as alterações do Gabinete clicando no botão "Salvar Configurações" ao final desta página.
+                          A propagação completa das alterações de DNS pode levar até 24 horas. Salve as alterações cadastrais do seu gabinete clicando em "Salvar Configurações" na parte inferior da página.
                         </p>
                       </div>
                     </div>

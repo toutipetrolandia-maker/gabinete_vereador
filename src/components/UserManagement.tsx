@@ -77,7 +77,7 @@ export default function UserManagement() {
     email: '',
     username: '',
     role: 'assessor',
-    ativo: true,
+    ativo: false,
     password: '', // New field for temporary password
   });
 
@@ -183,7 +183,7 @@ export default function UserManagement() {
       email: '',
       username: '',
       role: 'assessor',
-      ativo: true,
+      ativo: false,
       password: '',
     });
     setCustomPermissions({
@@ -458,12 +458,13 @@ export default function UserManagement() {
                       disabled={!canManage}
                       className={cn(
                         "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all",
-                        user.ativo ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20",
-                        canManage && "hover:bg-opacity-20"
+                        user.ativo ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-500 border border-amber-500/20 animate-pulse",
+                        canManage && "hover:bg-opacity-20 pointer-events-auto cursor-pointer"
                       )}
+                      title={canManage ? "Clique para alterar o status de aprovação" : ""}
                     >
-                      {user.ativo ? <UserCheck size={10} /> : <UserX size={10} />}
-                      {user.ativo ? 'Ativo' : 'Inativo'}
+                      {user.ativo ? <UserCheck size={10} /> : <Clock size={10} />}
+                      {user.ativo ? 'Aprovado / Ativo' : 'Aguardando Aprovação'}
                     </button>
                   </td>
                   <td className="px-6 py-4 text-right">
