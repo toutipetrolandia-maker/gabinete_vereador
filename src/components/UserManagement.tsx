@@ -148,7 +148,7 @@ export default function UserManagement() {
     actions: getDefaultsForRole('assessor').actions
   });
 
-  const canManage = profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' || isSuperAdmin;
+  const canManage = profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' || profile?.role === 'suporte_ti' || isSuperAdmin;
 
   useEffect(() => {
     if (!profile?.cabinetId) return;
@@ -527,12 +527,12 @@ export default function UserManagement() {
               className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100]"
             />
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-x-4 top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-8 z-[101] shadow-2xl"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-x-4 max-h-[85vh] top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 z-[101] shadow-2xl flex flex-col overflow-hidden"
             >
-              <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center justify-between mb-6 shrink-0">
                 <div>
                   <h3 className="text-xl font-bold text-white">
                     {showAddModal ? 'Adicionar Novo Membro' : 'Editar Colaborador'}
@@ -552,7 +552,10 @@ export default function UserManagement() {
                 </button>
               </div>
 
-              <form onSubmit={showAddModal ? handleCreateUser : handleUpdateUser} className="space-y-5">
+              <form 
+                onSubmit={showAddModal ? handleCreateUser : handleUpdateUser} 
+                className="flex-1 overflow-y-auto space-y-5 pr-2 -mr-2 text-left"
+              >
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Nome Completo</label>
                   <input 
@@ -681,95 +684,97 @@ export default function UserManagement() {
                 </div>
 
                 {/* Custom Permissions Panel */}
-                <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-800 space-y-4 max-h-[400px] overflow-y-auto text-left">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Permissões de Acesso</h4>
-                      <p className="text-[10px] text-slate-500">Defina o que este usuário pode ver ou fazer</p>
+                {formData.role !== 'assessor' && formData.role !== 'consulta' && (
+                  <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-800 space-y-4 max-h-[300px] overflow-y-auto text-left">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Permissões de Acesso</h4>
+                        <p className="text-[10px] text-slate-500">Defina o que este usuário pode ver ou fazer</p>
+                      </div>
+                      {!canManage && (
+                        <span className="text-[9px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-medium">Apenas Leitura</span>
+                      )}
                     </div>
+
                     {!canManage && (
-                      <span className="text-[9px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-medium">Apenas Leitura</span>
+                      <p className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/10 rounded-xl p-2 font-medium">
+                        Apenas administradores, o vereador ou a secretaria parlamentar podem modificar permissões específicas de usuários.
+                      </p>
                     )}
-                  </div>
 
-                  {!canManage && (
-                    <p className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/10 rounded-xl p-2 font-medium">
-                      Apenas administradores, o vereador ou a secretaria parlamentar podem modificar permissões específicas de usuários.
-                    </p>
-                  )}
+                    {/* Modules Permissions */}
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block border-b border-slate-800/50 pb-1">Visualizar Páginas (Menu Lateral)</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {SYSTEM_MODULES.map((m) => {
+                          const isChecked = customPermissions.modules?.[m.id] !== false;
+                          return (
+                            <label key={m.id} className={cn(
+                              "flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition-all",
+                              isChecked 
+                                ? "bg-blue-600/10 border-blue-500/20 text-slate-200 font-medium" 
+                                : "bg-slate-950/20 border-slate-900 text-slate-500 hover:text-slate-400",
+                              !canManage && "cursor-not-allowed opacity-75"
+                            )}>
+                              <input 
+                                type="checkbox"
+                                checked={isChecked}
+                                disabled={!canManage}
+                                onChange={(e) => {
+                                  setCustomPermissions({
+                                    ...customPermissions,
+                                    modules: {
+                                      ...customPermissions.modules,
+                                      [m.id]: e.target.checked
+                                    }
+                                  });
+                                }}
+                                className="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer disabled:cursor-not-allowed"
+                              />
+                              <span>{m.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-                  {/* Modules Permissions */}
-                  <div className="space-y-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block border-b border-slate-800/50 pb-1">Visualizar Páginas (Menu Lateral)</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {SYSTEM_MODULES.map((m) => {
-                        const isChecked = customPermissions.modules?.[m.id] !== false;
-                        return (
-                          <label key={m.id} className={cn(
-                            "flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition-all",
-                            isChecked 
-                              ? "bg-blue-600/10 border-blue-500/20 text-slate-200 font-medium" 
-                              : "bg-slate-950/20 border-slate-900 text-slate-500 hover:text-slate-400",
-                            !canManage && "cursor-not-allowed opacity-75"
-                          )}>
-                            <input 
-                              type="checkbox"
-                              checked={isChecked}
-                              disabled={!canManage}
-                              onChange={(e) => {
-                                setCustomPermissions({
-                                  ...customPermissions,
-                                  modules: {
-                                    ...customPermissions.modules,
-                                    [m.id]: e.target.checked
-                                  }
-                                });
-                              }}
-                              className="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer disabled:cursor-not-allowed"
-                            />
-                            <span>{m.label}</span>
-                          </label>
-                        );
-                      })}
+                    {/* Actions Permissions */}
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block border-b border-slate-800/50 pb-1">Permissões de Escrita (Ações)</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {SYSTEM_ACTIONS.map((act) => {
+                          const isChecked = customPermissions.actions?.[act.id as 'create'|'edit'|'delete'] !== false;
+                          return (
+                            <label key={act.id} className={cn(
+                              "flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition-all",
+                              isChecked 
+                                ? "bg-blue-600/10 border-blue-500/20 text-slate-200 font-medium" 
+                                : "bg-slate-950/20 border-slate-900 text-slate-500 hover:text-slate-400",
+                              !canManage && "cursor-not-allowed opacity-75"
+                            )}>
+                              <input 
+                                type="checkbox"
+                                checked={isChecked}
+                                disabled={!canManage}
+                                onChange={(e) => {
+                                  setCustomPermissions({
+                                    ...customPermissions,
+                                    actions: {
+                                      ...customPermissions.actions,
+                                      [act.id]: e.target.checked
+                                    }
+                                  });
+                                }}
+                                className="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer disabled:cursor-not-allowed"
+                              />
+                              <span>{act.id === 'create' ? 'Cadastrar' : act.id === 'edit' ? 'Editar' : 'Excluir'}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
-
-                  {/* Actions Permissions */}
-                  <div className="space-y-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block border-b border-slate-800/50 pb-1">Permissões de Escrita (Ações)</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {SYSTEM_ACTIONS.map((act) => {
-                        const isChecked = customPermissions.actions?.[act.id as 'create'|'edit'|'delete'] !== false;
-                        return (
-                          <label key={act.id} className={cn(
-                            "flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition-all",
-                            isChecked 
-                              ? "bg-blue-600/10 border-blue-500/20 text-slate-200 font-medium" 
-                              : "bg-slate-950/20 border-slate-900 text-slate-500 hover:text-slate-400",
-                            !canManage && "cursor-not-allowed opacity-75"
-                          )}>
-                            <input 
-                              type="checkbox"
-                              checked={isChecked}
-                              disabled={!canManage}
-                              onChange={(e) => {
-                                setCustomPermissions({
-                                  ...customPermissions,
-                                  actions: {
-                                    ...customPermissions.actions,
-                                    [act.id]: e.target.checked
-                                  }
-                                });
-                              }}
-                              className="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer disabled:cursor-not-allowed"
-                            />
-                            <span>{act.id === 'create' ? 'Cadastrar' : act.id === 'edit' ? 'Editar' : 'Excluir'}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
+                )}
 
                 <div className="pt-6">
                   <button 

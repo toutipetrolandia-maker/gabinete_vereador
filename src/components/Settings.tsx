@@ -552,6 +552,8 @@ export default function Settings() {
           {(profile?.role === "admin" ||
             profile?.role === "vereador" ||
             profile?.role === "assessor" ||
+            profile?.role === "secretaria_parlamentar" ||
+            profile?.role === "suporte_ti" ||
             isSuperAdmin) && (
             <button
               onClick={() => setActiveSubTab("users")}
