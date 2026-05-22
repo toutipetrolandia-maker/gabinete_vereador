@@ -54,6 +54,8 @@ export default function AtendimentosMedicos() {
   // States for cross-data
   const [citizenHistory, setCitizenHistory] = useState<any[]>([]);
   const [searchingCitizen, setSearchingCitizen] = useState(false);
+  const [cpfError, setCpfError] = useState<string | null>(null);
+  const [cpfValidated, setCpfValidated] = useState<boolean>(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -119,19 +121,16 @@ export default function AtendimentosMedicos() {
   const searchCitizenData = async (cpf: string) => {
     const maskedCPF = maskCPF(cpf);
     const cleanCPF = cpf.replace(/\D/g, "");
-    if (cleanCPF.length < 11 || !profile?.cabinetId) return;
+    if (cleanCPF.length < 11 || !profile?.cabinetId) {
+      setCpfError(null);
+      setCpfValidated(false);
+      return;
+    }
 
     setSearchingCitizen(true);
+    setCpfError(null);
     try {
-      // 1. Search in Medical Records first (more specific data like SUS card)
-      const qMed = query(
-        collection(db, "atendimentos_medicos"),
-        where("cabinetId", "==", profile?.cabinetId),
-        where("cpf", "==", maskedCPF),
-        orderBy("created_at", "desc"),
-      );
-
-      // 2. Search in General Assistances
+      // 1. Search in General Assistances (Atendimentos) - MUST exist there!
       const qGen = query(
         collection(db, "atendimentos"),
         where("cabinetId", "==", profile?.cabinetId),
@@ -139,42 +138,58 @@ export default function AtendimentosMedicos() {
         orderBy("created_at", "desc"),
       );
 
-      const [medSnap, genSnap] = await Promise.all([
-        getDocs(qMed),
+      // 2. Search in Medical Records (for medical history compile)
+      const qMed = query(
+        collection(db, "atendimentos_medicos"),
+        where("cabinetId", "==", profile?.cabinetId),
+        where("cpf", "==", maskedCPF),
+        orderBy("created_at", "desc"),
+      );
+
+      const [genSnap, medSnap] = await Promise.all([
         getDocs(qGen),
+        getDocs(qMed),
       ]);
 
       let foundData: any = null;
       let history: any[] = [];
+      const isCpfValid = !genSnap.empty;
 
-      if (!medSnap.empty) {
-        foundData = medSnap.docs[0].data();
-        history = [
-          ...medSnap.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-            source: "Médico",
-          })),
-        ];
-      }
+      if (isCpfValid) {
+        foundData = genSnap.docs[0].data();
+        setCpfValidated(true);
+        setCpfError(null);
 
-      if (!genSnap.empty) {
-        const latestGen = genSnap.docs[0].data();
-        // If we didn't find specific medical data yet, use general data
-        if (!foundData) {
-          foundData = latestGen;
+        // Add Atendimentos history
+        const genHistory = genSnap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          source: "Geral",
+        }));
+
+        // Add Medical history if any
+        const medHistory = medSnap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          source: "Médico",
+        }));
+
+        history = [...medHistory, ...genHistory];
+
+        if (!medSnap.empty) {
+          const latestMed = medSnap.docs[0].data();
+          foundData = {
+            ...foundData,
+            cartao_sus: latestMed.cartao_sus || foundData.cartao_sus || "",
+            unidade_saude: latestMed.unidade_saude || foundData.unidade_saude || "",
+          };
         }
-        history = [
-          ...history,
-          ...genSnap.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-            source: "Geral",
-          })),
-        ];
+      } else {
+        setCpfValidated(false);
+        setCpfError("Este CPF não está cadastrado no módulo de Atendimentos. O cidadão deve ser cadastrado lá primeiro!");
       }
 
-      if (foundData) {
+      if (foundData && isCpfValid) {
         setCitizenHistory(history);
 
         // Auto-fill if it's a new entry
@@ -320,6 +335,10 @@ export default function AtendimentosMedicos() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!cpfValidated) {
+      alert("É obrigatório registrar os dados do cidadão no módulo de Atendimentos primeiro! Digite um CPF válido e cadastrado.");
+      return;
+    }
     if (!formData.lgpd_consent) {
       alert("O cidadão deve consentir com a LGPD para realizar o registro.");
       return;
@@ -382,6 +401,8 @@ export default function AtendimentosMedicos() {
     setFormData(initialForm);
     setCitizenHistory([]);
     setIsCustomSpecActive(false);
+    setCpfError(null);
+    setCpfValidated(false);
   };
 
   const handlePrintReceipt = (atendimento: any) => {
@@ -940,18 +961,32 @@ export default function AtendimentosMedicos() {
                               onChange={(e) => {
                                 const val = maskCPF(e.target.value);
                                 setFormData({ ...formData, cpf: val });
-                                if (val.replace(/\D/g, "").length === 11)
+                                if (val.replace(/\D/g, "").length === 11) {
                                   searchCitizenData(val);
+                                } else {
+                                  setCpfValidated(false);
+                                  setCpfError(null);
+                                }
                               }}
                               className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50 pr-10"
                               placeholder="000.000.000-00"
                             />
                             {searchingCitizen && (
-                              <div className="absolute right-3 top-1/2 -track-y-1/2 mt-0.5">
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2 mt-0.5 flex items-center justify-center">
                                 <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                               </div>
                             )}
                           </div>
+                          {cpfError && (
+                            <p className="text-[10.5px] font-medium text-rose-500 leading-tight mt-1">
+                              ⚠️ {cpfError}
+                            </p>
+                          )}
+                          {cpfValidated && !cpfError && formData.cpf.replace(/\D/g, "").length === 11 && (
+                            <p className="text-[10.5px] font-medium text-emerald-400 mt-1 flex items-center gap-1">
+                              ✓ Cadastrado no módulo de Atendimentos
+                            </p>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">

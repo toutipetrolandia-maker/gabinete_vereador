@@ -33,7 +33,8 @@ import {
   deleteDoc, 
   doc, 
   serverTimestamp,
-  increment 
+  increment,
+  getDocs
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
@@ -55,6 +56,11 @@ export default function SocialAssistance() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [waConfig, setWaConfig] = useState<WhatsAppConfig | null>(null);
+
+  // States for CPF verification
+  const [searchingCitizen, setSearchingCitizen] = useState(false);
+  const [cpfError, setCpfError] = useState<string | null>(null);
+  const [cpfValidated, setCpfValidated] = useState<boolean>(false);
 
   // Stock / Inventory Control States
   const [activeTab, setActiveTab] = useState<'auxilios' | 'estoque'>('auxilios');
@@ -138,6 +144,76 @@ export default function SocialAssistance() {
     return () => unsub();
   }, [profile?.cabinetId]);
 
+  const maskCPF = (value: string) => {
+    return value
+      .replace(/\D/g, "")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})/, "$1-$2")
+      .replace(/(-\d{2})\d+?$/, "$1");
+  };
+
+  const maskPhone = (value: string) => {
+    return value
+      .replace(/\D/g, "")
+      .replace(/(\d{2})(\d)/, "($1) $2")
+      .replace(/(\d{5})(\d)/, "$1-$2")
+      .replace(/(-\d{4})\d+?$/, "$1");
+  };
+
+  const searchCitizenData = async (cpf: string) => {
+    const maskedCPF = maskCPF(cpf);
+    const cleanCPF = cpf.replace(/\D/g, "");
+    if (cleanCPF.length < 11 || !profile?.cabinetId) {
+      setCpfError(null);
+      setCpfValidated(false);
+      return;
+    }
+
+    setSearchingCitizen(true);
+    setCpfError(null);
+    try {
+      const qGen = query(
+        collection(db, "atendimentos"),
+        where("cabinetId", "==", profile?.cabinetId),
+        where("cpf", "==", maskedCPF),
+        orderBy("created_at", "desc"),
+      );
+
+      const genSnap = await getDocs(qGen);
+
+      if (!genSnap.empty) {
+        const foundData = genSnap.docs[0].data();
+        setCpfValidated(true);
+        setCpfError(null);
+
+        // Auto-fill form data if creating new
+        if (!editingId) {
+          setFormData((prev) => ({
+            ...prev,
+            beneficiado_nome: prev.beneficiado_nome || foundData.nome_completo || "",
+            beneficiado_telefone: prev.beneficiado_telefone || foundData.telefone || "",
+          }));
+        }
+      } else {
+        setCpfValidated(false);
+        setCpfError("Este CPF não está cadastrado no módulo de Atendimentos. O cidadão deve ser cadastrado lá primeiro!");
+      }
+    } catch (error) {
+      console.error("Error searching citizen data in social assistance:", error);
+    } finally {
+      setSearchingCitizen(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setEditingId(null);
+    setFormData(initialForm);
+    setCpfError(null);
+    setCpfValidated(false);
+  };
+
   const adjustStockItemQty = async (stockItemId: string | undefined, change: number) => {
     if (!stockItemId) return;
     try {
@@ -154,6 +230,11 @@ export default function SocialAssistance() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile?.cabinetId) return;
+
+    if (!cpfValidated) {
+      alert("É obrigatório registrar os dados do cidadão no módulo de Atendimentos primeiro! Digite um CPF válido e cadastrado.");
+      return;
+    }
 
     try {
       const payload = {
@@ -213,9 +294,7 @@ export default function SocialAssistance() {
           cabinetId: profile.cabinetId 
         });
       }
-      setShowModal(false);
-      setEditingId(null);
-      setFormData(initialForm);
+      handleCloseModal();
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'auxilio_social');
     }
@@ -421,6 +500,8 @@ export default function SocialAssistance() {
             if (activeTab === 'auxilios') {
               setEditingId(null);
               setFormData(initialForm);
+              setCpfValidated(false);
+              setCpfError(null);
               setShowModal(true);
             } else {
               setEditingStockId(null);
@@ -595,6 +676,11 @@ export default function SocialAssistance() {
                         onClick={() => {
                           setEditingId(item.id);
                           setFormData(item);
+                          setCpfValidated(false);
+                          setCpfError(null);
+                          if (item.beneficiado_cpf) {
+                            searchCitizenData(item.beneficiado_cpf);
+                          }
                           setShowModal(true);
                         }}
                         className="p-2.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-all hover:bg-slate-700"
@@ -828,7 +914,7 @@ export default function SocialAssistance() {
                   </div>
                 </div>
                 <button 
-                  onClick={() => setShowModal(false)}
+                  onClick={handleCloseModal}
                   className="p-3 hover:bg-slate-800 rounded-2xl text-slate-500 hover:text-white transition-colors"
                 >
                   <XCircle size={24} />
@@ -870,11 +956,35 @@ export default function SocialAssistance() {
                       <Info className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={18} />
                       <input 
                         value={formData.beneficiado_cpf || ''}
-                        onChange={e => setFormData({...formData, beneficiado_cpf: e.target.value})}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-white focus:ring-2 focus:ring-blue-600/50 outline-none transition-all"
+                        onChange={e => {
+                          const val = maskCPF(e.target.value);
+                          setFormData({...formData, beneficiado_cpf: val});
+                          if (val.replace(/\D/g, "").length === 11) {
+                            searchCitizenData(val);
+                          } else {
+                            setCpfValidated(false);
+                            setCpfError(null);
+                          }
+                        }}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-3 pl-12 pr-12 text-white focus:ring-2 focus:ring-blue-600/50 outline-none transition-all"
                         placeholder="000.000.000-00"
                       />
+                      {searchingCitizen && (
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                          <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
                     </div>
+                    {cpfError && (
+                      <p className="text-[11px] font-semibold text-rose-500 px-1 mt-1">
+                        ⚠️ {cpfError}
+                      </p>
+                    )}
+                    {cpfValidated && !cpfError && (formData.beneficiado_cpf || '').replace(/\D/g, "").length === 11 && (
+                      <p className="text-[11px] font-semibold text-emerald-400 px-1 mt-1 flex items-center gap-1">
+                        ✓ Cadastrado no módulo de Atendimentos
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -969,7 +1079,7 @@ export default function SocialAssistance() {
                 <div className="pt-6 flex gap-4">
                   <button 
                     type="button"
-                    onClick={() => setShowModal(false)}
+                    onClick={handleCloseModal}
                     className="flex-1 px-6 py-4 rounded-2xl border border-slate-800 text-slate-400 font-bold hover:bg-slate-800 transition-all"
                   >
                     Descartar
