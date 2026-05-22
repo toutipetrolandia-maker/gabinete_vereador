@@ -63,18 +63,19 @@ export default function History() {
   const [collectionFilter, setCollectionFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [view, setView] = useState<'audit' | 'productivity'>('productivity');
+  const [cabinetUsers, setCabinetUsers] = useState<any[]>([]);
 
   useEffect(() => {
     if (!profile?.cabinetId) return;
     
-    const q = query(
+    const qLogs = query(
       collection(db, 'logs'),
       where('cabinet_id', '==', profile.cabinetId),
       orderBy('criado_em', 'desc'),
       limit(500)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeLogs = onSnapshot(qLogs, (snapshot) => {
       const logsData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -87,8 +88,40 @@ export default function History() {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    const qUsers = query(
+      collection(db, 'users'),
+      where('cabinetId', '==', profile.cabinetId)
+    );
+
+    const unsubscribeUsers = onSnapshot(qUsers, (snapshot) => {
+      const usersData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setCabinetUsers(usersData);
+    }, (error) => {
+      console.error("Error fetching cabinet users in history:", error);
+    });
+
+    return () => {
+      unsubscribeLogs();
+      unsubscribeUsers();
+    };
   }, [profile?.cabinetId]);
+
+  const userNamesMap = useMemo(() => {
+    const mapping: Record<string, string> = {};
+    cabinetUsers.forEach(u => {
+      if (u.nome) {
+        mapping[u.id] = u.nome;
+      }
+    });
+    return mapping;
+  }, [cabinetUsers]);
+
+  const getResolvedUserName = (usuarioId: string, fallbackNome: string) => {
+    return userNamesMap[usuarioId] || fallbackNome;
+  };
 
   const getActionIcon = (action: string) => {
     const a = action.toLowerCase();
@@ -99,10 +132,11 @@ export default function History() {
   };
 
   const filteredLogs = logs.filter(log => {
+    const resolvedName = getResolvedUserName(log.usuario_id, log.usuario_nome);
     const matchesUser = userFilter === 'all' || log.usuario_id === userFilter;
     const matchesCollection = collectionFilter === 'all' || log.colecao === collectionFilter;
     const matchesSearch = log.acao.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         log.usuario_nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         resolvedName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          log.colecao.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesUser && matchesCollection && matchesSearch;
   });
@@ -112,11 +146,12 @@ export default function History() {
     const usersMap = new Map();
     logs.forEach(l => {
       if (!usersMap.has(l.usuario_id)) {
-        usersMap.set(l.usuario_id, { id: l.usuario_id, nome: l.usuario_nome });
+        const resolvedName = getResolvedUserName(l.usuario_id, l.usuario_nome);
+        usersMap.set(l.usuario_id, { id: l.usuario_id, nome: resolvedName });
       }
     });
     return Array.from(usersMap.values());
-  }, [logs]);
+  }, [logs, userNamesMap]);
 
   const uniqueCollections = useMemo(() => Array.from(new Set(logs.map(l => l.colecao))), [logs]);
 
@@ -437,9 +472,9 @@ export default function History() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-full bg-blue-600/10 text-blue-500 flex items-center justify-center text-[10px] font-bold border border-blue-500/20">
-                            {log.usuario_nome[0]}
+                            {getResolvedUserName(log.usuario_id, log.usuario_nome)[0]}
                           </div>
-                          <span className="text-xs font-medium text-slate-300">{log.usuario_nome}</span>
+                          <span className="text-xs font-medium text-slate-300">{getResolvedUserName(log.usuario_id, log.usuario_nome)}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
