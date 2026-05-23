@@ -118,7 +118,6 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     { id: 'demandas', label: 'Demandas', icon: FileText },
     { id: 'sugestoes', label: 'Sugestões', icon: MessageSquare },
     { id: 'relatorios', label: 'Relatórios', icon: FileDown },
-    { id: 'training', label: 'Manual do Sistema', icon: BookOpen },
     { id: 'whatsapp', label: 'Mensagens', icon: MessageSquare },
     { id: 'history', label: 'Logs / Auditoria', icon: History },
     { id: 'config', label: 'Configurações', icon: Settings },

@@ -49,6 +49,95 @@ import { cn, formatProperName } from '../lib/utils';
 import { logAction } from '../lib/audit';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
+function getEasterDate(year: number): Date {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+export function getBrazilianHoliday(date: Date): string | null {
+  const year = date.getFullYear();
+  const month = date.getMonth(); // 0-indexed
+  const day = date.getDate();
+
+  // Fixed holidays (month is 0-indexed)
+  const fixedHolidays: { [key: string]: string } = {
+    '0-1': 'Confraternização Universal (Ano Novo)',
+    '3-21': 'Tiradentes',
+    '4-1': 'Dia do Trabalhador',
+    '8-7': 'Independência do Brasil',
+    '9-12': 'Nossa Senhora Aparecida',
+    '10-2': 'Finados',
+    '10-15': 'Proclamação da República',
+    '10-20': 'Consciência Negra',
+    '11-25': 'Natal'
+  };
+
+  const key = `${month}-${day}`;
+  if (fixedHolidays[key]) {
+    return fixedHolidays[key];
+  }
+
+  // Easter calculation
+  const easter = getEasterDate(year);
+
+  // Carnaval: 47 days before Easter
+  const carnival = new Date(easter);
+  carnival.setDate(easter.getDate() - 47);
+
+  // Carnaval Segunda: 48 days before Easter
+  const carnivalMonday = new Date(easter);
+  carnivalMonday.setDate(easter.getDate() - 48);
+
+  // Quarta-feira de Cinzas: 46 days before Easter
+  const ashWednesday = new Date(easter);
+  ashWednesday.setDate(easter.getDate() - 46);
+
+  // Sexta-feira Santa (Paixão de Cristo): 2 days before Easter
+  const goodFriday = new Date(easter);
+  goodFriday.setDate(easter.getDate() - 2);
+
+  // Corpus Christi: 60 days after Easter
+  const corpusChristi = new Date(easter);
+  corpusChristi.setDate(easter.getDate() + 60);
+
+  const isSameLocalDate = (d1: Date, d2: Date) => {
+    return d1.getFullYear() === d2.getFullYear() &&
+           d1.getMonth() === d2.getMonth() &&
+           d1.getDate() === d2.getDate();
+  };
+
+  if (isSameLocalDate(date, carnival)) {
+    return 'Carnaval';
+  }
+  if (isSameLocalDate(date, carnivalMonday)) {
+    return 'Segunda-feira de Carnaval';
+  }
+  if (isSameLocalDate(date, ashWednesday)) {
+    return 'Quarta-feira de Cinzas';
+  }
+  if (isSameLocalDate(date, goodFriday)) {
+    return 'Sexta-Feira Santa / Paixão de Cristo';
+  }
+  if (isSameLocalDate(date, corpusChristi)) {
+    return 'Corpus Christi';
+  }
+
+  return null;
+}
+
 export default function Agenda() {
   const { user, profile } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -125,6 +214,19 @@ export default function Agenda() {
 
     setSubmitting(true);
     setError(null);
+
+    // Validate if selected date is a Brazilian national holiday
+    try {
+      const eventDate = parse(formData.data, 'yyyy-MM-dd', new Date());
+      const holidayName = getBrazilianHoliday(eventDate);
+      if (holidayName) {
+        setError(`O Gabinete estará fechado neste dia devido ao Feriado Nacional: ${holidayName}. Negociação de compromissos bloqueada.`);
+        setSubmitting(false);
+        return;
+      }
+    } catch (parseErr) {
+      console.error("Erro ao validar data de feriado:", parseErr);
+    }
 
     try {
       const eventData = {
@@ -205,6 +307,12 @@ export default function Agenda() {
       const currentDate = parse(event.data, 'yyyy-MM-dd', new Date());
       const nextDate = new Date(currentDate);
       nextDate.setDate(nextDate.getDate() + 1);
+
+      // Skip national holidays during postponement
+      while (getBrazilianHoliday(nextDate)) {
+        nextDate.setDate(nextDate.getDate() + 1);
+      }
+
       const nextDateStr = format(nextDate, 'yyyy-MM-dd');
 
       await updateDoc(doc(db, 'agenda_vereador', event.id), {
@@ -316,17 +424,32 @@ export default function Agenda() {
           {days.map((day, idx) => {
             const dayEvents = getEventsForDay(day);
             const isCurrentMonth = isSameMonth(day, currentDate);
+            const holidayName = getBrazilianHoliday(day);
             
             return (
               <div 
                 key={day.toString()} 
+                onClick={() => {
+                  if (profile?.role === 'consulta') return;
+                  if (holidayName) {
+                    alert(`Não é possível agendar compromissos neste dia. O Gabinete estará fechado devido ao feriado nacional: ${holidayName}.`);
+                    return;
+                  }
+                  setFormData({
+                    ...initialForm,
+                    data: format(day, 'yyyy-MM-dd')
+                  });
+                  setEditingId(null);
+                  setShowModal(true);
+                }}
                 className={cn(
                   "min-h-[160px] p-2 border-r border-b border-slate-800 relative group transition-colors",
                   !isCurrentMonth ? "bg-slate-950/30" : "bg-slate-900",
+                  holidayName ? "bg-red-500/5 hover:bg-red-500/10 border-red-500/20" : profile?.role !== 'consulta' ? "cursor-pointer hover:bg-slate-850" : "",
                   (idx + 1) % 7 === 0 ? "border-r-0" : ""
                 )}
               >
-                <div className="flex justify-between items-start mb-2">
+                <div className="flex justify-between items-start mb-1">
                   <span className={cn(
                     "w-8 h-8 flex items-center justify-center text-sm font-bold rounded-full transition-all",
                     isToday(day) ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40" : 
@@ -334,16 +457,31 @@ export default function Agenda() {
                   )}>
                     {format(day, 'd')}
                   </span>
-                  {dayEvents.length > 0 && (
-                    <span className="text-[10px] text-slate-500 font-mono font-bold">{dayEvents.length}</span>
-                  )}
+                  <div className="flex flex-col items-end gap-1">
+                    {dayEvents.length > 0 && (
+                      <span className="text-[10px] text-slate-500 font-mono font-bold">{dayEvents.length}</span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="space-y-1 overflow-y-auto max-h-[110px] scrollbar-none pb-2">
+                {holidayName && (
+                  <div 
+                    title={holidayName}
+                    className="mb-2 flex items-center gap-1 bg-red-500/10 text-red-400 border border-red-500/15 rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-tight"
+                  >
+                    <AlertCircle size={10} className="shrink-0 text-red-400" />
+                    <span className="truncate max-w-full">{holidayName}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1 overflow-y-auto max-h-[90px] scrollbar-none pb-2">
                   {dayEvents.map(event => (
                     <div 
                       key={event.id}
-                      onClick={() => handleEdit(event)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit(event);
+                      }}
                       className={cn(
                         "p-1.5 rounded-lg text-[10px] font-medium cursor-pointer border transition-all hover:scale-[1.02]",
                         event.status === 'realizado' ? "bg-slate-950/50 border-emerald-500/10 text-slate-500 opacity-60" :
@@ -566,9 +704,24 @@ export default function Agenda() {
                       <option>Outro</option>
                     </select>
                   </div>
-                  <div>
+                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Data</label>
                     <input required type="date" value={formData.data} onChange={e => setFormData({...formData, data: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 [color-scheme:dark]" />
+                    {formData.data && (() => {
+                      try {
+                        const parsedDate = parse(formData.data, 'yyyy-MM-dd', new Date());
+                        const holiday = getBrazilianHoliday(parsedDate);
+                        if (holiday) {
+                          return (
+                            <span className="text-[11px] text-red-400 font-bold block mt-1.5 flex items-center gap-1.5 animate-pulse">
+                              <AlertCircle size={12} className="shrink-0 text-red-400" />
+                              Feriado: {holiday} (Gabinete Fechado)
+                            </span>
+                          );
+                        }
+                      } catch (err) {}
+                      return null;
+                    })()}
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Hora Início</label>

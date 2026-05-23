@@ -109,7 +109,6 @@ function AppContent() {
           {activeTab === 'demandas' && hasModuleAccess('demandas') && <Demandas />}
           {activeTab === 'sugestoes' && hasModuleAccess('sugestoes') && <Sugestoes />}
           {activeTab === 'relatorios' && hasModuleAccess('relatorios') && <Relatorios />}
-          {activeTab === 'training' && hasModuleAccess('training') && <Training />}
           {activeTab === 'whatsapp' && hasModuleAccess('whatsapp') && <WhatsAppAutomation />}
           {activeTab === 'history' && hasModuleAccess('history') && <History />}
           {activeTab === 'config' && hasModuleAccess('config') && <Settings />}

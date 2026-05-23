@@ -56,6 +56,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "../lib/utils";
 import { logAction } from "../lib/audit";
 import UserManagement from "./UserManagement";
+import Training from "./Training";
 
 export default function Settings() {
   const { profile, isSuperAdmin, hasModuleAccess } = useAuth();
@@ -2001,101 +2002,9 @@ export default function Settings() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-slate-900 border border-slate-800 rounded-3xl p-10 font-sans shadow-xl text-slate-300 leading-relaxed space-y-6"
+              className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl text-slate-300"
             >
-              <h2 className="text-3xl font-bold text-white mb-2">
-                Manual do Usuário
-              </h2>
-              <p className="italic text-blue-400 text-sm">
-                Gabinete Digital v1.0.4 - Otimizado para Eficiência Parlamentar
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6 text-sm">
-                <section className="space-y-4">
-                  <h3 className="text-white font-bold flex items-center gap-2 text-lg">
-                    <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-400">
-                      1
-                    </div>
-                    Atendimentos
-                  </h3>
-                  <p>
-                    Registre todos os pedidos e visitas. Utilize o campo "Zona
-                    Rural" para marcar localizações exatas quando o cidadão for
-                    do campo. O status "Pendente" ajuda a equipe a não esquecer
-                    nenhum retorno.
-                  </p>
-                </section>
-
-                <section className="space-y-4">
-                  <h3 className="text-white font-bold flex items-center gap-2 text-lg">
-                    <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-400">
-                      2
-                    </div>
-                    Demandas
-                  </h3>
-                  <p>
-                    Acompanhe pedidos de ofícios e solicitações de melhorias
-                    públicas. Cada demanda pode ser vinculada a um local e
-                    prioridade, facilitando a pressão política nos órgãos
-                    competentes.
-                  </p>
-                </section>
-
-                <section className="space-y-4">
-                  <h3 className="text-white font-bold flex items-center gap-2 text-lg">
-                    <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-400">
-                      3
-                    </div>
-                    Segurança e Auditoria
-                  </h3>
-                  <p>
-                    O sistema registra cada ação (Criação, Edição, Exclusão).
-                    Admins podem ver quem mudou o quê e quando, garantindo que
-                    nenhum dado suma sem explicação.
-                  </p>
-                </section>
-
-                <section className="space-y-4">
-                  <h3 className="text-white font-bold flex items-center gap-2 text-lg">
-                    <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-400">
-                      4
-                    </div>
-                    Agenda
-                  </h3>
-                  <p>
-                    Gerencie os compromissos do Vereador. Você pode Adiar (para
-                    o dia seguinte), Remarcar (editar detalhes) ou Excluir
-                    eventos diretamente da visualização semanal.
-                  </p>
-                </section>
-
-                <section className="col-span-full pt-6 border-t border-slate-800 space-y-4">
-                  <h3 className="text-emerald-400 font-bold flex items-center gap-3 text-xl">
-                    <MessageSquare size={24} />
-                    Suporte Técnico
-                  </h3>
-                  <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div className="space-y-2">
-                      <p className="text-slate-300">
-                        Precisa de ajuda ou encontrou algum problema?
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        Estamos disponíveis para suporte técnico e atualizações
-                        do sistema.
-                      </p>
-                    </div>
-                    <a
-                      href="https://wa.me/5575988017239"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 px-8 rounded-2xl shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-3 w-full md:w-auto justify-center"
-                    >
-                      <MessageSquare size={20} />
-                      Suporte no WhatsApp
-                    </a>
-                  </div>
-                </section>
-              </div>
+              <Training isEmbed={true} />
             </motion.div>
           )}
         </div>

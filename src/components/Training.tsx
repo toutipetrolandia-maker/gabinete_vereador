@@ -14,12 +14,14 @@ import {
   ExternalLink,
   HelpCircle,
   Video,
-  Monitor
+  Monitor,
+  Clock,
+  ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
-export default function Training() {
+export default function Training({ isEmbed = false }: { isEmbed?: boolean }) {
   const [activeCategory, setActiveCategory] = useState<'guides' | 'videos' | 'faq'>('guides');
 
   const modules = [
@@ -74,6 +76,45 @@ export default function Training() {
         'Notificação via WhatsApp',
         'Controle de estoque/quantidade'
       ]
+    },
+    {
+      title: 'Demandas Parlamentares',
+      icon: FileText,
+      color: 'text-purple-500',
+      bg: 'bg-purple-500/10',
+      description: 'Acompanhe pedidos de ofícios e solicitações de melhorias públicas.',
+      topics: [
+        'Registro de demandas com localidade',
+        'Vincular nível de prioridade',
+        'Status de acompanhamento',
+        'Pressão política organizada'
+      ]
+    },
+    {
+      title: 'Agenda do Vereador',
+      icon: Clock,
+      color: 'text-cyan-500',
+      bg: 'bg-cyan-500/10',
+      description: 'Gerencie compromissos do Vereador de forma semanal e integrada.',
+      topics: [
+        'Adiar compromissos para dia seguinte',
+        'Remarcar e atualizar detalhes rápidos',
+        'Controle de conflitos de horários',
+        'Filtros por categoria de compromisso'
+      ]
+    },
+    {
+      title: 'Segurança e Auditoria',
+      icon: ShieldCheck,
+      color: 'text-indigo-500',
+      bg: 'bg-indigo-500/10',
+      description: 'Tenha rastreabilidade total de todas as ações executadas no sistema.',
+      topics: [
+        'Registro automático de logs (Criação/Edição/Exclusão)',
+        'Identificação de autoria e horário do evento',
+        'Visualização detalhada do estado anterior e novo do dado',
+        'Integridade total contra exclusões não documentadas'
+      ]
     }
   ];
 
@@ -97,14 +138,16 @@ export default function Training() {
   ];
 
   return (
-    <div className="space-y-8 lg:p-4 pb-20">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-          <BookOpen className="text-blue-500" size={32} />
-          Manual do Sistema
-        </h1>
-        <p className="text-slate-400">Aprenda as principais funcionalidades e como operar o Gabinete Digital.</p>
-      </header>
+    <div className={cn("space-y-8 pb-20", !isEmbed && "lg:p-4")}>
+      {!isEmbed && (
+        <header className="space-y-2">
+          <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+            <BookOpen className="text-blue-500" size={32} />
+            Manual do Sistema
+          </h1>
+          <p className="text-slate-400">Aprenda as principais funcionalidades e como operar o Gabinete Digital.</p>
+        </header>
+      )}
 
       {/* Categories Toggle */}
       <div className="flex bg-slate-900 p-1.5 rounded-2xl w-fit border border-slate-800">
