@@ -80,7 +80,18 @@ export default function UserManagement() {
     role: 'assessor',
     ativo: false,
     password: '', // New field for temporary password
+    data_nascimento: '', // Date of birth
   });
+
+  const checkIfBirthdayToday = (dateStr?: string) => {
+    if (!dateStr) return false;
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return false;
+    const m = parseInt(parts[1], 10);
+    const d = parseInt(parts[2], 10);
+    const today = new Date();
+    return m === (today.getMonth() + 1) && d === today.getDate();
+  };
 
   const SYSTEM_MODULES = [
     { id: 'dashboard', label: 'Dashboard / Resumo' },
@@ -186,6 +197,7 @@ export default function UserManagement() {
       role: 'assessor',
       ativo: false,
       password: '',
+      data_nascimento: '',
     });
     setCustomPermissions({
       modules: getDefaultsForRole('assessor').modules,
@@ -270,6 +282,7 @@ export default function UserManagement() {
         role: formData.role,
         ativo: formData.ativo,
         username: formData.username,
+        data_nascimento: formData.data_nascimento,
         permissions: customPermissions
       };
 
@@ -427,7 +440,14 @@ export default function UserManagement() {
                         {user.nome.charAt(0)}
                       </div>
                       <div>
-                        <span className="block font-bold text-slate-200">{user.nome}</span>
+                        <span className="block font-bold text-slate-200">
+                          {user.nome}
+                          {checkIfBirthdayToday((user as any).data_nascimento) && (
+                            <span className="inline-flex items-center gap-1 text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded-full ml-1.5 font-bold animate-pulse">
+                              🎂 Hoje! 🎉
+                            </span>
+                          )}
+                        </span>
                         <div className="flex items-center gap-2">
                           <span className="block text-xs text-slate-500">{user.email}</span>
                           {user.requirePasswordChange && (
@@ -481,7 +501,8 @@ export default function UserManagement() {
                                 username: user.username || '',
                                 role: user.role,
                                 ativo: user.ativo,
-                                password: ''
+                                password: '',
+                                data_nascimento: (user as any).data_nascimento || '',
                               });
                               const defaultPerms = getDefaultsForRole(user.role);
                               setCustomPermissions({
@@ -585,7 +606,7 @@ export default function UserManagement() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Email</label>
                       <input 
@@ -606,6 +627,15 @@ export default function UserManagement() {
                         onChange={e => setFormData({ ...formData, username: e.target.value.toLowerCase().replace(/\s/g, '.') })}
                         className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
                         placeholder="Ex: joao.silva"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Data de Nascimento</label>
+                      <input 
+                        type="date" 
+                        value={formData.data_nascimento}
+                        onChange={e => setFormData({ ...formData, data_nascimento: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all [color-scheme:dark]"
                       />
                     </div>
                   </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { 
   collection, 
   addDoc, 
@@ -101,10 +101,78 @@ export default function Atendimentos() {
   // States for cross-data
   const [medicalHistory, setMedicalHistory] = useState<any[]>([]);
   const [searchingMedical, setSearchingMedical] = useState(false);
+  const [searchingCitizen, setSearchingCitizen] = useState(false);
+  const [citizenFoundAlert, setCitizenFoundAlert] = useState<string | null>(null);
   const [waConfig, setWaConfig] = useState<WhatsAppConfig | null>(null);
   const [cabinetUsers, setCabinetUsers] = useState<any[]>([]);
   const [onlyMyAtendimentos, setOnlyMyAtendimentos] = useState(false);
   const [especialidades, setEspecialidades] = useState<{ id: string; nome: string }[]>([]);
+
+  const todayBirthdays = useMemo(() => {
+    const list: Array<{ id: string; nome: string; telefone: string; data_nascimento: string; tipo: 'Cidadão' | 'Colaborador' }> = [];
+    const seenCpfs = new Set<string>();
+
+    const isBirthdayToday = (dateStr?: string) => {
+      if (!dateStr) return false;
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return false;
+      const m = parseInt(parts[1], 10);
+      const d = parseInt(parts[2], 10);
+      const today = new Date();
+      return m === (today.getMonth() + 1) && d === today.getDate();
+    };
+
+    // 1. Check citizens in combined data
+    data.forEach(item => {
+      const cpf = item.cpf || '';
+      if (item.data_nascimento && isBirthdayToday(item.data_nascimento)) {
+        const key = cpf || item.nome_completo;
+        if (!seenCpfs.has(key)) {
+          seenCpfs.add(key);
+          list.push({
+            id: item.id || key,
+            nome: item.nome_completo,
+            telefone: item.telefone || '',
+            data_nascimento: item.data_nascimento,
+            tipo: 'Cidadão'
+          });
+        }
+      }
+    });
+
+    // 2. Check collaborators
+    cabinetUsers.forEach(userItem => {
+      if (userItem.data_nascimento && isBirthdayToday(userItem.data_nascimento)) {
+        list.push({
+          id: userItem.id,
+          nome: userItem.nome,
+          telefone: userItem.telefone || '',
+          data_nascimento: userItem.data_nascimento,
+          tipo: 'Colaborador'
+        });
+      }
+    });
+
+    return list;
+  }, [data, cabinetUsers]);
+
+  const sendBirthdayWish = (item: any) => {
+    if (!item.telefone) return;
+    const template = waConfig?.templates?.find(t => t.trigger === 'birthday');
+    let content = template?.content;
+    if (!content) {
+      if (item.tipo === 'Colaborador') {
+        content = "Parabéns, *{{nome}}*! 🧑‍💼🎂 Nós do Gabinete temos muito orgulho em ter você em nossa equipe. Desejamos um feliz aniversário, com muita saúde, paz e realizações. Parabéns pelo seu dia! 🎉🎈";
+      } else {
+        content = "Olá *{{nome}}*! 🎉 Nós do Gabinete Gostaríamos de lhe desejar um feliz aniversário! Que seu novo ciclo seja repleto de realizações, saúde, sucesso e muita paz. Parabéns! 🎂🎈✨";
+      }
+    }
+    const message = formatWhatsAppMessage(content, {
+      ...item,
+      nome: item.nome,
+    });
+    window.open(getWhatsAppLink(item.telefone, message), '_blank');
+  };
 
   useEffect(() => {
     if (!profile?.cabinetId) return;
@@ -201,6 +269,7 @@ export default function Atendimentos() {
     cpf: '',
     telefone: '',
     email: '',
+    data_nascimento: '',
     endereco: '',
     bairro: '',
     zona_rural: false,
@@ -259,6 +328,76 @@ export default function Atendimentos() {
       console.error("Error fetching medical history:", error);
     } finally {
       setSearchingMedical(false);
+    }
+  };
+
+  const searchAndAutofillCitizen = async (cpf: string) => {
+    const maskedCPF = maskCPF(cpf);
+    const cleanCPF = cpf.replace(/\D/g, '');
+    if (cleanCPF.length < 11 || !profile?.cabinetId) {
+      setCitizenFoundAlert(null);
+      return;
+    }
+
+    setSearchingCitizen(true);
+    setCitizenFoundAlert(null);
+    try {
+      const qGen = query(
+        collection(db, 'atendimentos'),
+        where('cabinetId', '==', profile?.cabinetId),
+        where('cpf', '==', maskedCPF),
+        orderBy('created_at', 'desc')
+      );
+
+      const qMed = query(
+        collection(db, 'atendimentos_medicos'),
+        where('cabinetId', '==', profile?.cabinetId),
+        where('cpf', '==', maskedCPF),
+        orderBy('created_at', 'desc')
+      );
+
+      const [genSnap, medSnap] = await Promise.all([
+        getDocs(qGen),
+        getDocs(qMed)
+      ]);
+
+      let foundData: any = null;
+      const hasGen = !genSnap.empty;
+      const hasMed = !medSnap.empty;
+
+      if (hasGen || hasMed) {
+        const genData = hasGen ? genSnap.docs[0].data() : {};
+        const medData = hasMed ? medSnap.docs[0].data() : {};
+        foundData = {
+          ...genData,
+          ...medData,
+          nome_completo: medData.nome_completo || genData.nome_completo || '',
+          telefone: medData.telefone || genData.telefone || '',
+          email: medData.email || genData.email || '',
+          data_nascimento: medData.data_nascimento || genData.data_nascimento || '',
+          endereco: medData.endereco || genData.endereco || '',
+          bairro: medData.bairro || genData.bairro || '',
+          zona_rural: medData.zona_rural !== undefined ? medData.zona_rural : (genData.zona_rural !== undefined ? genData.zona_rural : false)
+        };
+
+        setCitizenFoundAlert("💡 CPF já cadastrado! Os dados foram preenchidos de forma automática.");
+        setFormData(prev => ({
+          ...prev,
+          nome_completo: prev.nome_completo || foundData.nome_completo || '',
+          telefone: prev.telefone || foundData.telefone || '',
+          email: prev.email || foundData.email || '',
+          data_nascimento: prev.data_nascimento || foundData.data_nascimento || '',
+          endereco: prev.endereco || foundData.endereco || '',
+          bairro: prev.bairro || foundData.bairro || '',
+          zona_rural: foundData.zona_rural !== undefined ? foundData.zona_rural : prev.zona_rural,
+        }));
+      } else {
+        setCitizenFoundAlert("📝 CPF novo: o cidadão será cadastrado ao criar o atendimento.");
+      }
+    } catch (err) {
+      console.error("Erro ao buscar dados do cidadão:", err);
+    } finally {
+      setSearchingCitizen(false);
     }
   };
 
@@ -433,6 +572,7 @@ export default function Atendimentos() {
     setFormData(initialForm);
     setMedicalHistory([]);
     setProtocolError(null);
+    setCitizenFoundAlert(null);
   };
 
   const handleEdit = (item: any) => {
@@ -442,6 +582,7 @@ export default function Atendimentos() {
       cpf: item.cpf || '',
       telefone: item.telefone || '',
       email: item.email || '',
+      data_nascimento: item.data_nascimento || '',
       endereco: item.endereco || '',
       bairro: item.bairro || '',
       zona_rural: item.zona_rural || false,
@@ -544,6 +685,51 @@ export default function Atendimentos() {
           )}
         </div>
       </div>
+
+      {todayBirthdays.length > 0 && (
+        <div className="bg-gradient-to-r from-purple-900/30 via-slate-900 to-pink-900/30 border border-purple-500/20 rounded-3xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-8 text-6xl opacity-5 select-none pointer-events-none animate-pulse">🎂</div>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-purple-500/15 text-purple-400 rounded-2xl flex items-center justify-center text-xl border border-purple-500/20 shrink-0">
+                🎉
+              </div>
+              <div>
+                <h3 className="font-extrabold text-white text-base flex items-center gap-2">Aniversariantes de Hoje! <span className="animate-bounce">🎂</span></h3>
+                <p className="text-slate-400 text-xs">Envie um parabéns para demonstrar carinho neste dia especial!</p>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-5">
+            {todayBirthdays.map((b) => (
+              <div key={b.id} className="bg-slate-950/40 border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between gap-3 hover:border-purple-500/30 transition-all">
+                <div className="overflow-hidden">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-200 text-sm truncate max-w-[130px]" title={b.nome}>{b.nome}</span>
+                    <span className={cn(
+                      "text-[8px] font-black uppercase px-2 py-0.5 rounded-full border tracking-wide",
+                      b.tipo === 'Colaborador' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                    )}>
+                      {b.tipo}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1 truncate">{b.telefone || 'Sem celular'}</p>
+                </div>
+                {b.telefone && (
+                  <button
+                    onClick={() => sendBirthdayWish(b)}
+                    className="bg-emerald-600/95 hover:bg-emerald-600 text-white py-2 px-3 rounded-xl flex items-center gap-1 text-xs font-bold transition-all shrink-0 hover:scale-105 active:scale-95 cursor-pointer"
+                    title="Mandar Cartão de Aniversário por WhatsApp"
+                  >
+                    <Send size={12} />
+                    <span>Enviar</span>
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filters/Search Bar */}
       <div className="flex flex-col gap-4">
@@ -962,19 +1148,29 @@ export default function Atendimentos() {
                                 setFormData({...formData, cpf: val});
                                 if (val.replace(/\D/g, '').length === 11) {
                                   fetchMedicalHistory(val);
+                                  searchAndAutofillCitizen(val);
                                 } else {
                                   setMedicalHistory([]);
+                                  setCitizenFoundAlert(null);
                                 }
                               }}
                               className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors pr-10"
                               placeholder="000.000.000-00"
                             />
-                            {searchingMedical && (
+                            {(searchingMedical || searchingCitizen) && (
                               <div className="absolute right-3 top-1/2 -translate-y-1/2 mt-0.5">
-                                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                                <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                               </div>
                             )}
                           </div>
+                          {citizenFoundAlert && (
+                            <p className={cn(
+                              "text-[10.5px] font-medium leading-tight mt-1 animate-pulse",
+                              citizenFoundAlert.includes("já cadastrado") ? "text-emerald-400" : "text-blue-400"
+                            )}>
+                              {citizenFoundAlert}
+                            </p>
+                          )}
                         </div>
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Telefone</label>
@@ -994,6 +1190,15 @@ export default function Atendimentos() {
                       onChange={e => setFormData({...formData, email: e.target.value})}
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors"
                       placeholder="email@exemplo.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Data de Nascimento</label>
+                    <input 
+                      type="date" 
+                      value={formData.data_nascimento || ''}
+                      onChange={e => setFormData({...formData, data_nascimento: e.target.value})}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]"
                     />
                   </div>
                   <div className="space-y-2 col-span-2 md:col-span-1">

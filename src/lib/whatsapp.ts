@@ -5,7 +5,7 @@ export interface WhatsAppTemplate {
   id: string;
   name: string;
   content: string;
-  trigger: 'welcome' | 'status_update' | 'reminder' | 'manual';
+  trigger: 'welcome' | 'status_update' | 'reminder' | 'manual' | 'birthday';
 }
 
 export interface WhatsAppConfig {
@@ -34,6 +34,12 @@ export const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
     name: 'Lembrete de Agenda',
     trigger: 'reminder',
     content: 'Lembrete: Você tem um compromisso agendado com o Gabinete para o dia *{{data}}* às *{{hora}}*.'
+  },
+  {
+    id: 'birthday',
+    name: 'Parabéns / Aniversário',
+    trigger: 'birthday',
+    content: 'Olá *{{nome}}*! 🎉 Nós do Gabinete Gostaríamos de lhe desejar um feliz aniversário! Que seu novo ciclo seja repleto de realizações, saúde, sucesso e muita paz. Parabéns! 🎂🎈✨'
   }
 ];
 

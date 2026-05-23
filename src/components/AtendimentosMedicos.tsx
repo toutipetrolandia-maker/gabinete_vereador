@@ -68,6 +68,7 @@ export default function AtendimentosMedicos() {
     nome_completo: "",
     cpf: "",
     telefone: "",
+    data_nascimento: "",
     endereco: "",
     bairro: "",
     zona_rural: false,
@@ -130,7 +131,7 @@ export default function AtendimentosMedicos() {
     setSearchingCitizen(true);
     setCpfError(null);
     try {
-      // 1. Search in General Assistances (Atendimentos) - MUST exist there!
+      // 1. Search in General Assistances (Atendimentos)
       const qGen = query(
         collection(db, "atendimentos"),
         where("cabinetId", "==", profile?.cabinetId),
@@ -153,51 +154,57 @@ export default function AtendimentosMedicos() {
 
       let foundData: any = null;
       let history: any[] = [];
-      const isCpfValid = !genSnap.empty;
+      const hasGen = !genSnap.empty;
+      const hasMed = !medSnap.empty;
 
-      if (isCpfValid) {
-        foundData = genSnap.docs[0].data();
+      const genHistory = genSnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        source: "Geral",
+      }));
+
+      const medHistory = medSnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        source: "Médico",
+      }));
+
+      history = [...medHistory, ...genHistory];
+
+      if (hasGen || hasMed) {
+        const genData = hasGen ? genSnap.docs[0].data() : {};
+        const medData = hasMed ? medSnap.docs[0].data() : {};
+        foundData = {
+          ...genData,
+          ...medData,
+          nome_completo: medData.nome_completo || genData.nome_completo || "",
+          telefone: medData.telefone || genData.telefone || "",
+          data_nascimento: medData.data_nascimento || genData.data_nascimento || "",
+          endereco: medData.endereco || genData.endereco || "",
+          bairro: medData.bairro || genData.bairro || "",
+          zona_rural: medData.zona_rural !== undefined ? medData.zona_rural : (genData.zona_rural !== undefined ? genData.zona_rural : false),
+          cartao_sus: medData.cartao_sus || genData.cartao_sus || "",
+          unidade_saude: medData.unidade_saude || genData.unidade_saude || "",
+        };
+
         setCpfValidated(true);
         setCpfError(null);
-
-        // Add Atendimentos history
-        const genHistory = genSnap.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          source: "Geral",
-        }));
-
-        // Add Medical history if any
-        const medHistory = medSnap.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          source: "Médico",
-        }));
-
-        history = [...medHistory, ...genHistory];
-
-        if (!medSnap.empty) {
-          const latestMed = medSnap.docs[0].data();
-          foundData = {
-            ...foundData,
-            cartao_sus: latestMed.cartao_sus || foundData.cartao_sus || "",
-            unidade_saude: latestMed.unidade_saude || foundData.unidade_saude || "",
-          };
-        }
       } else {
-        setCpfValidated(false);
-        setCpfError("Este CPF não está cadastrado no módulo de Atendimentos. O cidadão deve ser cadastrado lá primeiro!");
+        // Brand new citizen - we allow direct creation!
+        setCpfValidated(true);
+        setCpfError(null);
       }
 
-      if (foundData && isCpfValid) {
-        setCitizenHistory(history);
+      setCitizenHistory(history);
 
+      if (foundData) {
         // Auto-fill if it's a new entry
         if (!editingId) {
           setFormData((prev) => ({
             ...prev,
             nome_completo: prev.nome_completo || foundData.nome_completo || "",
             telefone: prev.telefone || foundData.telefone || "",
+            data_nascimento: prev.data_nascimento || foundData.data_nascimento || "",
             endereco: prev.endereco || foundData.endereco || "",
             bairro: prev.bairro || foundData.bairro || "",
             cartao_sus: prev.cartao_sus || foundData.cartao_sus || "",
@@ -208,8 +215,6 @@ export default function AtendimentosMedicos() {
                 : prev.zona_rural,
           }));
         }
-      } else {
-        setCitizenHistory([]);
       }
     } catch (error) {
       console.error("Error searching citizen data:", error);
@@ -537,6 +542,7 @@ export default function AtendimentosMedicos() {
       nome_completo: item.nome_completo || "",
       cpf: item.cpf || "",
       telefone: item.telefone || "",
+      data_nascimento: item.data_nascimento || "",
       endereco: item.endereco || "",
       bairro: item.bairro || "",
       zona_rural: !!item.zona_rural,
@@ -950,7 +956,7 @@ export default function AtendimentosMedicos() {
                           className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
                             CPF (Busca Automática)
@@ -983,8 +989,16 @@ export default function AtendimentosMedicos() {
                             </p>
                           )}
                           {cpfValidated && !cpfError && formData.cpf.replace(/\D/g, "").length === 11 && (
-                            <p className="text-[10.5px] font-medium text-emerald-400 mt-1 flex items-center gap-1">
-                              ✓ Cadastrado no módulo de Atendimentos
+                            <p className="text-[10.5px] font-medium mt-1">
+                              {citizenHistory.length > 0 ? (
+                                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                                  ✓ Cidadão já cadastrado. Dados carregados de forma automática!
+                                </span>
+                              ) : (
+                                <span className="text-blue-400 font-medium flex items-center gap-1">
+                                  📝 CPF Novo: preencha as informações para registrá-lo diretamente.
+                                </span>
+                              )}
                             </p>
                           )}
                         </div>
@@ -1002,6 +1016,22 @@ export default function AtendimentosMedicos() {
                             }
                             className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50"
                             placeholder="(00) 00000-0000"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+                            Data de Nascimento
+                          </label>
+                          <input
+                            type="date"
+                            value={formData.data_nascimento || ""}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                data_nascimento: e.target.value,
+                              })
+                            }
+                            className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50 [color-scheme:dark]"
                           />
                         </div>
                       </div>
