@@ -288,11 +288,14 @@ export default function Training({ isEmbed = false }: { isEmbed?: boolean }) {
           </div>
           <div>
             <h4 className="font-bold text-white">Precisa de Suporte Direto?</h4>
-            <p className="text-slate-500 text-sm">Nossa equipe técnica está disponível para tirar dúvidas em tempo real.</p>
+            <p className="text-slate-500 text-sm">Clécio Ferreira está disponível para tirar dúvidas em tempo real.</p>
           </div>
         </div>
-        <button className="w-full md:w-auto px-10 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-xl shadow-emerald-900/20 transition-all active:scale-95">
-          Falar com Consultor
+        <button 
+          onClick={() => window.open('https://wa.me/5575988017239', '_blank')}
+          className="w-full md:w-auto px-10 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-xl shadow-emerald-900/20 transition-all active:scale-95 cursor-pointer"
+        >
+          Falar com Clécio
         </button>
       </footer>
     </div>

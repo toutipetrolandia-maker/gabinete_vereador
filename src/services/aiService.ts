@@ -44,6 +44,7 @@ CONHECIMENTO DO SISTEMA:
    - Relatórios por bairro, agudos e demandas de alta prioridade.
 
 6. SUPORTE TÉCNICO:
+   - Suporte Técnico: Clécio Ferreira.
    - WhatsApp do suporte: (75) 98801-7239.
 
 DIRETRIZES DE RESPOSTA:
