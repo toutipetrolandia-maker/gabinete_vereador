@@ -104,6 +104,49 @@ export default function Atendimentos() {
   const [waConfig, setWaConfig] = useState<WhatsAppConfig | null>(null);
   const [cabinetUsers, setCabinetUsers] = useState<any[]>([]);
   const [onlyMyAtendimentos, setOnlyMyAtendimentos] = useState(false);
+  const [especialidades, setEspecialidades] = useState<{ id: string; nome: string }[]>([]);
+
+  useEffect(() => {
+    if (!profile?.cabinetId) return;
+
+    const qSpec = query(
+      collection(db, "especialidades"),
+      where("cabinetId", "==", profile.cabinetId),
+      orderBy("nome", "asc"),
+    );
+
+    const unsubscribe = onSnapshot(qSpec, (snap) => {
+      if (!snap.empty) {
+        setEspecialidades(
+          snap.docs.map((doc) => ({ id: doc.id, nome: doc.data().nome })),
+        );
+      } else {
+        const defaultSpecs = [
+          "Cardiologia",
+          "Clínica Médica",
+          "Dermatologia",
+          "Endocrinologia",
+          "Fisioterapia",
+          "Gastroenterologia",
+          "Geriatria",
+          "Ginecologia e Obstetrícia",
+          "Neurologia",
+          "Odontologia",
+          "Oftalmologia",
+          "Ortopedia e Traumatologia",
+          "Otorrinolaringologia",
+          "Pediatria",
+          "Pneumologia",
+          "Psicologia",
+          "Psiquiatria",
+          "Urologia"
+        ].map((nome, index) => ({ id: `default-${index}`, nome }));
+        setEspecialidades(defaultSpecs);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [profile?.cabinetId]);
 
   useEffect(() => {
     if (!profile?.cabinetId) return;
@@ -162,6 +205,7 @@ export default function Atendimentos() {
     bairro: '',
     zona_rural: false,
     tipo_atendimento: 'Geral',
+    especialidade: '',
     protocolo: '',
     status: 'Novo',
     prioridade: 'Média',
@@ -402,6 +446,7 @@ export default function Atendimentos() {
       bairro: item.bairro || '',
       zona_rural: item.zona_rural || false,
       tipo_atendimento: item.tipo_atendimento || 'Geral',
+      especialidade: item.especialidade || '',
       protocolo: item.protocolo || '',
       status: item.status || 'Novo',
       prioridade: item.prioridade || 'Média',
@@ -637,9 +682,16 @@ export default function Atendimentos() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-xs px-2 py-1 bg-slate-800 border border-slate-700 rounded-md text-slate-300">
-                        {item.tipo_atendimento}
-                      </span>
+                      <div className="flex flex-col gap-1.5 items-start">
+                        <span className="text-xs px-2 py-1 bg-slate-800 border border-slate-700 rounded-md text-slate-300">
+                          {item.tipo_atendimento}
+                        </span>
+                        {item.tipo_atendimento === 'Médico' && (item.especialidade || item.sourceCollection === 'atendimentos_medicos') && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 rounded font-semibold uppercase tracking-tight">
+                            {item.especialidade || 'Consulta'}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1.5">
@@ -1020,6 +1072,25 @@ export default function Atendimentos() {
                       <option>Sugestão</option>
                     </select>
                   </div>
+                  {formData.tipo_atendimento === 'Médico' && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-2"
+                    >
+                      <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider text-emerald-500">Especialidade Médica (Sugestões)</label>
+                      <select 
+                        value={formData.especialidade || ''}
+                        onChange={e => setFormData({...formData, especialidade: e.target.value})}
+                        className="w-full bg-slate-800 border border-emerald-500/20 rounded-xl py-3 px-4 focus:outline-none focus:border-emerald-500 transition-colors appearance-none text-white"
+                      >
+                        <option value="">Selecione a especialidade...</option>
+                        {especialidades.map(spec => (
+                          <option key={spec.id} value={spec.nome}>{spec.nome}</option>
+                        ))}
+                      </select>
+                    </motion.div>
+                  )}
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Status</label>
                     <select 

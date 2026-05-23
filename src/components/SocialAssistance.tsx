@@ -20,7 +20,8 @@ import {
   Save,
   ShoppingBag,
   Stethoscope,
-  Baby
+  Baby,
+  Printer
 } from 'lucide-react';
 import { 
   collection, 
@@ -206,6 +207,148 @@ export default function SocialAssistance() {
     }
   };
 
+  const handlePrintReceipt = (item: any) => {
+    const win = window.open("", "_blank");
+    if (!win) return;
+
+    // Get a nicely structured date string
+    let deliveryDate = "---";
+    if (item.data_entrega_realizada) {
+      if (item.data_entrega_realizada.toDate) {
+        deliveryDate = format(item.data_entrega_realizada.toDate(), 'dd/MM/yyyy HH:mm:ss');
+      } else if (item.data_entrega_realizada instanceof Date) {
+        deliveryDate = format(item.data_entrega_realizada, 'dd/MM/yyyy HH:mm:ss');
+      } else {
+        try {
+          deliveryDate = format(new Date(item.data_entrega_realizada), 'dd/MM/yyyy HH:mm:ss');
+        } catch (e) {
+          deliveryDate = format(new Date(), 'dd/MM/yyyy HH:mm:ss');
+        }
+      }
+    } else if (item.data_entrega_prevista) {
+      try {
+        deliveryDate = format(new Date(item.data_entrega_prevista + 'T12:00:00'), 'dd/MM/yyyy');
+      } catch (e) {}
+    } else {
+      deliveryDate = format(new Date(), 'dd/MM/yyyy');
+    }
+
+    const html = `
+      <html>
+        <head>
+          <title>Recibo de Entrega - Assistência Social</title>
+          <style>
+            @page { size: A4; margin: 0; }
+            body { font-family: 'Inter', system-ui, -apple-system, sans-serif; padding: 50px; color: #1e293b; background: white; }
+            .container { max-width: 800px; margin: 0 auto; border: 1px solid #e2e8f0; padding: 40px; border-radius: 8px; }
+            .header { text-align: center; border-bottom: 2px solid #334155; padding-bottom: 20px; margin-bottom: 40px; }
+            .header h1 { margin: 0; font-size: 20px; color: #0f172a; text-transform: uppercase; letter-spacing: 2px; }
+            .header p { margin: 5px 0 0; color: #64748b; font-size: 12px; font-weight: 600; }
+            .receipt-id { text-align: right; font-size: 10px; color: #94a3b8; margin-bottom: 20px; font-family: monospace; }
+            .section { margin-bottom: 30px; }
+            .section-title { font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; margin-bottom: 15px; }
+            .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+            .field { margin-bottom: 10px; }
+            .label { font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 2px; display: block; }
+            .value { font-size: 14px; font-weight: 500; color: #1e293b; padding-bottom: 4px; border-bottom: 1px dashed #e2e8f0; min-height: 20px; display: block; }
+            .declaration { margin-top: 40px; font-size: 13px; line-height: 1.6; color: #475569; text-align: justify; }
+            .signature-area { margin-top: 80px; display: grid; grid-template-columns: 1fr 1fr; gap: 50px; }
+            .signature-box { text-align: center; }
+            .line { border-top: 1px solid #334155; margin-bottom: 8px; }
+            .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid #f1f5f9; font-size: 9px; text-align: center; color: #94a3b8; }
+            .btn-print { margin-top: 40px; text-align: center; }
+            .btn-print button { background: #0f172a; color: white; border: none; padding: 12px 32px; border-radius: 6px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+            .btn-print button:hover { background: #334155; }
+            @media print { .no-print { display: none; } body { padding: 30px; } .container { border: none; } }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="receipt-id">REF: ${item.id ? item.id.substring(0, 8).toUpperCase() : 'NOVO_REGISTRO'}</div>
+            <div class="header">
+              <h1>Recibo de Entrega de Auxílio Social</h1>
+              <p>Gabinete Parlamentar - Departamento de Assistência Social e Cidadania</p>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Dados do Beneficiário</div>
+              <div class="field">
+                <span class="label">Nome do Beneficiário</span>
+                <span class="value">${item.beneficiado_nome}</span>
+              </div>
+              <div class="grid">
+                <div class="field">
+                  <span class="label">CPF</span>
+                  <span class="value">${item.beneficiado_cpf || "---"}</span>
+                </div>
+                <div class="field">
+                  <span class="label">Telefone</span>
+                  <span class="value">${item.beneficiado_telefone || "---"}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Dados do Benefício Recebido</div>
+              <div class="grid">
+                <div class="field">
+                  <span class="label">Tipo de Benefício</span>
+                  <span class="value">${item.tipo_beneficio}</span>
+                </div>
+                <div class="field">
+                  <span class="label">Quantidade</span>
+                  <span class="value">${item.quantidade} unidade(s)</span>
+                </div>
+                <div class="field">
+                  <span class="label">Data de Entrega</span>
+                  <span class="value">${deliveryDate}</span>
+                </div>
+                <div class="field">
+                  <span class="label">Entregue por</span>
+                  <span class="value">${item.entregue_por_nome || profile?.nome || "Representante do Gabinete"}</span>
+                </div>
+              </div>
+              ${item.observacoes ? `
+                <div class="field" style="margin-top: 15px;">
+                  <span class="label">Observações</span>
+                  <span class="value" style="border: none; background: #f8fafc; padding: 10px; border-radius: 6px; font-size: 12px; line-height: 1.4;">${item.observacoes}</span>
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="declaration">
+              Declaro para os devidos fins de prestação de contas que recebi nesta data o benefício social acima especificado, concedido através das ações integradas de assistência social do Gabinete Parlamentar, em perfeitas condições de uso e destinação, nada tendo a reclamar quanto ao atendimento e entrega efetuados.
+            </div>
+
+            <div class="signature-area">
+              <div class="signature-box">
+                <div class="line"></div>
+                <span class="label">Responsável pela Entrega</span>
+                <span style="font-size: 11px; font-weight: bold;">${item.entregue_por_nome || profile?.nome || "Representante do Gabinete"}</span>
+              </div>
+              <div class="signature-box">
+                <div class="line"></div>
+                <span class="label">Assinatura do Beneficiário</span>
+                <span style="font-size: 11px; font-weight: bold;">${item.beneficiado_nome}</span>
+              </div>
+            </div>
+
+            <div class="footer">
+              Este recibo de entrega serve como comprovante para prestação de contas oficial e foi gerado em ${format(new Date(), "dd/MM/yyyy HH:mm:ss")} por ${profile?.nome || "Sistema"}.
+            </div>
+            
+            <div class="btn-print no-print">
+              <button onclick="window.print()">IMPRIMIR RECIBO</button>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    win.document.write(html);
+    win.document.close();
+  };
+
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingId(null);
@@ -294,7 +437,22 @@ export default function SocialAssistance() {
           cabinetId: profile.cabinetId 
         });
       }
+      const isEntregue = formData.status === 'Entregue';
+      const createdId = editingId;
       handleCloseModal();
+
+      if (isEntregue) {
+        setTimeout(() => {
+          if (confirm("Deseja gerar o recibo de entrega em PDF para prestação de contas?")) {
+            handlePrintReceipt({
+              id: createdId || 'NOVO_REGISTRO',
+              ...formData,
+              entregue_por_nome: profile?.nome || '',
+              data_entrega_realizada: new Date()
+            });
+          }
+        }, 300);
+      }
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'auxilio_social');
     }
@@ -327,6 +485,19 @@ export default function SocialAssistance() {
         next: updates,
         cabinetId: profile?.cabinetId 
       });
+
+      if (newStatus === 'Entregue' && existing) {
+        setTimeout(() => {
+          if (confirm("Deseja gerar o recibo de entrega em PDF para prestação de contas?")) {
+            handlePrintReceipt({
+              ...existing,
+              status: 'Entregue',
+              entregue_por_nome: profile?.nome || '',
+              data_entrega_realizada: new Date()
+            });
+          }
+        }, 300);
+      }
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `auxilio_social/${id}`);
     }
@@ -698,6 +869,16 @@ export default function SocialAssistance() {
                     </div>
 
                     <div className="flex items-center gap-1 dropdown-container">
+                      {item.status === 'Entregue' && (
+                        <button 
+                          onClick={() => handlePrintReceipt(item)}
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 text-xs font-bold rounded-xl transition-all border border-emerald-500/10 shadow-sm"
+                          title="Imprimir Recibo"
+                        >
+                          <Printer size={14} />
+                          <span>Recibo</span>
+                        </button>
+                      )}
                       {item.status !== 'Entregue' && (
                         <button 
                           onClick={() => handleStatusChange(item.id, 'Entregue')}
