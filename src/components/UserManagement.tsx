@@ -169,8 +169,7 @@ export default function UserManagement() {
 
     const q = query(
       collection(db, 'users'),
-      where('cabinetId', '==', profile.cabinetId),
-      orderBy('nome', 'asc')
+      where('cabinetId', '==', profile.cabinetId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -178,6 +177,13 @@ export default function UserManagement() {
         id: doc.id,
         ...doc.data()
       })) as User[];
+      
+      // Sort users in-memory by name (nome) alphabetically
+      usersData.sort((a, b) => {
+        const nomeA = a.nome || '';
+        const nomeB = b.nome || '';
+        return nomeA.localeCompare(nomeB, 'pt-BR');
+      });
       
       setUsers(usersData);
       setLoading(false);

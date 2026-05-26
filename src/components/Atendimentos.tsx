@@ -35,11 +35,12 @@ import {
   History,
   User,
   MapPin,
-  Send
+  Send,
+  Map as MapIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatProperName } from '../lib/utils';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -61,6 +62,14 @@ function LocationMarker({ position, setPosition }: { position: [number, number] 
   return position === null ? null : (
     <Marker position={position} />
   );
+}
+
+function ChangeMapView({ center, zoom }: { center: [number, number]; zoom: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, zoom);
+  }, [center, zoom, map]);
+  return null;
 }
 
 import { 
@@ -92,11 +101,125 @@ export default function Atendimentos() {
   const [searchCPF, setSearchCPF] = useState('');
   const [searchPhone, setSearchPhone] = useState('');
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'calendar' | 'map'>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [activeTypeFilter, setActiveTypeFilter] = useState('Todos');
   const [protocolError, setProtocolError] = useState<string | null>(null);
   const [validatingProtocol, setValidatingProtocol] = useState(false);
+
+  const [mapViewport, setMapViewport] = useState<{ center: [number, number]; zoom: number }>({
+    center: [-8.7183, -38.2173],
+    zoom: 13
+  });
+
+  const neighborhoodStats = useMemo(() => {
+    const statsMap: { [key: string]: { name: string; general: number; medico: number; total: number; latSum: number; lngSum: number; coordCount: number } } = {};
+
+    const predefinedNeighborhoodCoords: { [key: string]: [number, number] } = {
+      'CENTRO': [-8.7183, -38.2173],
+      'QUADRA 01': [-8.7170, -38.2120],
+      'QUADRA 1': [-8.7170, -38.2120],
+      'QUADRA 02': [-8.7198, -38.2135],
+      'QUADRA 2': [-8.7198, -38.2135],
+      'QUADRA 03': [-8.7210, -38.2155],
+      'QUADRA 3': [-8.7210, -38.2155],
+      'QUADRA 04': [-8.7150, -38.2190],
+      'QUADRA 4': [-8.7150, -38.2190],
+      'QUADRA 05': [-8.7130, -38.2210],
+      'QUADRA 5': [-8.7130, -38.2210],
+      'QUADRA 06': [-8.7142, -38.2250],
+      'QUADRA 6': [-8.7142, -38.2250],
+      'QUADRA 07': [-8.7115, -38.2230],
+      'QUADRA 7': [-8.7115, -38.2230],
+      'QUADRA 08': [-8.7090, -38.2180],
+      'QUADRA 8': [-8.7090, -38.2180],
+      'QUADRA 09': [-8.7120, -38.2150],
+      'QUADRA 9': [-8.7120, -38.2150],
+      'QUADRA 10': [-8.7230, -38.2090],
+      'QUADRA 11': [-8.7240, -38.2100],
+      'QUADRA 12': [-8.7250, -38.2110],
+      'QUADRA 13': [-8.7260, -38.2120],
+      'QUADRA 14': [-8.7270, -38.2130],
+      'QUADRA 15': [-8.7280, -38.2140],
+      'QUADRA 16': [-8.7290, -38.2150],
+      'QUADRA 17': [-8.7200, -38.2200],
+      'SÃO FRANCISCO': [-8.7215, -38.2250],
+      'SAN FRANCISCO': [-8.7215, -38.2250],
+      'VILA DE BARREIRAS': [-8.7350, -38.1950],
+      'VILA DOS PESCADORES': [-8.7300, -38.2050],
+      'NOME DO BAIRRO': [-8.7183, -38.2173],
+      'NOVA PETROLÂNDIA': [-8.7100, -38.2050],
+      'CAJUEIRO': [-8.7080, -38.2280],
+      'NOSSA SENHORA DE FÁTIMA': [-8.7132, -38.2110],
+      'FÁTIMA': [-8.7132, -38.2110],
+      'COHAB': [-8.7050, -38.2150]
+    };
+
+    data.forEach(item => {
+      const bRaw = item.bairro || '';
+      const bNorm = bRaw.trim().toUpperCase();
+      if (!bNorm) return;
+
+      if (!statsMap[bNorm]) {
+        statsMap[bNorm] = {
+          name: formatProperName(bRaw),
+          general: 0,
+          medico: 0,
+          total: 0,
+          latSum: 0,
+          lngSum: 0,
+          coordCount: 0
+        };
+      }
+
+      const isMed = item.sourceCollection === 'atendimentos_medicos' || item.tipo_atendimento === 'Médico';
+      if (isMed) {
+        statsMap[bNorm].medico += 1;
+      } else {
+        statsMap[bNorm].general += 1;
+      }
+      statsMap[bNorm].total += 1;
+
+      if (item.latitude && item.longitude) {
+        statsMap[bNorm].latSum += item.latitude;
+        statsMap[bNorm].lngSum += item.longitude;
+        statsMap[bNorm].coordCount += 1;
+      }
+    });
+
+    const list = Object.keys(statsMap).map(key => {
+      const info = statsMap[key];
+      let coordinates: [number, number];
+
+      if (info.coordCount > 0) {
+        coordinates = [info.latSum / info.coordCount, info.lngSum / info.coordCount];
+      } else {
+        const match = predefinedNeighborhoodCoords[key];
+        if (match) {
+          coordinates = match;
+        } else {
+          let hash = 0;
+          for (let i = 0; i < key.length; i++) {
+            hash = key.charCodeAt(i) + ((hash << 5) - hash);
+          }
+          const latOffset = ((Math.abs(hash) % 1000) / 1000) * 0.012 - 0.006;
+          const lngOffset = ((Math.abs(hash >> 3) % 1000) / 1000) * 0.012 - 0.006;
+          coordinates = [-8.7183 + latOffset, -38.2173 + lngOffset];
+        }
+      }
+
+      return {
+        id: key,
+        name: info.name,
+        geral: info.general,
+        medico: info.medico,
+        total: info.total,
+        coordinates
+      };
+    });
+
+    return list.sort((a, b) => b.total - a.total);
+  }, [data]);
 
   // States for cross-data
   const [medicalHistory, setMedicalHistory] = useState<any[]>([]);
@@ -673,6 +796,16 @@ export default function Atendimentos() {
             >
               <CalendarIcon size={18} />
             </button>
+            <button 
+              onClick={() => setViewMode('map')}
+              className={cn(
+                "p-2 rounded-lg transition-all",
+                viewMode === 'map' ? "bg-slate-800 text-white shadow-sm" : "text-slate-500 hover:text-slate-300"
+              )}
+              title="Mapa de Bairros"
+            >
+              <MapIcon size={18} />
+            </button>
           </div>
           {profile?.role !== 'consulta' && (
             <button 
@@ -801,7 +934,7 @@ export default function Atendimentos() {
         </div>
       </div>
 
-      {viewMode === 'list' ? (
+      {viewMode === 'list' && (
         /* Table */
         <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
           <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-800">
@@ -955,7 +1088,9 @@ export default function Atendimentos() {
             </table>
           </div>
         </div>
-      ) : (
+      )}
+
+      {viewMode === 'calendar' && (
         /* Calendar View */
         <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl flex flex-col">
           <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-950/50">
@@ -1026,6 +1161,186 @@ export default function Atendimentos() {
                 );
               });
             })()}
+          </div>
+        </div>
+      )}
+
+      {viewMode === 'map' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
+          {/* Card: Map Container */}
+          <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h2 className="font-extrabold text-white text-base">Mapa de Densidade por Bairro</h2>
+                <p className="text-slate-500 text-xs mt-0.5">Clique nos círculos para explorar atendimentos do bairro.</p>
+              </div>
+              <span className="text-[10px] bg-slate-800 border border-slate-700 font-bold px-2.5 py-1 rounded-lg text-slate-400">
+                {neighborhoodStats.length} Bairros Atendidos
+              </span>
+            </div>
+
+            <div className="h-[450px] rounded-2xl overflow-hidden border border-slate-800 relative z-0">
+              <MapContainer 
+                center={mapViewport.center} 
+                zoom={mapViewport.zoom} 
+                style={{ height: '100%', width: '100%' }}
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                />
+                <ChangeMapView center={mapViewport.center} zoom={mapViewport.zoom} />
+                
+                {neighborhoodStats.map((nb) => {
+                  const radius = 10 + Math.min(nb.total * 3, 30);
+                  const isTop = nb === neighborhoodStats[0];
+                  
+                  return (
+                    <CircleMarker
+                      key={nb.id}
+                      center={nb.coordinates}
+                      radius={radius}
+                      fillColor={isTop ? '#d946ef' : '#3b82f6'}
+                      color={isTop ? '#f5d0fe' : '#93c5fd'}
+                      weight={2}
+                      opacity={0.8}
+                      fillOpacity={0.65}
+                    >
+                      <Popup>
+                        <div className="p-2 min-w-[200px] text-slate-100 bg-slate-950 rounded-xl font-sans">
+                          <h4 className="font-extrabold text-[#38bdf8] text-sm mb-2 border-b border-slate-800 pb-1 uppercase tracking-wide">
+                            {nb.name}
+                          </h4>
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between items-center text-slate-400">
+                              <span>📄 Geral:</span>
+                              <span className="font-bold text-slate-200">{nb.geral}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-400">
+                              <span>🩺 Médicos:</span>
+                              <span className="font-bold text-emerald-400">{nb.medico}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-300 font-bold mt-1.5 border-t border-slate-800 pt-1.5">
+                              <span>📊 Total:</span>
+                              <span className="text-white text-sm">{nb.total}</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSearch(nb.name);
+                              setViewMode('list');
+                            }}
+                            className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase tracking-wider py-1.5 rounded-lg transition-all text-center flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <Filter size={10} />
+                            Filtrar Atendimentos
+                          </button>
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  );
+                })}
+              </MapContainer>
+            </div>
+            
+            <div className="flex gap-4 justify-start items-center text-xs text-slate-400 pt-1">
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-500/60 border border-blue-400" /> Bairro Comum</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-magenta-500 bg-[#d946ef] border border-[#f5d0fe]" /> Líder de Atendimentos</span>
+            </div>
+          </div>
+
+          {/* Card: Leaderboard & Stats */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col space-y-4">
+            <h3 className="font-extrabold text-white text-base border-b border-slate-800 pb-3 flex items-center justify-between">
+              <span>Bairros com Mais Atendimentos</span>
+              <span className="text-[10px] text-blue-400 uppercase tracking-widest font-black">Ranking</span>
+            </h3>
+            
+            <div className="overflow-y-auto max-h-[380px] space-y-3.5 scrollbar-thin scrollbar-thumb-slate-800 pr-1">
+              {neighborhoodStats.length === 0 ? (
+                <p className="text-center text-slate-500 text-xs py-10">Crie atendimentos com bairro para gerar estatísticas.</p>
+              ) : (
+                neighborhoodStats.map((nb, idx) => {
+                  const maxTotal = neighborhoodStats[0]?.total || 1;
+                  const ratio = (nb.total / maxTotal) * 100;
+                  
+                  return (
+                    <div 
+                      key={nb.id}
+                      className="bg-slate-950/40 border border-slate-900 rounded-2xl p-3.5 hover:border-blue-500/20 transition-all flex flex-col space-y-2.5 group/card"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <span className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0",
+                            idx === 0 ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-md shadow-amber-950/20 scale-105" :
+                            idx === 1 ? "bg-slate-300/20 text-slate-300 border border-slate-500/20" :
+                            idx === 2 ? "bg-amber-700/20 text-amber-500 border border-amber-800/20" :
+                            "bg-slate-800/50 text-slate-500"
+                          )}>
+                            {idx + 1}
+                          </span>
+                          <span className="font-bold text-slate-200 text-sm group-hover/card:text-blue-400 transition-colors uppercase tracking-tight">{nb.name}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              setMapViewport({
+                                center: nb.coordinates,
+                                zoom: 15
+                              });
+                            }}
+                            className="p-1 px-2 text-[10px] bg-slate-800 hover:bg-slate-700 border border-slate-705 rounded-lg text-slate-400 hover:text-white transition-all cursor-pointer flex items-center gap-1"
+                            title="Focar no Mapa"
+                          >
+                            <MapPin size={10} />
+                            Focar
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSearch(nb.name);
+                              setViewMode('list');
+                            }}
+                            className="p-1 px-2 text-[10px] bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/20 rounded-lg text-blue-400 hover:text-blue-300 transition-all cursor-pointer"
+                            title="Ver Atendimentos"
+                          >
+                            Ver
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Split meter bar */}
+                      <div className="space-y-1">
+                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden flex">
+                          <div 
+                            style={{ width: `${(nb.geral / nb.total) * ratio}%` }}
+                            className="bg-blue-500 h-full transition-all"
+                            title={`Geral: ${nb.geral}`}
+                          />
+                          <div 
+                            style={{ width: `${(nb.medico / nb.total) * ratio}%` }}
+                            className="bg-emerald-500 h-full transition-all"
+                            title={`Médico: ${nb.medico}`}
+                          />
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                            📄 {nb.geral} geral
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            🩺 {nb.medico} médico
+                          </span>
+                          <span className="font-extrabold text-slate-400">Total: {nb.total}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
       )}
