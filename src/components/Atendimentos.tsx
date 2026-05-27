@@ -1157,9 +1157,42 @@ export default function Atendimentos() {
                             </>
                           )}
                           <span className="text-[10px] text-slate-600">•</span>
-                          <span className="inline-flex items-center gap-1 text-[10px] bg-slate-800/80 text-blue-300 border border-slate-700/50 px-1.5 py-0.5 rounded font-medium">
-                            <span className="text-slate-500 font-bold">Assessor:</span> {getAssessorName(item.assessor_id || item.usuario_id)}
-                          </span>
+                          {profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-slate-800 text-blue-300 border border-slate-700/50 px-1.5 py-0.5 rounded font-medium shadow-sm">
+                              <span className="text-slate-500 font-bold">Assessor:</span>
+                              <select 
+                                value={item.assessor_id || item.usuario_id || ''}
+                                onChange={async (e) => {
+                                  const newAssessorId = e.target.value;
+                                  const collectionName = item.sourceCollection === 'atendimentos_medicos' ? 'atendimentos_medicos' : 'atendimentos';
+                                  try {
+                                    await updateDoc(doc(db, collectionName, item.id), {
+                                      assessor_id: newAssessorId,
+                                      updated_at: serverTimestamp()
+                                    });
+                                    await logAction('Atualizar', collectionName, item.id, { 
+                                      previous: { assessor_id: item.assessor_id || item.usuario_id || '' }, 
+                                      next: { assessor_id: newAssessorId },
+                                      cabinetId: profile.cabinetId
+                                    });
+                                  } catch (err) {
+                                    console.error("Erro ao atribuir assessor:", err);
+                                    alert("Erro ao atribuir assessor.");
+                                  }
+                                }}
+                                className="bg-transparent border-none text-blue-300 focus:outline-none focus:ring-0 cursor-pointer pr-1 py-0 scrollbar-none font-bold text-[10px]"
+                              >
+                                <option value="" className="bg-slate-900 text-slate-300">Não Atribuído</option>
+                                {cabinetUsers.map(u => (
+                                  <option key={u.id} value={u.id} className="bg-slate-900 text-slate-300">{u.nome}</option>
+                                ))}
+                              </select>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-slate-800/80 text-blue-300 border border-slate-700/50 px-1.5 py-0.5 rounded font-medium">
+                              <span className="text-slate-500 font-bold">Assessor:</span> {getAssessorName(item.assessor_id || item.usuario_id)}
+                            </span>
+                          )}
                         </div>
                         {((item.sourceCollection === 'atendimentos' && item.tem_lembrete && item.lembrete_data) || 
                           (item.sourceCollection === 'atendimentos_medicos' && item.lembrete_exame)) && (

@@ -44,6 +44,7 @@ export default function Sugestoes() {
   const [search, setSearch] = useState('');
   const [searchPhone, setSearchPhone] = useState('');
   const [loading, setLoading] = useState(true);
+  const [cabinetUsers, setCabinetUsers] = useState<any[]>([]);
 
   const initialForm = {
     nome_completo: '',
@@ -55,9 +56,34 @@ export default function Sugestoes() {
     status: 'Nova',
     lembrete: '',
     lgpd_consent: false,
+    assessor_id: '',
   };
 
   const [formData, setFormData] = useState(initialForm);
+
+  useEffect(() => {
+    if (!profile?.cabinetId) return;
+    const q = query(
+      collection(db, 'users'), 
+      where('cabinetId', '==', profile.cabinetId),
+      where('ativo', '==', true)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const uList = snap.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      }));
+      setCabinetUsers(uList);
+    }, (error) => {
+      console.error("Error fetching cabinet users in sugestoes:", error);
+    });
+    return () => unsub();
+  }, [profile?.cabinetId]);
+
+  const getAssessorName = (assessorId: string) => {
+    const userObj = cabinetUsers.find(u => u.id === assessorId);
+    return userObj ? userObj.nome : 'Não atribuído';
+  };
 
   useEffect(() => {
     if (!profile?.cabinetId) return;
@@ -139,6 +165,7 @@ export default function Sugestoes() {
       status: item.status || 'Nova',
       lembrete: item.lembrete || '',
       lgpd_consent: item.lgpd_consent || false,
+      assessor_id: item.assessor_id || '',
     });
     setShowModal(true);
   };
@@ -290,9 +317,48 @@ export default function Sugestoes() {
              </div>
 
              <div className="flex items-center justify-between text-[10px] text-slate-500 uppercase tracking-tight">
-                <div className="flex items-center gap-1">
-                   <Clock size={12} />
-                   {item.created_at?.toDate ? format(item.created_at.toDate(), 'dd/MM/yyyy', { locale: ptBR }) : '...'}
+                <div className="flex flex-wrap items-center gap-3">
+                   <div className="flex items-center gap-1">
+                      <Clock size={12} />
+                      {item.created_at?.toDate ? format(item.created_at.toDate(), 'dd/MM/yyyy', { locale: ptBR }) : '...'}
+                   </div>
+                   {/* Interactive Assessor quick assign for Secretaria / Vereador / Admin */}
+                   {profile?.role === 'admin' || profile?.role === 'vereador' || profile?.role === 'secretaria_parlamentar' ? (
+                     <span className="inline-flex items-center gap-1 bg-slate-800 text-blue-300 border border-slate-700/50 px-2 py-0.5 rounded font-medium" onClick={(e) => e.stopPropagation()}>
+                       <span className="text-slate-400 font-bold mr-1">Assessor:</span>
+                       <select 
+                         value={item.assessor_id || ''}
+                         onChange={async (e) => {
+                           const newAssessorId = e.target.value;
+                           try {
+                             await updateDoc(doc(db, 'sugestoes', item.id), {
+                               assessor_id: newAssessorId,
+                               updated_at: serverTimestamp()
+                             });
+                             await logAction('Atualizar', 'sugestoes', item.id, { 
+                               previous: { assessor_id: item.assessor_id || '' }, 
+                               next: { assessor_id: newAssessorId } 
+                             });
+                           } catch (err) {
+                             console.error("Erro ao atribuir assessor para sugestão:", err);
+                             alert("Erro ao atribuir assessor.");
+                           }
+                         }}
+                         className="bg-transparent border-none text-blue-300 focus:outline-none focus:ring-0 cursor-pointer pr-1 py-0 scrollbar-none font-bold text-[10px] uppercase"
+                       >
+                         <option value="" className="bg-slate-900 text-slate-300">Não Atribuído</option>
+                         {cabinetUsers.map(u => (
+                           <option key={u.id} value={u.id} className="bg-slate-900 text-slate-300">{u.nome}</option>
+                         ))}
+                       </select>
+                     </span>
+                   ) : (
+                     item.assessor_id && (
+                       <span className="inline-flex items-center gap-1 bg-slate-800/80 text-blue-300 border border-slate-700/50 px-2 py-0.5 rounded font-medium">
+                         <span className="text-slate-500 font-bold">Assessor:</span> {getAssessorName(item.assessor_id)}
+                       </span>
+                     )
+                   )}
                 </div>
                 {profile?.role !== 'consulta' && item.status === 'Nova' && (
                   <button 
@@ -346,6 +412,19 @@ export default function Sugestoes() {
                      <div className="space-y-1">
                         <label className="text-[10px] font-bold uppercase text-slate-500">Lembrete para Acompanhamento</label>
                         <input type="date" value={formData.lembrete} onChange={e => setFormData({...formData, lembrete: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl py-4 px-4 focus:ring-2 focus:ring-blue-500/30 [color-scheme:dark]" />
+                     </div>
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500">Assessor Responsável</label>
+                        <select 
+                          value={formData.assessor_id || ''} 
+                          onChange={e => setFormData({...formData, assessor_id: e.target.value})} 
+                          className="w-full bg-slate-800 rounded-xl p-3 border-none appearance-none cursor-pointer text-slate-200 focus:ring-2 focus:ring-blue-500/30"
+                        >
+                            <option value="">Selecione um assessor...</option>
+                            {cabinetUsers.map(u => (
+                              <option key={u.id} value={u.id}>{u.nome}</option>
+                            ))}
+                        </select>
                      </div>
                      <textarea required rows={4} value={formData.sugestao} onChange={e => setFormData({...formData, sugestao: e.target.value})} className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500/30 resize-none" placeholder="Qual a sugestão ou reclamação?" />
                   </div>
