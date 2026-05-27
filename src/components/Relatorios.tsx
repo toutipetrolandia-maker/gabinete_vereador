@@ -162,9 +162,17 @@ export default function Relatorios() {
         try {
           const imgProps = await new Promise<any>((resolve, reject) => {
              const img = new Image();
-             img.crossOrigin = "Anonymous";
+             if (!logoUrl.startsWith('data:')) {
+               img.crossOrigin = "Anonymous";
+             }
              img.onload = () => resolve(img);
-             img.onerror = reject;
+             img.onerror = () => {
+               // Fallback: try loading without CrossOrigin anonymous
+               const fallbackImg = new Image();
+               fallbackImg.onload = () => resolve(fallbackImg);
+               fallbackImg.onerror = reject;
+               fallbackImg.src = logoUrl;
+             };
              img.src = logoUrl;
           });
           const logoWidth = 30;
@@ -270,9 +278,17 @@ export default function Relatorios() {
         try {
           const imgProps = await new Promise<any>((resolve, reject) => {
              const img = new Image();
-             img.crossOrigin = "Anonymous";
+             if (!logoUrl.startsWith('data:')) {
+               img.crossOrigin = "Anonymous";
+             }
              img.onload = () => resolve(img);
-             img.onerror = reject;
+             img.onerror = () => {
+               // Fallback: try loading without CrossOrigin anonymous
+               const fallbackImg = new Image();
+               fallbackImg.onload = () => resolve(fallbackImg);
+               fallbackImg.onerror = reject;
+               fallbackImg.src = logoUrl;
+             };
              img.src = logoUrl;
           });
           const logoWidth = 30;
@@ -380,9 +396,29 @@ export default function Relatorios() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-3xl font-bold text-white mb-2 font-display">Relatórios de Atividade</h1>
-        <p className="text-slate-400">Exporte e analise os dados gerados pelo gabinete.</p>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/50 border border-slate-800/80 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+        <div className="flex items-center gap-4">
+          {(cabinetData?.cabinet_logo || cabinetData?.vereador_photo) ? (
+            <img 
+              src={cabinetData.cabinet_logo || cabinetData.vereador_photo} 
+              alt={cabinetData?.name || cabinetData?.app_name} 
+              className="w-16 h-16 rounded-2xl object-cover border border-slate-700 shadow-inner shrink-0"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="w-16 h-16 bg-blue-500/10 text-blue-400 rounded-2xl flex items-center justify-center text-2xl font-black border border-blue-500/20 shrink-0">
+              🏛️
+            </div>
+          )}
+          <div>
+            <h1 className="text-3xl font-bold text-white tracking-tight font-display">
+              Relatórios de Atividade
+            </h1>
+            <p className="text-slate-400 text-sm">
+              Exporte e analise os dados do <span className="text-blue-400 font-semibold">{cabinetData?.app_name || cabinetData?.name || 'Gabinete'}</span>.
+            </p>
+          </div>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

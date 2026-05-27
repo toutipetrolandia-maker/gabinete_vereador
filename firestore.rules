@@ -152,6 +152,14 @@ service cloud.firestore {
       allow delete: if isSuper() || (isAdmin() && resourceBelongsToUserCabinet());
     }
 
+    // ESPECIALIDADES
+    match /especialidades/{id} {
+      allow read: if resourceBelongsToUserCabinet();
+      allow create: if isCabinetMember() && dataBelongsToUserCabinet();
+      allow update: if isCabinetMember() && resourceBelongsToUserCabinet() && dataBelongsToUserCabinet();
+      allow delete: if isCabinetMember() && resourceBelongsToUserCabinet();
+    }
+
     // AGENDA VEREADOR
     match /agenda_vereador/{id} {
       allow read: if resourceBelongsToUserCabinet();

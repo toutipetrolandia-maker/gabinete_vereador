@@ -245,6 +245,50 @@ export default function AtendimentosMedicos() {
     return () => unsubscribe();
   }, [profile?.cabinetId]);
 
+  const [seeding, setSeeding] = useState(false);
+
+  const handlePreRegisterDefaultSpecialties = async () => {
+    if (!profile?.cabinetId || seeding) return;
+    setSeeding(true);
+    const defaultSpecs = [
+      "Cardiologia",
+      "Clínica Médica",
+      "Dermatologia",
+      "Endocrinologia",
+      "Fisioterapia",
+      "Gastroenterologia",
+      "Geriatria",
+      "Ginecologia e Obstetrícia",
+      "Neurologia",
+      "Odontologia",
+      "Oftalmologia",
+      "Ortopedia e Traumatologia",
+      "Otorrinolaringologia",
+      "Pediatria",
+      "Pneumologia",
+      "Psicologia",
+      "Psiquiatria",
+      "Urologia",
+    ];
+    try {
+      const currentNames = (especialidades || []).map(e => e.nome.toLowerCase());
+      for (const s of defaultSpecs) {
+        if (!currentNames.includes(s.toLowerCase())) {
+          await addDoc(collection(db, "especialidades"), {
+            nome: s,
+            cabinetId: profile.cabinetId,
+            created_at: serverTimestamp(),
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Error populating default specialties:", e);
+      alert("Erro ao adicionar especialidades padrão.");
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   useEffect(() => {
     if (!profile?.cabinetId) return;
 
@@ -256,36 +300,44 @@ export default function AtendimentosMedicos() {
 
     const unsubscribe = onSnapshot(qSpec, async (snap) => {
       if (snap.empty) {
-        const defaultSpecs = [
-          "Cardiologia",
-          "Clínica Médica",
-          "Dermatologia",
-          "Endocrinologia",
-          "Fisioterapia",
-          "Gastroenterologia",
-          "Geriatria",
-          "Ginecologia e Obstetrícia",
-          "Neurologia",
-          "Odontologia",
-          "Oftalmologia",
-          "Ortopedia e Traumatologia",
-          "Otorrinolaringologia",
-          "Pediatria",
-          "Pneumologia",
-          "Psicologia",
-          "Psiquiatria",
-          "Urologia",
-        ];
-        try {
-          for (const s of defaultSpecs) {
-            await addDoc(collection(db, "especialidades"), {
-              nome: s,
-              cabinetId: profile.cabinetId,
-              created_at: serverTimestamp(),
-            });
+        setEspecialidades([]);
+        
+        // Auto-seed once per cabinet to avoid empty starts
+        const seedKey = `auto_seed_specs_${profile.cabinetId}`;
+        const alreadyTried = localStorage.getItem(seedKey);
+        if (!alreadyTried) {
+          localStorage.setItem(seedKey, "true");
+          const defaultSpecs = [
+            "Cardiologia",
+            "Clínica Médica",
+            "Dermatologia",
+            "Endocrinologia",
+            "Fisioterapia",
+            "Gastroenterologia",
+            "Geriatria",
+            "Ginecologia e Obstetrícia",
+            "Neurologia",
+            "Odontologia",
+            "Oftalmologia",
+            "Ortopedia e Traumatologia",
+            "Otorrinolaringologia",
+            "Pediatria",
+            "Pneumologia",
+            "Psicologia",
+            "Psiquiatria",
+            "Urologia",
+          ];
+          try {
+            for (const s of defaultSpecs) {
+              await addDoc(collection(db, "especialidades"), {
+                nome: s,
+                cabinetId: profile.cabinetId,
+                created_at: serverTimestamp(),
+              });
+            }
+          } catch (e) {
+            console.error("Error auto-seeding specialties:", e);
           }
-        } catch (e) {
-          console.error("Error populating default specialties:", e);
         }
       } else {
         setEspecialidades(
@@ -1791,9 +1843,19 @@ export default function AtendimentosMedicos() {
 
               <div className="flex-1 overflow-y-auto p-6 space-y-2">
                 {especialidades.length === 0 ? (
-                  <p className="text-xs text-slate-500 font-bold uppercase text-center py-8">
-                    Nenhuma especialidade cadastrada.
-                  </p>
+                  <div className="text-center py-8 space-y-4">
+                    <p className="text-xs text-slate-500 font-bold uppercase">
+                      Nenhuma especialidade cadastrada.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handlePreRegisterDefaultSpecialties}
+                      disabled={seeding}
+                      className="px-4 py-2.5 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer disabled:opacity-50 inline-flex items-center gap-2"
+                    >
+                      {seeding ? "Cadastrando..." : "⚙️ Pré-cadastrar Especialidades Médicas"}
+                    </button>
+                  </div>
                 ) : (
                   especialidades.map((spec) => (
                     <div
