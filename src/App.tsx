@@ -20,6 +20,7 @@ import WhatsAppAutomation from './components/WhatsAppAutomation';
 import SocialAssistance from './components/SocialAssistance';
 import Training from './components/Training';
 import IndicacoesCargos from './components/IndicacoesCargos';
+import SystemUpdatesPopup from './components/SystemUpdatesPopup';
 import { AlertTriangle } from 'lucide-react';
 
 interface ErrorBoundaryProps {
@@ -113,6 +114,7 @@ function AppContent() {
           {activeTab === 'history' && hasModuleAccess('history') && <History />}
           {activeTab === 'config' && hasModuleAccess('config') && <Settings />}
         </Layout>
+        <SystemUpdatesPopup userId={user.uid} />
       </LocalAuthBarrier>
     </ErrorBoundary>
   );

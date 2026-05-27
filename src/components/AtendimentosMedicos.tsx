@@ -757,7 +757,7 @@ export default function AtendimentosMedicos() {
                 </div>
               </div>
               <h3 className="text-lg font-bold text-slate-100 mb-1">
-                {item.nome_completo}
+                {formatProperName(item.nome_completo)}
               </h3>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-2">
                 <p className="text-xs text-blue-400 font-medium uppercase tracking-tighter">

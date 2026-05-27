@@ -36,7 +36,8 @@ import {
   User,
   MapPin,
   Send,
-  Map as MapIcon
+  Map as MapIcon,
+  Bell
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatProperName } from '../lib/utils';
@@ -224,6 +225,8 @@ export default function Atendimentos() {
   // States for cross-data
   const [medicalHistory, setMedicalHistory] = useState<any[]>([]);
   const [searchingMedical, setSearchingMedical] = useState(false);
+  const [generalHistory, setGeneralHistory] = useState<any[]>([]);
+  const [searchingGeneral, setSearchingGeneral] = useState(false);
   const [searchingCitizen, setSearchingCitizen] = useState(false);
   const [citizenFoundAlert, setCitizenFoundAlert] = useState<string | null>(null);
   const [waConfig, setWaConfig] = useState<WhatsAppConfig | null>(null);
@@ -278,6 +281,72 @@ export default function Atendimentos() {
 
     return list;
   }, [data, cabinetUsers]);
+
+  const listLembretes = useMemo(() => {
+    const list: any[] = [];
+    data.forEach(item => {
+      if (item.sourceCollection === 'atendimentos_medicos' && item.lembrete_exame) {
+        list.push({
+          id: item.id,
+          nome: item.nome_completo || 'Sem Nome',
+          cpf: item.cpf || '',
+          telefone: item.telefone || '',
+          data: item.lembrete_exame,
+          descricao: `Vencimento do Exame / Consulta médica`,
+          atendimento: item
+        });
+      } else if (item.sourceCollection === 'atendimentos' && item.tem_lembrete && item.lembrete_data) {
+        list.push({
+          id: item.id,
+          nome: item.nome_completo || 'Sem Nome',
+          cpf: item.cpf || '',
+          telefone: item.telefone || '',
+          data: item.lembrete_data,
+          descricao: item.lembrete_descricao || 'Lembrete de Vencimento',
+          atendimento: item
+        });
+      }
+    });
+
+    list.sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
+    return list;
+  }, [data]);
+
+  const unifiedHistory = useMemo(() => {
+    const list: any[] = [];
+    
+    generalHistory.forEach(item => {
+      list.push({
+        ...item,
+        type: 'general',
+        displayType: item.tipo_atendimento || 'Geral',
+        title: item.tipo_atendimento || 'Atendimento Geral',
+        description: item.descricao || '',
+        date: item.created_at
+      });
+    });
+
+    medicalHistory.forEach(item => {
+      list.push({
+        ...item,
+        type: 'medical',
+        displayType: item.especialidade ? `Médico - ${item.especialidade}` : 'Atendimento Médico',
+        title: item.especialidade || 'Médico',
+        description: item.descricao_problema || '',
+        date: item.created_at
+      });
+    });
+
+    return list.sort((a, b) => {
+      const getMs = (ts: any) => {
+        if (!ts) return 0;
+        if (ts.toDate) return ts.toDate().getTime();
+        if (ts.seconds) return ts.seconds * 1000;
+        return new Date(ts).getTime();
+      };
+      return getMs(b.date) - getMs(a.date);
+    });
+  }, [generalHistory, medicalHistory]);
 
   const sendBirthdayWish = (item: any) => {
     if (!item.telefone) return;
@@ -406,6 +475,9 @@ export default function Atendimentos() {
     latitude: null as number | null,
     longitude: null as number | null,
     assessor_id: '',
+    tem_lembrete: false,
+    lembrete_data: '',
+    lembrete_descricao: '',
   };
 
   // Masks
@@ -438,19 +510,58 @@ export default function Atendimentos() {
     
     setSearchingMedical(true);
     try {
-      // Search for both masked and potentially unmasked (standardizing on masked since that's what the UI saves)
       const q = query(
         collection(db, 'atendimentos_medicos'), 
         where('cabinetId', '==', profile?.cabinetId),
-        where('cpf', '==', maskedCPF), 
-        orderBy('created_at', 'desc')
+        where('cpf', '==', maskedCPF)
       );
       const querySnapshot = await getDocs(q);
-      setMedicalHistory(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const docsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      docsList.sort((a: any, b: any) => {
+        const getMs = (ts: any) => {
+          if (!ts) return 0;
+          if (ts.toDate) return ts.toDate().getTime();
+          if (ts.seconds) return ts.seconds * 1000;
+          return new Date(ts).getTime();
+        };
+        return getMs(b.created_at) - getMs(a.created_at);
+      });
+      setMedicalHistory(docsList);
     } catch (error) {
       console.error("Error fetching medical history:", error);
     } finally {
       setSearchingMedical(false);
+    }
+  };
+
+  const fetchGeneralHistory = async (cpf: string) => {
+    const maskedCPF = maskCPF(cpf);
+    const cleanCPF = cpf.replace(/\D/g, '');
+    if (cleanCPF.length < 11 || !profile?.cabinetId) return;
+    
+    setSearchingGeneral(true);
+    try {
+      const q = query(
+        collection(db, 'atendimentos'), 
+        where('cabinetId', '==', profile?.cabinetId),
+        where('cpf', '==', maskedCPF)
+      );
+      const querySnapshot = await getDocs(q);
+      const docsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      docsList.sort((a: any, b: any) => {
+        const getMs = (ts: any) => {
+          if (!ts) return 0;
+          if (ts.toDate) return ts.toDate().getTime();
+          if (ts.seconds) return ts.seconds * 1000;
+          return new Date(ts).getTime();
+        };
+        return getMs(b.created_at) - getMs(a.created_at);
+      });
+      setGeneralHistory(docsList);
+    } catch (error) {
+      console.error("Error fetching general history:", error);
+    } finally {
+      setSearchingGeneral(false);
     }
   };
 
@@ -694,6 +805,7 @@ export default function Atendimentos() {
     setEditingId(null);
     setFormData(initialForm);
     setMedicalHistory([]);
+    setGeneralHistory([]);
     setProtocolError(null);
     setCitizenFoundAlert(null);
   };
@@ -719,8 +831,14 @@ export default function Atendimentos() {
       latitude: item.latitude || null,
       longitude: item.longitude || null,
       assessor_id: item.assessor_id || '',
+      tem_lembrete: item.tem_lembrete || false,
+      lembrete_data: item.lembrete_data || '',
+      lembrete_descricao: item.lembrete_descricao || '',
     });
-    if (item.cpf) fetchMedicalHistory(item.cpf);
+    if (item.cpf) {
+      fetchMedicalHistory(item.cpf);
+      fetchGeneralHistory(item.cpf);
+    }
     setShowModal(true);
   };
 
@@ -864,6 +982,51 @@ export default function Atendimentos() {
         </div>
       )}
 
+      {listLembretes.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-950/20 via-slate-900 to-amber-950/20 border border-amber-500/10 rounded-3xl p-6 relative overflow-hidden shadow-xl">
+          <div className="absolute top-0 right-0 p-8 text-5xl opacity-[0.03] select-none pointer-events-none animate-pulse">⏰</div>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-amber-500/15 text-amber-500 rounded-2xl flex items-center justify-center text-xl border border-amber-500/20 shrink-0">
+                <Bell size={20} className="animate-pulse text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-white text-base">Controle de Lembretes do Gabinete ⏰</h3>
+                <p className="text-slate-400 text-xs">Acompanhamento dos vencimentos de exames, consultas e retornos dos cidadãos.</p>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {listLembretes.slice(0, 6).map((lembrete) => (
+              <div key={lembrete.id + '-' + lembrete.data} className="bg-slate-950/40 border border-slate-800/80 hover:border-amber-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-slate-200 text-sm truncate" title={lembrete.nome}>{lembrete.nome}</span>
+                    <span className="text-[9px] text-amber-400 bg-amber-500/10 font-bold border border-amber-500/20 px-2 py-0.5 rounded-lg shrink-0">
+                      {format(new Date(lembrete.data + "T12:00:00"), "dd/MM/yyyy")}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-medium line-clamp-1">{lembrete.descricao}</p>
+                  {lembrete.cpf && <p className="text-[10px] text-slate-500 font-mono">CPF: {lembrete.cpf}</p>}
+                </div>
+                {lembrete.telefone && (
+                  <button
+                    onClick={() => {
+                      const message = `Olá ${lembrete.nome.split(' ')[0]}, o Gabinete gostaria de lembrar sobre o vencimento de sua consulta/exame: "${lembrete.descricao}" agendada/vencendo em ${format(new Date(lembrete.data + "T12:00:00"), "dd/MM/yyyy")}.`;
+                      window.open(`https://api.whatsapp.com/send?phone=55${lembrete.telefone.replace(/\D/g, '')}&text=${encodeURIComponent(message)}`, '_blank');
+                    }}
+                    className="w-full bg-slate-900 border border-slate-800 hover:border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 p-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <MessageCircle size={12} />
+                    <span>Enviar Lembrete por WhatsApp</span>
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Filters/Search Bar */}
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap gap-2">
@@ -962,7 +1125,7 @@ export default function Atendimentos() {
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-slate-200">{item.nome_completo}</span>
+                          <span className="text-sm font-medium text-slate-200">{formatProperName(item.nome_completo)}</span>
                           {item.protocolo && (
                             <span className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600/10 text-blue-400 border border-blue-500/20 rounded-lg font-mono text-[10px] font-bold shadow-sm shadow-blue-900/10">
                               <span className="text-[8px] opacity-50 uppercase tracking-widest font-black">prot</span>
@@ -998,6 +1161,17 @@ export default function Atendimentos() {
                             <span className="text-slate-500 font-bold">Assessor:</span> {getAssessorName(item.assessor_id || item.usuario_id)}
                           </span>
                         </div>
+                        {((item.sourceCollection === 'atendimentos' && item.tem_lembrete && item.lembrete_data) || 
+                          (item.sourceCollection === 'atendimentos_medicos' && item.lembrete_exame)) && (
+                          <div className="flex items-center gap-1.5 text-[9px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/15 w-fit mt-1.5 font-bold uppercase tracking-wider">
+                            <Clock size={9} />
+                            <span>
+                              {item.sourceCollection === 'atendimentos_medicos' 
+                                ? `Lembrete: Exame em ${format(new Date(item.lembrete_exame + "T12:00:00"), "dd/MM/yyyy")}` 
+                                : `Lembrete: ${item.lembrete_descricao || 'Vencimento'} em ${format(new Date(item.lembrete_data + "T12:00:00"), "dd/MM/yyyy")}`}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -1148,7 +1322,7 @@ export default function Atendimentos() {
                             "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20"
                           )}
                         >
-                          <div className="truncate">{item.nome_completo}</div>
+                          <div className="truncate">{formatProperName(item.nome_completo)}</div>
                         </div>
                       ))}
                       {dayAppointments.length > 3 && (
@@ -1375,16 +1549,16 @@ export default function Atendimentos() {
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
-                      {/* Mobile Medical History Alert */}
-                      {medicalHistory.length > 0 && (
-                        <div className="md:hidden bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl flex items-center justify-between gap-4">
+                      {/* Mobile Citizen History Alert */}
+                      {unifiedHistory.length > 0 && (
+                        <div className="md:hidden bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl flex items-center justify-between gap-4">
                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                                 <Stethoscope size={16} className="text-emerald-400" />
+                              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center animate-pulse">
+                                 <History size={16} className="text-blue-400" />
                               </div>
                               <div className="flex flex-col">
-                                 <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Histórico Médico Encontrado</span>
-                                 <span className="text-[10px] text-slate-400">{medicalHistory.length} registros anteriores vinculados</span>
+                                 <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Histórico Encontrado</span>
+                                 <span className="text-[10px] text-slate-400">{unifiedHistory.length} registros anteriores vinculados</span>
                               </div>
                            </div>
                            <button 
@@ -1393,7 +1567,7 @@ export default function Atendimentos() {
                                const el = document.getElementById('mobile-history-section');
                                el?.scrollIntoView({ behavior: 'smooth' });
                              }}
-                             className="bg-emerald-600 text-white p-2 rounded-xl"
+                             className="bg-blue-600 text-white p-2 rounded-xl"
                            >
                              <History size={18} />
                            </button>
@@ -1463,16 +1637,18 @@ export default function Atendimentos() {
                                 setFormData({...formData, cpf: val});
                                 if (val.replace(/\D/g, '').length === 11) {
                                   fetchMedicalHistory(val);
+                                  fetchGeneralHistory(val);
                                   searchAndAutofillCitizen(val);
                                 } else {
                                   setMedicalHistory([]);
+                                  setGeneralHistory([]);
                                   setCitizenFoundAlert(null);
                                 }
                               }}
                               className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors pr-10"
                               placeholder="000.000.000-00"
                             />
-                            {(searchingMedical || searchingCitizen) && (
+                            {(searchingMedical || searchingGeneral || searchingCitizen) && (
                               <div className="absolute right-3 top-1/2 -translate-y-1/2 mt-0.5">
                                 <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                               </div>
@@ -1662,6 +1838,51 @@ export default function Atendimentos() {
                   />
                 </div>
 
+                {/* Reminder Setup Section */}
+                <div className="p-4 bg-slate-900/55 border border-slate-800 rounded-2xl space-y-4">
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="checkbox"
+                      id="tem_lembrete"
+                      checked={formData.tem_lembrete || false}
+                      onChange={e => setFormData({...formData, tem_lembrete: e.target.checked})}
+                      className="w-5 h-5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <label htmlFor="tem_lembrete" className="text-sm font-bold text-slate-200 cursor-pointer flex items-center gap-1.5 select-none hover:text-white transition-colors">
+                      <Bell size={15} className="text-amber-400" />
+                      Agendar um Lembrete para o Cidadão (Vencimento de Consultas ou Exames)
+                    </label>
+                  </div>
+
+                  {formData.tem_lembrete && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="space-y-3 pt-2"
+                    >
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Data do Vencimento (Consulta ou Exame)</label>
+                        <input 
+                          type="date"
+                          value={formData.lembrete_data || ''}
+                          onChange={e => setFormData({...formData, lembrete_data: e.target.value})}
+                          className="w-full bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500/50 [color-scheme:dark] transition-all text-white text-xs font-medium"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Descrição / Motivo do Lembrete</label>
+                        <input 
+                          type="text"
+                          value={formData.lembrete_descricao || ''}
+                          onChange={e => setFormData({...formData, lembrete_descricao: e.target.value})}
+                          placeholder="Ex: Entrega de exame laboratorial, vencimento da guia de consulta"
+                          className="w-full bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500/50 transition-all text-white text-xs"
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+
                 <div className="flex items-start gap-3 p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl">
                    <input 
                      required
@@ -1698,32 +1919,46 @@ export default function Atendimentos() {
                 </div>
               </form>
 
-              {/* Mobile: Dedicated section for Medical History at bottom */}
-              {medicalHistory.length > 0 && (
+              {/* Mobile: Dedicated section for Unified History at bottom */}
+              {unifiedHistory.length > 0 && (
                 <div id="mobile-history-section" className="md:hidden mt-8 pt-6 border-t border-slate-800 space-y-4 pb-20">
                    <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
-                     <Stethoscope size={14} className="text-emerald-500" />
-                     Histórico Médico Completo
+                     <History size={14} className="text-blue-500" />
+                     Histórico Completo do Cidadão
                    </h3>
                   <div className="space-y-3">
-                    {medicalHistory.map((h) => (
-                      <div key={h.id} className="bg-slate-950 border border-slate-800 p-4 rounded-2xl">
+                    {unifiedHistory.map((h) => (
+                      <div key={h.id} className={cn(
+                        "border p-4 rounded-2xl bg-slate-950 transition-all",
+                        h.type === 'medical' ? "border-slate-800/80 hover:border-emerald-500/30" : "border-slate-800/80 hover:border-blue-500/30"
+                      )}>
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-[9px] font-bold text-slate-500">
-                            {h.created_at?.toDate ? format(h.created_at.toDate(), 'dd/MM/yyyy HH:mm') : '...'}
+                            {h.created_at?.toDate ? format(h.created_at.toDate(), 'dd/MM/yyyy HH:mm') : h.created_at?.seconds ? format(new Date(h.created_at.seconds * 1000), 'dd/MM/yyyy HH:mm') : '...'}
                           </span>
-                          <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-black uppercase">
-                            {h.especialidade}
+                          <span className={cn(
+                            "text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter border",
+                            h.type === 'medical' 
+                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                              : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                          )}>
+                            {h.type === 'medical' ? `🩺 ${h.title}` : `📄 Geral - ${h.title}`}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-300 italic mb-2">"{h.descricao_problema}"</p>
-                        <div className="flex items-center justify-between text-[9px] text-slate-500">
+                        <p className="text-xs text-slate-300 font-medium mb-2 leading-relaxed italic">"{h.description}"</p>
+                        <div className="flex items-center justify-between text-[9px] text-slate-500 pt-2 border-t border-slate-900">
                            <span className="flex items-center gap-1 font-bold">
-                              <User size={10} />
-                              Atendido por: {h.usuario_nome?.split(' ')[0]}
+                              <User size={10} className="text-slate-600" />
+                              <span className="text-slate-500">Atendido por:</span> {h.type === 'medical' ? h.usuario_nome?.split(' ')[0] : (h.usuario_nome || getAssessorName(h.assessor_id))?.split(' ')[0]}
                            </span>
-                           <span className="bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 font-bold uppercase tracking-tight">
-                              {h.status}
+                           <span className={cn(
+                             "px-1.5 py-0.5 rounded font-bold uppercase tracking-tight text-[8px]",
+                             h.status === 'Novo' && "bg-blue-500/10 text-blue-400",
+                             h.status === 'Pendente' && "bg-yellow-500/10 text-yellow-500",
+                             h.status === 'Concluído' && "bg-emerald-500/10 text-emerald-400",
+                             !['Novo', 'Pendente', 'Concluído'].includes(h.status) && "bg-slate-800 text-slate-400"
+                           )}>
+                              {h.status || 'Status'}
                            </span>
                         </div>
                       </div>
@@ -1733,47 +1968,60 @@ export default function Atendimentos() {
               )}
             </div>
 
-            {/* Right: Medical History Sidebar */}
+            {/* Right: Unified History Sidebar */}
             <div className="hidden md:flex w-80 bg-slate-950/50 flex-col overflow-hidden">
                <div className="p-6 border-b border-slate-800 flex items-center justify-between">
                   <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
-                     <Stethoscope size={14} className="text-emerald-500" />
-                     Histórico Médico
+                     <History size={14} className="text-blue-500" />
+                     Histórico
                   </h3>
                   <button onClick={closeModal} className="p-2 hover:bg-slate-800 rounded-lg hidden md:block"><X size={20} className="text-slate-500" /></button>
                </div>
                <div className="flex-1 overflow-y-auto p-6 space-y-4 shadow-inner">
-                 {medicalHistory.length > 0 ? (
-                   medicalHistory.map((h) => (
-                     <div key={h.id} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl group hover:border-emerald-500/30 transition-all">
+                 {unifiedHistory.length > 0 ? (
+                   unifiedHistory.map((h) => (
+                     <div key={h.id} className={cn(
+                       "bg-slate-900 border p-4 rounded-2xl group transition-all",
+                       h.type === 'medical' ? "border-slate-800/80 hover:border-emerald-500/30" : "border-slate-800/80 hover:border-blue-500/30"
+                     )}>
                        <div className="flex items-center justify-between mb-2">
                          <span className="text-[9px] font-bold text-slate-500 uppercase">
-                           {h.created_at?.toDate ? format(h.created_at.toDate(), 'dd/MM/yyyy') : '...'}
+                           {h.created_at?.toDate ? format(h.created_at.toDate(), 'dd/MM/yyyy') : h.created_at?.seconds ? format(new Date(h.created_at.seconds * 1000), 'dd/MM/yyyy') : '...'}
                          </span>
                          <span className={cn(
-                           "px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter",
-                           h.prioridade === 'Alta' ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"
+                           "px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter border",
+                           h.type === 'medical' 
+                             ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                             : "bg-blue-500/10 text-blue-400 border-blue-500/20"
                          )}>
-                           {h.especialidade || 'Clínico'}
+                           {h.type === 'medical' ? `🩺 ${h.title}` : `📄 ${h.title}`}
                          </span>
                        </div>
-                       <p className="text-xs text-slate-300 font-medium line-clamp-3 leading-relaxed mb-2 italic">"{h.descricao_problema}"</p>
+                       <p className="text-xs text-slate-300 font-medium line-clamp-3 leading-relaxed mb-2 italic">"{h.description}"</p>
                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/50">
                           <div className="flex items-center gap-1">
                              <User size={10} className="text-slate-600" />
-                             <span className="text-[9px] text-slate-600 font-bold">{h.usuario_nome?.split(' ')[0]}</span>
+                             <span className="text-[9px] text-slate-600 font-bold">
+                               {h.type === 'medical' ? h.usuario_nome?.split(' ')[0] : (h.usuario_nome || getAssessorName(h.assessor_id))?.split(' ')[0]}
+                             </span>
                           </div>
-                          <button title="Ver atendimento médico" className="text-emerald-500 hover:text-emerald-400">
-                             <ExternalLink size={12} />
-                          </button>
+                          <span className={cn(
+                             "px-1.5 py-0.5 rounded font-bold uppercase tracking-tight text-[8px]",
+                             h.status === 'Novo' && "bg-blue-500/10 text-blue-400",
+                             h.status === 'Pendente' && "bg-yellow-500/10 text-yellow-500",
+                             h.status === 'Concluído' && "bg-emerald-500/10 text-emerald-400",
+                             !['Novo', 'Pendente', 'Concluído'].includes(h.status) && "bg-slate-800 text-slate-400"
+                           )}>
+                              {h.status || 'Status'}
+                           </span>
                        </div>
                      </div>
                    ))
                  ) : (
                    <div className="h-full flex flex-col items-center justify-center text-center opacity-30 px-4">
-                      <Stethoscope size={32} className="text-slate-700 mb-4" />
+                      <History size={32} className="text-slate-700 mb-4" />
                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed text-center">
-                        Sem registros médicos vinculados a este CPF
+                        Sem registros vinculados a este CPF
                       </p>
                    </div>
                  )}

@@ -17,7 +17,8 @@ import {
   AlertTriangle,
   Eye,
   EyeOff,
-  Clock
+  Clock,
+  Send
 } from 'lucide-react';
 import { 
   collection, 
@@ -39,6 +40,7 @@ import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
 import { handleFirestoreError, OperationType } from '../lib/firestoreErrorHandler';
 import { createNewUserWithPassword } from '../lib/adminAuth';
+import { getWhatsAppLink } from '../lib/whatsapp';
 
 interface User {
   id: string;
@@ -50,6 +52,8 @@ interface User {
   cabinetId: string;
   criado_em?: any;
   requirePasswordChange?: boolean;
+  primeiro_acesso_concluido?: boolean;
+  telefone?: string;
   permissions?: {
     modules?: Record<string, boolean>;
     actions?: {
@@ -81,6 +85,7 @@ export default function UserManagement() {
     ativo: false,
     password: '', // New field for temporary password
     data_nascimento: '', // Date of birth
+    telefone: '', // Contact phone
   });
 
   const checkIfBirthdayToday = (dateStr?: string) => {
@@ -204,6 +209,7 @@ export default function UserManagement() {
       ativo: false,
       password: '',
       data_nascimento: '',
+      telefone: '',
     });
     setCustomPermissions({
       modules: getDefaultsForRole('assessor').modules,
@@ -289,6 +295,7 @@ export default function UserManagement() {
         ativo: formData.ativo,
         username: formData.username,
         data_nascimento: formData.data_nascimento,
+        telefone: formData.telefone || '',
         permissions: customPermissions
       };
 
@@ -355,6 +362,59 @@ export default function UserManagement() {
     }
   };
 
+  const pendingLoginUsers = users.filter(u => 
+    u.role === 'assessor' && 
+    u.ativo && 
+    u.primeiro_acesso_concluido !== true
+  );
+
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportWhatsApp, setReportWhatsApp] = useState('');
+  const [selectedVereadorId, setSelectedVereadorId] = useState('');
+
+  const openReportModal = () => {
+    const vereador = users.find(u => u.role === 'vereador');
+    if (vereador && (vereador as any).telefone) {
+      setReportWhatsApp((vereador as any).telefone);
+      setSelectedVereadorId(vereador.id);
+    } else if (vereador) {
+      setReportWhatsApp('');
+      setSelectedVereadorId(vereador.id);
+    } else {
+      setReportWhatsApp('');
+      setSelectedVereadorId('');
+    }
+    setShowReportModal(true);
+  };
+
+  const generateReportMessage = () => {
+    let msg = `📋 *RELATÓRIO DE MONITORAMENTO: PRIMEIRO ACESSO* 📋\n`;
+    msg += `-------------------------------------------\n`;
+    msg += `Atenção Vereador(a), os seguintes assessores cadastrados ainda não realizaram o seu primeiro acesso ao sistema:\n\n`;
+    
+    pendingLoginUsers.forEach((u, i) => {
+      msg += `${i + 1}. *${u.nome}* (${u.email})\n`;
+      if (u.telefone) {
+        msg += `   📱 WhatsApp: ${u.telefone}\n`;
+      }
+      msg += `\n`;
+    });
+    
+    msg += `-------------------------------------------\n`;
+    msg += `Solicitamos que os assessores listados acessem o e-mail cadastrado ou utilizem suas credenciais para efetuar o primeiro login e registrar suas senhas.\n\n`;
+    msg += `Gabinete Digital - Gestão Inteligente`;
+    return msg;
+  };
+
+  const handleSendReminderToAssessor = (u: User) => {
+    if (!u.telefone) {
+      alert("Este assessor não possui telefone/WhatsApp cadastrado em seu perfil. Edite o perfil dele para adicionar.");
+      return;
+    }
+    const msg = `Olá *${u.nome}*! Identificamos que você ainda não efetuou o seu primeiro login na plataforma. Por favor, acesse o link do sistema e faça login com seu e-mail *${u.email}*.`;
+    window.open(getWhatsAppLink(u.telefone, msg), '_blank');
+  };
+
   const filteredUsers = users.filter(u => {
     const matchesSearch = u.nome.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          u.email.toLowerCase().includes(searchQuery.toLowerCase());
@@ -385,6 +445,69 @@ export default function UserManagement() {
           </button>
         )}
       </div>
+
+      {/* Alerta de primeiro acesso pendente para administadores */}
+      {canManage && pendingLoginUsers.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-slate-900 to-amber-500/5 border border-amber-500/20 rounded-3xl p-6 relative overflow-hidden shadow-2xl">
+          <div className="absolute top-0 right-0 p-8 text-6xl opacity-5 select-none pointer-events-none animate-pulse">🕒</div>
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
+            <div className="space-y-1">
+              <h3 className="text-sm font-black uppercase text-amber-500 tracking-widest flex items-center gap-2">
+                <AlertTriangle size={16} className="text-amber-500 animate-bounce" />
+                Alerta de Primeiro Acesso Pendente
+              </h3>
+              <p className="text-slate-400 text-xs">
+                Existem <strong>{pendingLoginUsers.length}</strong> {pendingLoginUsers.length === 1 ? 'assessor(a)' : 'assessores'} que ainda não entraram no sistema ou definiram suas senhas.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={openReportModal}
+                className="bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md shadow-amber-900/10 cursor-pointer"
+              >
+                <Mail size={14} />
+                Enviar Relatório para o Vereador
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-5 relative z-10">
+            {pendingLoginUsers.map((u) => (
+              <div key={u.id} className="bg-slate-950/60 backdrop-blur-sm border border-slate-800 rounded-2xl p-4 flex flex-col justify-between gap-3 hover:border-amber-500/20 transition-all">
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-slate-300 text-sm truncate max-w-[130px]" title={u.nome}>
+                      {u.nome}
+                    </span>
+                    <span className="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter border border-amber-500/20">
+                      ASSESSOR
+                    </span>
+                  </div>
+                  <p className="text-slate-500 text-xs truncate mt-0.5">{u.email}</p>
+                  {u.telefone ? (
+                    <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-1 font-mono">
+                      <span>📱 WhatsApp: {u.telefone}</span>
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-slate-600 italic mt-1 font-mono">
+                      (Sem WhatsApp cadastrado)
+                    </p>
+                  )}
+                </div>
+                <div className="flex justify-end pt-2 border-t border-slate-800/50">
+                  <button
+                    onClick={() => handleSendReminderToAssessor(u)}
+                    className="text-[10px] font-bold text-amber-500 hover:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <span>Enviar Cobrança</span>
+                    <Clock size={12} className="mt-0.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="relative md:col-span-2">
@@ -509,6 +632,7 @@ export default function UserManagement() {
                                 ativo: user.ativo,
                                 password: '',
                                 data_nascimento: (user as any).data_nascimento || '',
+                                telefone: (user as any).telefone || '',
                               });
                               const defaultPerms = getDefaultsForRole(user.role);
                               setCustomPermissions({
@@ -612,7 +736,7 @@ export default function UserManagement() {
                     />
                   </div>
 
-                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Email</label>
                       <input 
@@ -642,6 +766,16 @@ export default function UserManagement() {
                         value={formData.data_nascimento}
                         onChange={e => setFormData({ ...formData, data_nascimento: e.target.value })}
                         className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all [color-scheme:dark]"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Telefone (WhatsApp)</label>
+                      <input 
+                        type="text" 
+                        value={formData.telefone}
+                        onChange={e => setFormData({ ...formData, telefone: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
+                        placeholder="Ex: 81999999999"
                       />
                     </div>
                   </div>
@@ -849,6 +983,107 @@ export default function UserManagement() {
                   )}
                 </div>
               </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Report Modal */}
+      <AnimatePresence>
+        {showReportModal && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowReportModal(false)}
+              className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[110]"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-x-4 max-h-[85vh] top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 z-[111] shadow-2xl flex flex-col overflow-hidden text-left"
+            >
+              <div className="flex items-center justify-between mb-6 shrink-0">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Mail className="text-amber-500" size={20} />
+                    Enviar Relatório ao Vereador
+                  </h3>
+                  <p className="text-xs text-slate-400">Notifique o Vereador sobre os assessores pendentes de ativação.</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setShowReportModal(false)}
+                  className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 hover:text-white transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Destinatário (Vereador)</label>
+                  <select 
+                    value={selectedVereadorId}
+                    onChange={e => {
+                      const vId = e.target.value;
+                      setSelectedVereadorId(vId);
+                      const v = users.find(u => u.id === vId);
+                      if (v && (v as any).telefone) {
+                        setReportWhatsApp((v as any).telefone);
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all cursor-pointer"
+                  >
+                    <option value="">Selecione o Vereador</option>
+                    {users.filter(u => u.role === 'vereador').map(v => (
+                      <option key={v.id} value={v.id}>{v.nome}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Telefone (WhatsApp) do Vereador</label>
+                  <input 
+                    type="text" 
+                    value={reportWhatsApp}
+                    onChange={e => setReportWhatsApp(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
+                    placeholder="Ex: 81999999999"
+                  />
+                  <p className="text-[9px] text-slate-500 pl-1">
+                    Insira o número com DDD. Exemplo: 81999999999 (sem DDD 0 e sem traços/espaços).
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Prévia da Mensagem</label>
+                  <div className="bg-slate-950 p-4 border border-slate-800 rounded-2xl text-xs text-slate-300 font-mono whitespace-pre-wrap max-h-[160px] overflow-y-auto leading-relaxed">
+                    {generateReportMessage()}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-800 mt-4 shrink-0">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (!reportWhatsApp) {
+                      alert("Por favor, informe o telefone/WhatsApp do Vereador.");
+                      return;
+                    }
+                    const msg = generateReportMessage();
+                    window.open(getWhatsAppLink(reportWhatsApp, msg), '_blank');
+                    setShowReportModal(false);
+                  }}
+                  className="w-full bg-amber-600 hover:bg-amber-700 font-bold py-4 rounded-2xl shadow-lg shadow-amber-900/40 transition-all flex items-center justify-center gap-2 cursor-pointer text-slate-950"
+                >
+                  <Send size={18} className="text-slate-950" />
+                  Enviar via WhatsApp
+                </button>
+              </div>
             </motion.div>
           </>
         )}

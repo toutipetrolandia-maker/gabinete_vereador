@@ -16,7 +16,7 @@ import { collection, query, limit, getDocs, orderBy, onSnapshot, doc, where } fr
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { motion } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, formatProperName } from '../lib/utils';
 import { 
   BarChart, 
   Bar, 
@@ -375,7 +375,7 @@ export default function Dashboard() {
                 <tr key={item.id} className="hover:bg-slate-800/50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium text-slate-200">{item.nome_completo}</span>
+                      <span className="text-sm font-medium text-slate-200">{formatProperName(item.nome_completo || '')}</span>
                       {item.protocolo && (
                         <span className="text-[9px] font-mono text-blue-400 opacity-70">
                           {item.protocolo}

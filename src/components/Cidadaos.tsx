@@ -5,7 +5,9 @@ import {
   where, 
   getDocs, 
   orderBy,
-  onSnapshot
+  onSnapshot,
+  doc,
+  updateDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
@@ -24,10 +26,13 @@ import {
   Activity,
   Heart,
   Package,
-  FileText
+  FileText,
+  Pencil,
+  X,
+  Save
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, formatProperName } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -49,6 +54,19 @@ export default function Cidadaos() {
   const [citizens, setCitizens] = useState<Record<string, CitizenRecord[]>>({});
   const [search, setSearch] = useState('');
   const [selectedCPF, setSelectedCPF] = useState<string | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editCPF, setEditCPF] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const maskCPF = (value: string) => {
+    return value
+      .replace(/\D/g, "")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})/, "$1-$2")
+      .replace(/(-\d{2})\d+?$/, "$1");
+  };
 
   useEffect(() => {
     if (!profile?.cabinetId) return;
@@ -115,7 +133,7 @@ export default function Cidadaos() {
 
       return {
         cpf,
-        nome: latest.nome_completo || (latest as any).beneficiado_nome || (latest as any).solicitante_nome || 'Nome não identificado',
+        nome: formatProperName(latest.nome_completo || (latest as any).beneficiado_nome || (latest as any).solicitante_nome || 'Nome não identificado'),
         telefone: latest.telefone || (latest as any).whatsapp || (latest as any).beneficiado_telefone || '-',
         bairro: latest.bairro || '-',
         count: records.length,
@@ -134,6 +152,72 @@ export default function Cidadaos() {
     .sort((a, b) => b.count - a.count);
 
   const selectedCitizen = selectedCPF ? uniqueCitizens.find(c => c.cpf === selectedCPF) : null;
+
+  const handleUpdateCitizen = async () => {
+    if (!selectedCitizen) return;
+    if (!editName.trim()) {
+      alert("Por favor, preencha o nome do cidadão.");
+      return;
+    }
+    
+    // Check if new CPF already exists for another citizen (if they're changing the CPF)
+    const normalizedNewCPF = editCPF.trim();
+    if (normalizedNewCPF && normalizedNewCPF !== selectedCPF) {
+      const cleanCPF = normalizedNewCPF.replace(/\D/g, "");
+      if (cleanCPF.length !== 11) {
+        alert("O CPF deve possuir exatamente 11 dígitos.");
+        return;
+      }
+      
+      const alreadyExists = uniqueCitizens.some(c => c.cpf === normalizedNewCPF);
+      if (alreadyExists) {
+        alert("Já existe outro cidadão cadastrado com este CPF. Por favor, verifique.");
+        return;
+      }
+    }
+
+    setIsSaving(true);
+    try {
+      const recordsToUpdate = selectedCitizen.records;
+      
+      for (const record of recordsToUpdate) {
+        let collName = '';
+        const updateData: any = {};
+        
+        if (record.type === 'Geral') {
+          collName = 'atendimentos';
+          updateData.nome_completo = formatProperName(editName);
+          updateData.cpf = normalizedNewCPF;
+        } else if (record.type === 'Médico') {
+          collName = 'atendimentos_medicos';
+          updateData.nome_completo = formatProperName(editName);
+          updateData.cpf = normalizedNewCPF;
+        } else if (record.type === 'Auxílio') {
+          collName = 'auxilio_social';
+          updateData.beneficiado_nome = formatProperName(editName);
+          updateData.beneficiado_cpf = normalizedNewCPF;
+        } else if (record.type === 'Demanda') {
+          collName = 'demandas_parlamentares';
+          updateData.solicitante_nome = formatProperName(editName);
+          updateData.solicitante_cpf = normalizedNewCPF;
+          updateData.cpf = normalizedNewCPF;
+        }
+        
+        if (collName) {
+          await updateDoc(doc(db, collName, record.id), updateData);
+        }
+      }
+      
+      // Update selected CPF to keep the screen focused on this corrected record
+      setSelectedCPF(normalizedNewCPF || 'SEM-CPF');
+      setShowEditModal(false);
+    } catch (e) {
+      console.error("Erro ao atualizar o cidadão no CRM:", e);
+      alert("Erro ao atualizar os dados do cidadão. Verifique suas permissões ou tente novamente.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -247,11 +331,25 @@ export default function Cidadaos() {
                          {selectedCitizen.nome[0]}
                       </div>
                       <div className="flex-1 space-y-1">
-                         <div className="flex flex-col md:flex-row md:items-center gap-2">
+                         <div className="flex flex-wrap items-center gap-3">
                            <h2 className="text-2xl font-bold text-white tracking-tight">{selectedCitizen.nome}</h2>
-                           <span className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-full text-[10px] font-mono text-slate-400 font-bold">
-                             {selectedCitizen.cpf}
-                           </span>
+                           <div className="flex items-center gap-2">
+                             <span className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-full text-[10px] font-mono text-slate-400 font-bold">
+                               {selectedCitizen.cpf}
+                             </span>
+                             <button
+                               onClick={() => {
+                                 setEditName(selectedCitizen.nome);
+                                 setEditCPF(selectedCitizen.cpf === 'SEM-CPF' ? '' : selectedCitizen.cpf);
+                                 setShowEditModal(true);
+                               }}
+                               className="px-2.5 py-1 rounded-xl bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/20 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                               title="Corrigir Nome ou CPF deste cidadão em todos os registros"
+                             >
+                               <Pencil size={11} />
+                               <span>Corrigir</span>
+                             </button>
+                           </div>
                          </div>
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                             <div className="flex items-center gap-3 text-slate-400">
@@ -364,6 +462,99 @@ export default function Cidadaos() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Correction Modal */}
+      <AnimatePresence>
+        {showEditModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl"
+            >
+              <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Pencil size={18} className="text-blue-500" />
+                    Corrigir Dados do Cidadão
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1">
+                    Alteração de nome ou CPF
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  disabled={isSaving}
+                  className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-xs text-blue-400 leading-relaxed">
+                  ⚠️ <strong>Atenção:</strong> Ao corrigir o Nome ou CPF, todos os <strong>{selectedCitizen?.count}</strong> atendimentos e registros médicos/assistenciais vinculados a este cidadão serão atualizados de forma unificada.
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">Nome Completo</label>
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    disabled={isSaving}
+                    placeholder="Nome completo do cidadão"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 px-4 text-white focus:ring-2 focus:ring-blue-600/50 outline-none transition-all disabled:opacity-50"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">CPF</label>
+                  <input
+                    type="text"
+                    value={editCPF}
+                    onChange={(e) => setEditCPF(maskCPF(e.target.value))}
+                    disabled={isSaving}
+                    placeholder="000.000.000-00 (ou em branco)"
+                    maxLength={14}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 px-4 text-white focus:ring-2 focus:ring-blue-600/50 outline-none transition-all font-mono disabled:opacity-50"
+                  />
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-slate-800 bg-slate-950/40 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  disabled={isSaving}
+                  className="px-5 py-3 rounded-2xl hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUpdateCitizen}
+                  disabled={isSaving}
+                  className="px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-blue-950/40 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Salvando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save size={14} />
+                      <span>Salvar Alterações</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
