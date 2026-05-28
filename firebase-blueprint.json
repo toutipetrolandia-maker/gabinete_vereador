@@ -237,6 +237,50 @@
         "updated_at": { "type": "string", "format": "date-time" }
       },
       "required": ["cabinetId", "assunto", "status"]
+    },
+    "ReuniaoAssessor": {
+      "title": "Reunião de Assessores",
+      "description": "Reuniões do vereador com assessores para debater demandas e preparar propostas para o prefeito",
+      "type": "object",
+      "properties": {
+        "cabinetId": { "type": "string" },
+        "titulo": { "type": "string" },
+        "data_hora": { "type": "string" },
+        "tipo": { "type": "string", "enum": ["Alinhamento Geral", "Planejamento Estratégico", "Demandas do Prefeito", "Urgente"] },
+        "resumo_pauta": { "type": "string" },
+        "assessores_ids": { "type": "array" },
+        "propostas_ids": { "type": "array" },
+        "usuario_id": { "type": "string" },
+        "usuario_nome": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["cabinetId", "titulo", "data_hora", "tipo"]
+    },
+    "PropostaPrefeito": {
+      "title": "Melhorias/Sugestões para Prefeito",
+      "description": "Demandas e soluções preparadas em reuniões para levar e melhorar a articulação com o prefeito",
+      "type": "object",
+      "properties": {
+        "cabinetId": { "type": "string" },
+        "titulo": { "type": "string" },
+        "descricao_solucao": { "type": "string" },
+        "justificativa": { "type": "string" },
+        "tipo": { "type": "string", "enum": ["Saúde", "Infraestrutura", "Segurança", "Educação", "Saneamento", "Transporte / Trânsito", "Parques / Esportes", "Assistência Social", "Outros"] },
+        "status": { "type": "string", "enum": ["Em Elaboração", "Pronta para Encontro", "Apresentada ao Prefeito", "Em Execução", "Resolvida", "Recusada"] },
+        "prioridade": { "type": "string", "enum": ["Baixa", "Média", "Alta"] },
+        "oficio_numero": { "type": "string" },
+        "data_apresentacao": { "type": "string" },
+        "feedback_prefeito": { "type": "string" },
+        "custo_estimado": { "type": "string", "enum": ["Baixo", "Médio", "Alto"] },
+        "reuniao_id": { "type": "string" },
+        "usuario_id": { "type": "string" },
+        "usuario_nome": { "type": "string" },
+        "ai_suggestions": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["cabinetId", "titulo", "descricao_solucao", "tipo", "status", "prioridade"]
     }
   },
   "firestore": {
@@ -250,6 +294,8 @@
     "/auxilio_social/{id}": { "schema": "AuxilioSocial", "description": "Social assistance records" },
     "/auxilio_estoque/{id}": { "schema": "AuxilioEstoque", "description": "Stock inventory records" },
     "/indicacoes_cargos/{id}": { "schema": "IndicacaoCargo", "description": "Position nomination records" },
-    "/demandas_parlamentares/{id}": { "schema": "DemandaParlamentar", "description": "Parliamentary official requests" }
+    "/demandas_parlamentares/{id}": { "schema": "DemandaParlamentar", "description": "Parliamentary official requests" },
+    "/reunioes_assessores/{id}": { "schema": "ReuniaoAssessor", "description": "Cabinet staff meetings" },
+    "/propostas_prefeito/{id}": { "schema": "PropostaPrefeito", "description": "Suggestions of solutions for the Mayor" }
   }
 }

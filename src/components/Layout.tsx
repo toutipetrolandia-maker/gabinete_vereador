@@ -24,7 +24,8 @@ import {
   ShoppingBag,
   BookOpen,
   MessageCircle,
-  Briefcase
+  Briefcase,
+  Handshake
 } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -117,6 +118,7 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
     { id: 'malotes', label: 'Malotes', icon: Package },
     { id: 'demandas', label: 'Demandas', icon: FileText },
     { id: 'sugestoes', label: 'Sugestões', icon: MessageSquare },
+    { id: 'reunioes', label: 'Reuniões & Soluções', icon: Handshake },
     { id: 'relatorios', label: 'Relatórios', icon: FileDown },
     { id: 'whatsapp', label: 'Mensagens', icon: MessageSquare },
     { id: 'history', label: 'Logs / Auditoria', icon: History },

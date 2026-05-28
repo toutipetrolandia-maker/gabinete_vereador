@@ -237,6 +237,22 @@ service cloud.firestore {
       allow delete: if isSuper() || (isAdmin() && resourceBelongsToUserCabinet());
     }
 
+    // REUNIÕES COLETIVAS COM ASSESSORES
+    match /reunioes_assessores/{id} {
+      allow read: if resourceBelongsToUserCabinet();
+      allow create: if isCabinetMember() && dataBelongsToUserCabinet();
+      allow update: if isCabinetMember() && resourceBelongsToUserCabinet() && dataBelongsToUserCabinet();
+      allow delete: if isSuper() || (isAdmin() && resourceBelongsToUserCabinet());
+    }
+
+    // PROPOSTAS E SOLUÇÕES AO PREFEITO
+    match /propostas_prefeito/{id} {
+      allow read: if resourceBelongsToUserCabinet();
+      allow create: if isCabinetMember() && dataBelongsToUserCabinet();
+      allow update: if isCabinetMember() && resourceBelongsToUserCabinet() && dataBelongsToUserCabinet();
+      allow delete: if isSuper() || (isAdmin() && resourceBelongsToUserCabinet());
+    }
+
     // AUDIT LOGS
     match /logs/{id} {
       allow read: if isSuper() || (isCabinetMember() && resourceBelongsToUserCabinet() && (isAdmin() || isVereador()));

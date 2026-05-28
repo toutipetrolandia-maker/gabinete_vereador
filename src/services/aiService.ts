@@ -177,3 +177,39 @@ export async function askAIAssistant(cabinetId: string, message: string, history
     throw new Error("Não foi possível processar sua pergunta agora.");
   }
 }
+
+export async function generateMayorProposalSuggestions(title: string, category: string, cabinetName: string, notes?: string) {
+  if (!ai || !apiKey) {
+    throw new Error("Serviço de IA não configurado ou chave de API ausente.");
+  }
+  
+  const prompt = `Você é um assessor sênior e estrategista de políticas públicas trabalhando no gabinete do vereador "${cabinetName}".
+O vereador está preparando um pacote de propostas e soluções de melhorias para levar ao Prefeito da cidade.
+
+Gere uma proposta de solução completa, estruturada de forma formal e de alto impacto para a prefeitura.
+
+DADOS DA SOLUÇÃO PRELIMINAR:
+- Título da proposta: "${title}"
+- Área/Categoria: "${category}"
+${notes ? `- Detalhes/Observações adicionais: "${notes}"` : ''}
+
+Por favor, elabore um documento detalhado em markdown contendo:
+1. **JUSTIFICATIVA TÉCNICA E SOCIAL** (Por que isso é necessário para a comunidade, qual problema resolve e os benefícios para a prefeitura e os moradores).
+2. **DESCRIÇÃO DETALHADA DA SOLUÇÃO PROPOSTA** (O que exatamente está sendo solicitado, com passos práticos e exequíveis).
+3. **ESTIMATIVA DE IMPACTO** (Benefícios sociais e infraestruturais a curto e longo prazo).
+4. **SUGESTÃO DE TEXTO PARA OFÍCIO/INDICAÇÃO** (Um texto polido, formal e oficial para ser anexado ao ofício encaminhado ao prefeito, pronto para assinatura do vereador).
+
+Responda em Português Brasileiro. Use markdown limpo.`;
+
+  try {
+    const result = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+    });
+    return result.text;
+  } catch (error) {
+    console.error("Erro ao gerar sugestões para prefeito:", error);
+    throw new Error("Não foi possível gerar sugestões com IA neste momento.");
+  }
+}
+

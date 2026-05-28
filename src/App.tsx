@@ -11,6 +11,7 @@ import Malotes from './components/Malotes';
 import Settings from './components/Settings';
 import Demandas from './components/Demandas';
 import Sugestoes from './components/Sugestoes';
+import Reunioes from './components/Reunioes';
 import Relatorios from './components/Relatorios';
 import Agenda from './components/Agenda';
 import SaaSAdmin from './components/SaaSAdmin';
@@ -109,6 +110,7 @@ function AppContent() {
           {activeTab === 'malotes' && hasModuleAccess('malotes') && <Malotes />}
           {activeTab === 'demandas' && hasModuleAccess('demandas') && <Demandas />}
           {activeTab === 'sugestoes' && hasModuleAccess('sugestoes') && <Sugestoes />}
+          {activeTab === 'reunioes' && hasModuleAccess('reunioes') && <Reunioes />}
           {activeTab === 'relatorios' && hasModuleAccess('relatorios') && <Relatorios />}
           {activeTab === 'whatsapp' && hasModuleAccess('whatsapp') && <WhatsAppAutomation />}
           {activeTab === 'history' && hasModuleAccess('history') && <History />}
