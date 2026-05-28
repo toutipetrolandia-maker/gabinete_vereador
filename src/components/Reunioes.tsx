@@ -34,7 +34,8 @@ import {
   HelpCircle,
   UserCheck,
   Building2,
-  ListOrdered
+  ListOrdered,
+  Pencil
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -732,7 +733,7 @@ export default function Reunioes() {
                 : "bg-slate-800 hover:bg-slate-750 border-slate-700/50 text-slate-300 hover:text-white"
             )}
           >
-            <Building2 size={14} /> 🏛️ Kit Audiência Prefeito
+            <Building2 size={14} /> Kit Audiência Prefeito
           </button>
         </div>
       </header>
@@ -794,14 +795,14 @@ export default function Reunioes() {
                       id={`meeting-card-${m.id}`}
                       className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 hover:border-slate-700/60 transition-all shadow-md relative overflow-hidden"
                     >
-                      <div className="flex flex-wrap md:flex-nowrap items-start justify-between gap-4">
+                      <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-4">
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center gap-2.5">
                             <span className={cn(
                               "text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border",
                               m.tipo === 'Urgente' ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
                               m.tipo === 'Demandas do Prefeito' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
-                              m.tipo === 'Planejamento Estratégico' ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20" :
+                              m.tipo === 'Planejamento Estratégico' ? "bg-indigo-500/10 text-indigo-400 border-indigo-505/20" :
                               "bg-slate-800 text-slate-300 border-slate-700"
                             )}>
                               {m.tipo}
@@ -829,7 +830,7 @@ export default function Reunioes() {
                             className="bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 p-2 rounded-lg transition-all cursor-pointer"
                             title="Editar Atividades"
                           >
-                            ⚖️ Editar
+                            <Pencil size={16} />
                           </button>
                           <button
                             onClick={() => handleDeleteMeeting(m.id, m.titulo)}
@@ -1087,9 +1088,10 @@ export default function Reunioes() {
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           onClick={() => handleEditProposal(selectedProposal)}
-                          className="bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 font-semibold cursor-pointer"
+                          title="Editar Proposta"
+                          className="bg-slate-800 hover:bg-slate-750 text-blue-400 hover:bg-blue-500/10 p-1.5 rounded-lg border border-slate-700 cursor-pointer"
                         >
-                          ⚖️ Editar
+                          <Pencil size={15} />
                         </button>
                         <button
                           onClick={() => handleDeleteProposal(selectedProposal.id, selectedProposal.titulo)}
