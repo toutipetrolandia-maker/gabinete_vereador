@@ -213,3 +213,45 @@ Responda em Português Brasileiro. Use markdown limpo.`;
   }
 }
 
+export async function generateExecutiveDemandSummary(
+  assunto: string,
+  descricao: string,
+  orgaoResponsavel: string,
+  prioridade: string,
+  status: string,
+  solicitanteNome: string
+) {
+  if (!ai || !apiKey) {
+    throw new Error("Serviço de IA não configurado ou chave de API ausente.");
+  }
+
+  const prompt = `Você é um analista legislativo e assessor sênior especialista em políticas públicas.
+Sua tarefa é analisar uma Demanda Parlamentar oficial e gerar um Resumo Executivo profissional, sucinto e focado em soluções técnico-legislativas.
+
+DADOS DA DEMANDA:
+- Assunto/Título: "${assunto}"
+- Cidadão Solicitante: "${solicitanteNome || 'Não identificado'}"
+- Órgão Destino/Responsável: "${orgaoResponsavel || 'Não especificado'}"
+- Prioridade Definida: "${prioridade}"
+- Status Atual: "${status}"
+- Descrição Detalhada: "${descricao || 'Nenhuma descrição fornecida.'}"
+
+Por favor, elabore um documento executivo limpo, profissional, usando termos formais de administração municipal e estruturado em Markdown com as seguintes seções:
+1. **CONTEXTO GERAL & IMPACTO AMBIENTAL/URBANO**: (Um resumo sucinto traduzindo o problema exposto pelo cidadão e o impacto imediato na infraestrutura ou serviço da cidade).
+2. **ANÁLISE DE PRIORIDADE & SENSÍVEL**: (Análise se a classificação de prioridade faz sentido sob a ótica de urgência técnica e legal, sugerindo riscos caso não seja atendida).
+3. **PLANO DE AÇÃO RECOMENDADO**: (3 ou 4 passos práticos e objetivos que o vereador e sua assessoria podem tomar junto ao órgão responsável ou via requerimento para agilizar a solução).
+
+Responda em Português Brasileiro. Use Markdown limpo sem decorações excessivas ou 'tech-larping'.`;
+
+  try {
+    const result = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+    });
+    return result.text;
+  } catch (error) {
+    console.error("Erro ao gerar resumo executivo:", error);
+    throw new Error("Não foi possível conectar com o Gemini API para gerar o resumo técnico.");
+  }
+}
+

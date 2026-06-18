@@ -69,6 +69,27 @@ export default function Cidadaos() {
   };
 
   useEffect(() => {
+    const handleSelectCPF = (e: Event) => {
+      const customEvent = e as CustomEvent<{ cpf: string }>;
+      if (customEvent.detail?.cpf) {
+        setSelectedCPF(customEvent.detail.cpf);
+      }
+    };
+    window.addEventListener('select-citizen-cpf-trigger', handleSelectCPF);
+    
+    // Check initial session storage trigger
+    const initialCpf = sessionStorage.getItem('selected-citizen-cpf');
+    if (initialCpf) {
+      setSelectedCPF(initialCpf);
+      sessionStorage.removeItem('selected-citizen-cpf');
+    }
+
+    return () => {
+      window.removeEventListener('select-citizen-cpf-trigger', handleSelectCPF);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!profile?.cabinetId) return;
 
     setLoading(true);

@@ -707,6 +707,24 @@ export default function Atendimentos() {
     setLoading(false);
   }, [atendimentos, medicos]);
 
+  useEffect(() => {
+    const handleNewAtendimento = () => {
+      if (profile?.role !== 'consulta') {
+        setEditingId(null);
+        setFormData(initialForm);
+        setMedicalHistory([]);
+        setGeneralHistory([]);
+        setProtocolError(null);
+        setCitizenFoundAlert(null);
+        setShowModal(true);
+      }
+    };
+    window.addEventListener('new-atendimento-trigger', handleNewAtendimento);
+    return () => {
+      window.removeEventListener('new-atendimento-trigger', handleNewAtendimento);
+    };
+  }, [profile, initialForm]);
+
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {

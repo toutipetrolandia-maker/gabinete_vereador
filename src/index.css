@@ -1,10 +1,106 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;700&display=swap');
 @import "tailwindcss";
 
+:root {
+  /* Default: Dark Theme Colors */
+  --slate-950: #030712;
+  --slate-900: #0f172a;
+  --slate-800: #1e293b;
+  --slate-750: #2a3347;
+  --slate-700: #334155;
+  --slate-600: #475569;
+  --slate-500: #64748b;
+  --slate-400: #94a3b8;
+  --slate-300: #cbd5e1;
+  --slate-200: #e2e8f0;
+  --slate-100: #f1f5f9;
+}
+
+html.light {
+  /* Light Theme Colors */
+  --slate-950: #f8fafc;
+  --slate-900: #ffffff;
+  --slate-800: #f1f5f9; /* Inputs & light gray borders */
+  --slate-750: #e2e8f0; /* Inputs & focused backgrounds */
+  --slate-700: #cbd5e1; /* Secondary light borders */
+  --slate-600: #475569; /* Dark gray secondary labels */
+  --slate-500: #334155; /* Secondary text */
+  --slate-400: #1e293b; /* Primary dark body text */
+  --slate-300: #0f172a; /* Contrasting headers */
+  --slate-200: #0b0f19; /* High contrast headings/text */
+  --slate-100: #030712; /* Max dark typography */
+}
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --font-display: "Outfit", sans-serif;
+  
+  --color-slate-950: var(--slate-950);
+  --color-slate-900: var(--slate-900);
+  --color-slate-800: var(--slate-800);
+  --color-slate-750: var(--slate-750);
+  --color-slate-700: var(--slate-700);
+  --color-slate-600: var(--slate-600);
+  --color-slate-500: var(--slate-500);
+  --color-slate-400: var(--slate-400);
+  --color-slate-300: var(--slate-300);
+  --color-slate-200: var(--slate-200);
+  --color-slate-100: var(--slate-100);
+}
+
+/* Light mode specific elements overrides */
+html.light .text-white:not(
+  button *, 
+  button, 
+  .bg-blue-600 *, 
+  .bg-blue-600, 
+  .bg-emerald-600 *, 
+  .bg-emerald-600, 
+  .bg-rose-500 *, 
+  .bg-rose-500, 
+  .bg-red-600 *, 
+  .bg-red-600, 
+  .bg-purple-600 *, 
+  .bg-purple-600, 
+  .text-white-keep
+) {
+  color: #0f172a !important;
+}
+
+html.light h1.text-white,
+html.light h2.text-white,
+html.light h3.text-white,
+html.light h4.text-white,
+html.light h5.text-white,
+html.light span.text-white:not(button *, .bg-blue-600 *, .bg-emerald-600 *, .border-blue-600 *, .text-white-keep) {
+  color: #0f172a !important;
+}
+
+/* Ensure borders stand out nicely in light mode */
+html.light .border-slate-800 {
+  border-color: #e2e8f0 !important;
+}
+
+html.light .border-slate-700 {
+  border-color: #cbd5e1 !important;
+}
+
+html.light .border-slate-800\/80 {
+  border-color: rgba(226, 232, 240, 0.8) !important;
+}
+
+/* Make icons more legible too */
+html.light .text-slate-400 {
+  color: #475569 !important;
+}
+
+html.light .text-slate-300 {
+  color: #1e293b !important;
+}
+
+html.light .text-slate-200 {
+  color: #0f172a !important;
 }
 
 @layer base {

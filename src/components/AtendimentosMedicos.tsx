@@ -55,7 +55,9 @@ export default function AtendimentosMedicos() {
   const [citizenHistory, setCitizenHistory] = useState<any[]>([]);
   const [searchingCitizen, setSearchingCitizen] = useState(false);
   const [cpfError, setCpfError] = useState<string | null>(null);
-  const [cpfValidated, setCpfValidated] = useState<boolean>(false);
+  const [cpfValidated, setCpfValidated] = useState<boolean>(true);
+  const [protocolError, setProtocolError] = useState<string | null>(null);
+  const [validatingProtocol, setValidatingProtocol] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -90,6 +92,20 @@ export default function AtendimentosMedicos() {
     satisfacao_nivel: 0,
     satisfacao_comentario: "",
     bem_atendido: null as boolean | null,
+    protocolo: "",
+  };
+
+  const generateProtocol = () => {
+    const year = new Date().getFullYear();
+    const random = Math.floor(1000 + Math.random() * 9000);
+    const prot = `PROT-${year}-${random}`;
+    setFormData((prev) => ({ ...prev, protocolo: prot }));
+    setProtocolError(null);
+  };
+
+  const validateProtocolPattern = (prot: string) => {
+    const pattern = /^PROT-\d{4}-\d{4}$/;
+    return pattern.test(prot);
   };
 
   // Masks
@@ -124,27 +140,25 @@ export default function AtendimentosMedicos() {
     const cleanCPF = cpf.replace(/\D/g, "");
     if (cleanCPF.length < 11 || !profile?.cabinetId) {
       setCpfError(null);
-      setCpfValidated(false);
+      setCpfValidated(cleanCPF.length === 0);
       return;
     }
 
     setSearchingCitizen(true);
     setCpfError(null);
     try {
-      // 1. Search in General Assistances (Atendimentos)
+      // 1. Search in General Assistances (Atendimentos) - order in-memory to prevent missing index errors
       const qGen = query(
         collection(db, "atendimentos"),
         where("cabinetId", "==", profile?.cabinetId),
-        where("cpf", "==", maskedCPF),
-        orderBy("created_at", "desc"),
+        where("cpf", "==", maskedCPF)
       );
 
-      // 2. Search in Medical Records (for medical history compile)
+      // 2. Search in Medical Records (for medical history compile) - order in-memory to prevent missing index errors
       const qMed = query(
         collection(db, "atendimentos_medicos"),
         where("cabinetId", "==", profile?.cabinetId),
-        where("cpf", "==", maskedCPF),
-        orderBy("created_at", "desc"),
+        where("cpf", "==", maskedCPF)
       );
 
       const [genSnap, medSnap] = await Promise.all([
@@ -169,22 +183,37 @@ export default function AtendimentosMedicos() {
         source: "Médico",
       }));
 
-      history = [...medHistory, ...genHistory];
+      const sortByDate = (a: any, b: any) => {
+        const timeA = a.created_at?.seconds || 0;
+        const timeB = b.created_at?.seconds || 0;
+        return timeB - timeA;
+      };
+
+      history = [...medHistory, ...genHistory].sort(sortByDate);
 
       if (hasGen || hasMed) {
+        // Find newest based on created_at
+        const allDocs = [...medSnap.docs, ...genSnap.docs];
+        allDocs.sort((a, b) => {
+          const timeA = a.data().created_at?.seconds || 0;
+          const timeB = b.data().created_at?.seconds || 0;
+          return timeB - timeA;
+        });
+        const newestDoc = allDocs[0].data();
+
         const genData = hasGen ? genSnap.docs[0].data() : {};
         const medData = hasMed ? medSnap.docs[0].data() : {};
         foundData = {
           ...genData,
           ...medData,
-          nome_completo: medData.nome_completo || genData.nome_completo || "",
-          telefone: medData.telefone || genData.telefone || "",
-          data_nascimento: medData.data_nascimento || genData.data_nascimento || "",
-          endereco: medData.endereco || genData.endereco || "",
-          bairro: medData.bairro || genData.bairro || "",
-          zona_rural: medData.zona_rural !== undefined ? medData.zona_rural : (genData.zona_rural !== undefined ? genData.zona_rural : false),
-          cartao_sus: medData.cartao_sus || genData.cartao_sus || "",
-          unidade_saude: medData.unidade_saude || genData.unidade_saude || "",
+          nome_completo: newestDoc.nome_completo || medData.nome_completo || genData.nome_completo || "",
+          telefone: newestDoc.telefone || medData.telefone || genData.telefone || "",
+          data_nascimento: newestDoc.data_nascimento || medData.data_nascimento || genData.data_nascimento || "",
+          endereco: newestDoc.endereco || medData.endereco || genData.endereco || "",
+          bairro: newestDoc.bairro || medData.bairro || genData.bairro || "",
+          zona_rural: newestDoc.zona_rural !== undefined ? newestDoc.zona_rural : (medData.zona_rural !== undefined ? medData.zona_rural : (genData.zona_rural !== undefined ? genData.zona_rural : false)),
+          cartao_sus: newestDoc.cartao_sus || medData.cartao_sus || genData.cartao_sus || "",
+          unidade_saude: newestDoc.unidade_saude || medData.unidade_saude || genData.unidade_saude || "",
         };
 
         setCpfValidated(true);
@@ -392,8 +421,8 @@ export default function AtendimentosMedicos() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cpfValidated) {
-      alert("É obrigatório registrar os dados do cidadão no módulo de Atendimentos primeiro! Digite um CPF válido e cadastrado.");
+    if (formData.cpf && !cpfValidated) {
+      alert("Por favor, digite um CPF válido ou aguarde a busca/validação.");
       return;
     }
     if (!formData.lgpd_consent) {
@@ -402,6 +431,45 @@ export default function AtendimentosMedicos() {
     }
 
     setSubmitting(true);
+    setProtocolError(null);
+
+    // Validate protocol uniqueness if populated
+    if (formData.protocolo) {
+      const cleanProt = formData.protocolo.trim().toUpperCase();
+      if (!validateProtocolPattern(cleanProt)) {
+        setProtocolError("O protocolo deve seguir o padrão PROT-AAAA-NNNN (Ex: PROT-2024-0015)");
+        setSubmitting(false);
+        return;
+      }
+
+      setValidatingProtocol(true);
+      try {
+        // Query in atendimentos
+        const qGen = query(collection(db, "atendimentos"), where("protocolo", "==", cleanProt));
+        // Query in atendimentos_medicos
+        const qMed = query(collection(db, "atendimentos_medicos"), where("protocolo", "==", cleanProt));
+
+        const [genSnap, medSnap] = await Promise.all([
+          getDocs(qGen),
+          getDocs(qMed),
+        ]);
+
+        const duplicateGen = !genSnap.empty;
+        const duplicateMed = medSnap.docs.some(doc => doc.id !== editingId);
+
+        if (duplicateGen || duplicateMed) {
+          setProtocolError("Este número de protocolo já está em uso em outro atendimento.");
+          setSubmitting(false);
+          setValidatingProtocol(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Erro ao validar protocolo:", err);
+      } finally {
+        setValidatingProtocol(false);
+      }
+    }
+
     try {
       const payload = {
         ...formData,
@@ -459,7 +527,8 @@ export default function AtendimentosMedicos() {
     setCitizenHistory([]);
     setIsCustomSpecActive(false);
     setCpfError(null);
-    setCpfValidated(false);
+    setCpfValidated(true);
+    setProtocolError(null);
   };
 
   const handlePrintReceipt = (atendimento: any) => {
@@ -499,7 +568,7 @@ export default function AtendimentosMedicos() {
         </head>
         <body>
           <div class="container">
-            <div class="receipt-id">REF: ${atendimento.id.substring(0, 8).toUpperCase()}</div>
+            <div class="receipt-id">${atendimento.protocolo ? `PROTOCOLO: ${atendimento.protocolo} | ` : ""}REF: ${atendimento.id.substring(0, 8).toUpperCase()}</div>
             <div class="header">
               <h1>Recibo de Entrega de Óculos</h1>
               <p>Gabinete Parlamentar - Departamento de Assistência Social e Saúde</p>
@@ -615,8 +684,11 @@ export default function AtendimentosMedicos() {
       satisfacao_nivel: item.satisfacao_nivel || 0,
       satisfacao_comentario: item.satisfacao_comentario || "",
       bem_atendido: item.bem_atendido !== undefined ? item.bem_atendido : null,
+      protocolo: item.protocolo || "",
     });
     if (item.cpf) searchCitizenData(item.cpf);
+    else setCpfValidated(true); // Empty CPF is validated by default
+    setProtocolError(null);
     setShowModal(true);
   };
 
@@ -749,8 +821,16 @@ export default function AtendimentosMedicos() {
               className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:border-emerald-500/50 transition-all cursor-pointer group"
             >
               <div className="flex items-start justify-between mb-4">
-                <div className="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center">
-                  <Stethoscope className="text-emerald-500" size={20} />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center shrink-0">
+                    <Stethoscope className="text-emerald-500" size={20} />
+                  </div>
+                  {item.protocolo && (
+                    <span className="text-[10px] font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2.5 py-1 rounded-lg font-bold shrink-0 shadow-sm shadow-blue-900/10 flex items-center gap-1">
+                      <span className="text-[8px] opacity-50 uppercase tracking-widest font-black">prot</span>
+                      {item.protocolo}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {(profile?.role === "admin" ||
@@ -992,6 +1072,49 @@ export default function AtendimentosMedicos() {
                     )}
 
                     <div className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider flex items-center justify-between">
+                          <span>Número do Protocolo</span>
+                          {!editingId && (
+                            <button
+                              type="button"
+                              onClick={generateProtocol}
+                              className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold uppercase transition-colors cursor-pointer"
+                            >
+                              [ Gerar Automático ]
+                            </button>
+                          )}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={formData.protocolo}
+                            onChange={(e) => {
+                              setFormData({
+                                ...formData,
+                                protocolo: e.target.value.toUpperCase(),
+                              });
+                              if (protocolError) setProtocolError(null);
+                            }}
+                            className={cn(
+                              "w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50 font-mono text-sm",
+                              protocolError ? "ring-2 ring-rose-500/50" : ""
+                            )}
+                            placeholder="PROT-AAAA-NNNN"
+                          />
+                          {validatingProtocol && (
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                              <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          )}
+                        </div>
+                        {protocolError && (
+                          <p className="text-[10.5px] font-medium text-rose-500 leading-tight mt-1">
+                            ⚠️ {protocolError}
+                          </p>
+                        )}
+                      </div>
+
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
                           Nome do Paciente

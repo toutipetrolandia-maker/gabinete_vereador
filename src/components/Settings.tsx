@@ -26,6 +26,8 @@ import {
   ExternalLink,
   Globe,
   AlertCircle,
+  Sun,
+  Moon,
 } from "lucide-react";
 import {
   collection,
@@ -70,6 +72,20 @@ export default function Settings() {
     localStorage.getItem("biometric_enabled") === "true",
   );
   const [biometricLoading, setBiometricLoading] = useState(false);
+
+  const [theme, setTheme] = useState<"light" | "dark">(
+    (localStorage.getItem("theme") as "light" | "dark") || "dark",
+  );
+
+  const handleToggleTheme = (selectedTheme: "light" | "dark") => {
+    localStorage.setItem("theme", selectedTheme);
+    setTheme(selectedTheme);
+    if (selectedTheme === "light") {
+      document.documentElement.classList.add("light");
+    } else {
+      document.documentElement.classList.remove("light");
+    }
+  };
 
   // Password Change State
   const [currentPassword, setCurrentPassword] = useState("");
@@ -714,6 +730,47 @@ export default function Settings() {
               </div>
 
               <div className="max-w-xl space-y-8">
+                {/* Theme Selector Section */}
+                <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Sun className="text-blue-500" size={20} />
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-slate-200">
+                      Preferência de Tema
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Escolha a aparência visual do Gabinete Digital para este dispositivo.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleTheme("light")}
+                      className={cn(
+                        "flex items-center justify-center gap-3 p-4 rounded-xl border font-bold text-sm cursor-pointer transition-all",
+                        theme === "light"
+                          ? "bg-white text-slate-950 border-white shadow-xl"
+                          : "bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:bg-slate-850"
+                      )}
+                    >
+                      <Sun size={18} className={theme === "light" ? "text-amber-500" : ""} />
+                      Modo Claro
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleTheme("dark")}
+                      className={cn(
+                        "flex items-center justify-center gap-3 p-4 rounded-xl border font-bold text-sm cursor-pointer transition-all",
+                        theme === "dark"
+                          ? "bg-slate-800 text-white border-blue-500 shadow-xl shadow-blue-900/20"
+                          : "bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:bg-slate-850"
+                      )}
+                    >
+                      <Moon size={18} className={theme === "dark" ? "text-blue-400" : ""} />
+                      Modo Escuro
+                    </button>
+                  </div>
+                </div>
+
                 {/* Profile Edit Form */}
                 <form
                   onSubmit={handleUpdateProfile}

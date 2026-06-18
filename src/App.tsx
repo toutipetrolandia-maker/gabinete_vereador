@@ -79,6 +79,15 @@ function AppContent() {
   const { user, profile, loading, isSuperAdmin, hasModuleAccess } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
+  React.useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    if (savedTheme === 'light') {
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+    }
+  }, []);
+
   if (loading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-slate-950">

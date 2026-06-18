@@ -25,7 +25,9 @@ import {
   BookOpen,
   MessageCircle,
   Briefcase,
-  Handshake
+  Handshake,
+  Plus,
+  Calendar
 } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -36,6 +38,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import NotificationCenter from './NotificationCenter';
 import { AIAssistant } from './AIAssistant';
+import CommandBar from './CommandBar';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -55,6 +58,90 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
   const [billingStatus, setBillingStatus] = useState<'regular' | 'pending' | 'suspended'>('regular');
   const [isMobile, setIsMobile] = useState(false);
   const [showStatusToast, setShowStatusToast] = useState(false);
+  const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
+  const [isFabOpen, setIsFabOpen] = useState(false);
+  const [shortcutToast, setShortcutToast] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    const handleToggleBar = () => setIsCommandBarOpen(prev => !prev);
+    window.addEventListener('toggle-command-bar', handleToggleBar);
+    return () => window.removeEventListener('toggle-command-bar', handleToggleBar);
+  }, []);
+
+  React.useEffect(() => {
+    let timer: NodeJS.Timeout;
+    const handleToast = (e: Event) => {
+      const customEvent = e as CustomEvent<{ message: string }>;
+      if (customEvent.detail?.message) {
+        setShortcutToast(customEvent.detail.message);
+        clearTimeout(timer);
+        timer = setTimeout(() => setShortcutToast(null), 2500);
+      }
+    };
+    window.addEventListener('show-shortcut-toast', handleToast);
+    return () => {
+      window.removeEventListener('show-shortcut-toast', handleToast);
+      clearTimeout(timer);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (
+        activeEl.tagName === 'INPUT' || 
+        activeEl.tagName === 'TEXTAREA' || 
+        activeEl.hasAttribute('contenteditable') ||
+        (activeEl as HTMLElement).isContentEditable
+      );
+
+      // S (or Ctrl+S / Cmd+S) to save open records
+      const isCtrlS = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's';
+      const isOnlyS = !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 's';
+
+      if (isCtrlS || (isOnlyS && !isInput)) {
+        e.preventDefault();
+        
+        // Find visible submit button
+        const submitButtons = document.querySelectorAll('button[type="submit"], input[type="submit"]');
+        const visibleSubmit = Array.from(submitButtons).find(btn => {
+          const rect = btn.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
+
+        if (visibleSubmit) {
+          (visibleSubmit as HTMLButtonElement).click();
+          window.dispatchEvent(new CustomEvent('show-shortcut-toast', { 
+            detail: { message: '⌨️ Atalho: Salvando registro...' } 
+          }));
+        } else {
+          window.dispatchEvent(new CustomEvent('show-shortcut-toast', { 
+            detail: { message: 'ℹ️ Nenhum formulário ativo para salvar' } 
+          }));
+        }
+        return;
+      }
+
+      // N key to create a new attendance
+      const isOnlyN = !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'n';
+      if (isOnlyN && !isInput) {
+        e.preventDefault();
+        
+        setActiveTab('atendimentos');
+        
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('new-atendimento-trigger'));
+        }, 120);
+
+        window.dispatchEvent(new CustomEvent('show-shortcut-toast', { 
+          detail: { message: '⌨️ Atalho: Abrindo Novo Atendimento...' } 
+        }));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setActiveTab]);
 
   const isSuperAdmin = authIsSuper;
 
@@ -341,9 +428,20 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
         
         {/* Header Bar */}
         <header className="flex items-center justify-between mb-8 pb-6 border-b border-slate-800/50">
-           <div className="flex items-center gap-4 bg-slate-900 border border-slate-800 px-4 py-2 rounded-2xl w-full max-w-md group focus-within:border-blue-500/50 transition-all">
-              <Search size={18} className="text-slate-500 group-focus-within:text-blue-500" />
-              <input type="text" placeholder="Pesquisar no gabinete..." className="bg-transparent border-none focus:ring-0 text-sm text-slate-100 placeholder:text-slate-500 w-full" />
+           <div 
+             onClick={() => setIsCommandBarOpen(true)}
+             className="flex items-center justify-between gap-4 bg-slate-900 border border-slate-800 hover:border-slate-750 hover:bg-slate-850/50 px-4 py-2.5 rounded-2xl w-full max-w-md cursor-pointer transition-all group shadow-sm select-none"
+             title="Abrir barra de comandos (Ctrl+K)"
+             id="header-command-trigger"
+           >
+              <div className="flex items-center gap-3">
+                <Search size={18} className="text-slate-500 group-hover:text-slate-400 transition-colors" />
+                <span className="text-sm text-slate-500">Pesquisar ou abrir módulo...</span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="text-[10px] bg-slate-850 text-slate-500 border border-slate-750 px-1.5 py-0.5 rounded font-mono group-hover:text-slate-400 group-hover:border-slate-700 transition-colors">Ctrl</span>
+                <span className="text-[10px] bg-slate-850 text-slate-500 border border-slate-750 px-1.5 py-0.5 rounded font-mono group-hover:text-slate-400 group-hover:border-slate-700 transition-colors">K</span>
+              </div>
            </div>
            
            <div className="flex items-center gap-4">
@@ -377,6 +475,16 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
               Você está offline
             </motion.div>
           )}
+          {shortcutToast && (
+            <motion.div 
+              initial={{ opacity: 0, y: 30, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.9 }}
+              className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-2.5 bg-slate-900 border border-slate-700/80 text-white px-5 py-3 rounded-2xl shadow-2xl font-bold text-xs tracking-wide"
+            >
+              <span>{shortcutToast}</span>
+            </motion.div>
+          )}
         </AnimatePresence>
 
         <div className="max-w-7xl mx-auto h-full pt-12 lg:pt-0">
@@ -384,6 +492,127 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
         </div>
       </main>
       <AIAssistant />
+      <CommandBar 
+        isOpen={isCommandBarOpen} 
+        onClose={() => setIsCommandBarOpen(false)} 
+        setActiveTab={setActiveTab} 
+        activeTab={activeTab} 
+      />
+
+      {/* Mobile Floating Action Button (FAB) */}
+      <div className="lg:hidden fixed bottom-6 right-6 z-[9990] flex flex-col items-end gap-3" id="mobile-fab-container">
+        <AnimatePresence>
+          {isFabOpen && (
+            <>
+              {/* Soft overlay when FAB is open */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsFabOpen(false)}
+                className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[-1]"
+                id="fab-backdrop"
+              />
+
+              {/* Float-up action buttons */}
+              <div className="flex flex-col items-end gap-2.5 mb-2" id="fab-actions-list">
+                {/* 1. Novo Atendimento */}
+                {hasModuleAccess('atendimentos') && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 15, scale: 0.9 }}
+                    transition={{ delay: 0.05 }}
+                    className="flex items-center gap-2.5"
+                  >
+                    <span className="bg-slate-900 border border-slate-755 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-lg select-none">
+                      Novo Atendimento
+                    </span>
+                    <button
+                      onClick={() => {
+                        setIsFabOpen(false);
+                        setActiveTab('atendimentos');
+                        setTimeout(() => {
+                          window.dispatchEvent(new CustomEvent('new-atendimento-trigger'));
+                        }, 120);
+                      }}
+                      className="w-11 h-11 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors cursor-pointer"
+                      id="fab-action-new-attendance"
+                    >
+                      <Plus size={20} />
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* 2. Ver Agenda */}
+                {hasModuleAccess('agenda') && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 15, scale: 0.9 }}
+                    transition={{ delay: 0.1 }}
+                    className="flex items-center gap-2.5"
+                  >
+                    <span className="bg-slate-900 border border-slate-755 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-lg select-none">
+                      Ver Agenda
+                    </span>
+                    <button
+                      onClick={() => {
+                        setIsFabOpen(false);
+                        setActiveTab('agenda');
+                      }}
+                      className="w-11 h-11 rounded-full bg-slate-800 text-slate-300 border border-slate-700 flex items-center justify-center shadow-lg hover:text-white hover:bg-slate-750 transition-colors cursor-pointer"
+                      id="fab-action-agenda"
+                    >
+                      <Calendar size={18} />
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* 3. Buscar ou Atalhos */}
+                <motion.div
+                  initial={{ opacity: 0, y: 15, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 15, scale: 0.9 }}
+                  transition={{ delay: 0.15 }}
+                  className="flex items-center gap-2.5"
+                >
+                  <span className="bg-slate-900 border border-slate-755 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-lg select-none">
+                    Busca & Atalhos (Ctrl+K)
+                  </span>
+                  <button
+                    onClick={() => {
+                      setIsFabOpen(false);
+                      setIsCommandBarOpen(true);
+                    }}
+                    className="w-11 h-11 rounded-full bg-slate-800 text-slate-300 border border-slate-700 flex items-center justify-center shadow-lg hover:text-white hover:bg-slate-755 transition-colors cursor-pointer"
+                    id="fab-action-search"
+                  >
+                    <Search size={16} />
+                  </button>
+                </motion.div>
+              </div>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Main Trigger Button */}
+        <motion.button
+          onClick={() => setIsFabOpen(prev => !prev)}
+          className={cn(
+            "w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all cursor-pointer border",
+            isFabOpen 
+              ? "bg-slate-800 hover:bg-slate-755 border-slate-700" 
+              : "bg-gradient-to-tr from-blue-600 to-blue-500 hover:scale-105 active:scale-95 border-blue-500/50 shadow-blue-500/25"
+          )}
+          animate={{ rotate: isFabOpen ? 135 : 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          id="fab-toggle-btn"
+          title="Ações rápidas"
+        >
+          <Plus size={24} />
+        </motion.button>
+      </div>
     </div>
   );
 }

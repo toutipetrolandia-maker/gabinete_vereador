@@ -24,7 +24,8 @@ import {
   Download,
   Trash2,
   Loader2,
-  MessageSquare
+  MessageSquare,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatProperName } from '../lib/utils';
@@ -35,6 +36,8 @@ import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig } from '../lib/whatsapp';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
+import ReactMarkdown from 'react-markdown';
+import { generateExecutiveDemandSummary } from '../services/aiService';
 
 export default function Demandas() {
   const { profile } = useAuth();
@@ -56,6 +59,10 @@ export default function Demandas() {
     assessor_nome: '',
     attachments: [] as { name: string, url: string, type: string }[]
   };
+
+  const [aiSummaries, setAiSummaries] = useState<Record<string, string>>({});
+  const [loadingSummaryId, setLoadingSummaryId] = useState<string | null>(null);
+  const [expandedSummaries, setExpandedSummaries] = useState<Record<string, boolean>>({});
 
   const [formData, setFormData] = useState(initialForm);
   const [assessors, setAssessors] = useState<any[]>([]);
@@ -199,6 +206,33 @@ export default function Demandas() {
     }
   };
 
+  const handleGenerateSummary = async (item: any) => {
+    if (loadingSummaryId) return;
+    setLoadingSummaryId(item.id);
+    try {
+      const summary = await generateExecutiveDemandSummary(
+        item.assunto || 'Sem assunto',
+        item.descricao || 'Nenhuma descrição detalhada',
+        item.orgao_responsavel || 'Órgão não especificado',
+        item.prioridade || 'Média',
+        item.status || 'Pendente',
+        item.solicitante_nome || 'Não identificado'
+      );
+      setAiSummaries(prev => ({ ...prev, [item.id]: summary }));
+      setExpandedSummaries(prev => ({ ...prev, [item.id]: true }));
+      await logAction('Análise IA', 'demandas_parlamentares', item.id, { next: { action: 'Resumo executivo gerado via Gemini' } });
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Erro ao conectar-se ao Gemini. Verifique a chave de API.");
+    } finally {
+      setLoadingSummaryId(null);
+    }
+  };
+
+  const toggleSummary = (id: string) => {
+    setExpandedSummaries(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -243,91 +277,162 @@ export default function Demandas() {
             key={item.id}
             initial={{ opacity: 0, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-slate-900 border border-slate-800 p-6 rounded-2xl flex flex-col md:flex-row md:items-center gap-6"
+            className="bg-slate-900 border border-slate-800 p-6 rounded-2xl flex flex-col gap-5 hover:border-slate-750 transition-colors"
           >
-             <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                   {item.protocolo && (
-                     <span className="text-[10px] font-mono bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2.5 py-1 rounded-lg font-bold shrink-0 shadow-sm shadow-purple-900/10">
-                       <span className="text-[8px] opacity-50 mr-1 font-black uppercase">id</span>
-                       {item.protocolo}
-                     </span>
-                   )}
-                   <h3 className="font-bold text-slate-100">{item.assunto}</h3>
-                   <span className={cn(
-                     "text-[10px] px-2 py-0.5 rounded-full border uppercase font-bold",
-                     item.prioridade === 'Alta' ? "border-red-500/50 text-red-500 bg-red-500/5" : "border-slate-700 text-slate-500"
-                   )}>{item.prioridade}</span>
-                </div>
-                <p className="text-sm text-slate-400 mb-4">{item.descricao}</p>
-                
-                {item.attachments && item.attachments.length > 0 && (
-                   <div className="flex flex-wrap gap-2 mb-4">
-                      {item.attachments.map((file: any, idx: number) => (
-                         <a 
-                           key={idx}
-                           href={file.url}
-                           target="_blank"
-                           rel="noopener noreferrer"
-                           className="flex items-center gap-2 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg text-[10px] text-slate-300 hover:bg-slate-750 transition-colors"
-                         >
-                            <Paperclip size={12} className="text-purple-400" />
-                            <span className="truncate max-w-[150px]">{file.name}</span>
-                            <Download size={12} className="text-slate-500" />
-                         </a>
-                      ))}
+             {/* Upper row: Main info + Action Buttons */}
+             <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
+                <div className="flex-1 space-y-3">
+                   <div className="flex flex-wrap items-center gap-3">
+                      {item.protocolo && (
+                        <span className="text-[10px] font-mono bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2.5 py-1 rounded-lg font-bold shrink-0 shadow-sm shadow-purple-900/10">
+                          <span className="text-[8px] opacity-50 mr-1 font-black uppercase">id</span>
+                          {item.protocolo}
+                        </span>
+                      )}
+                      <h3 className="font-bold text-slate-100 text-base">{item.assunto}</h3>
+                      <span className={cn(
+                        "text-[10px] px-2 py-0.5 rounded-full border uppercase font-bold",
+                        item.prioridade === 'Alta' ? "border-red-500/50 text-red-500 bg-red-500/5" : "border-slate-700 text-slate-500"
+                      )}>{item.prioridade}</span>
                    </div>
-                )}
+                   <p className="text-sm text-slate-400 leading-relaxed font-normal">{item.descricao}</p>
+                   
+                   {item.attachments && item.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                         {item.attachments.map((file: any, idx: number) => (
+                            <a 
+                              key={idx}
+                              href={file.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg text-[10px] text-slate-300 hover:bg-slate-750 transition-colors"
+                            >
+                               <Paperclip size={12} className="text-purple-400" />
+                               <span className="truncate max-w-[150px]">{file.name}</span>
+                               <Download size={12} className="text-slate-500" />
+                            </a>
+                         ))}
+                      </div>
+                   )}
 
-                <div className="flex flex-wrap gap-4 text-xs">
-                   <div className="flex items-center gap-1.5 text-slate-500">
-                      <Send size={14} className="text-purple-400" />
-                      <span>Órgão: <strong className="text-slate-300">{item.orgao_responsavel}</strong></span>
-                   </div>
-                   <div className="flex items-center gap-1.5 text-slate-500">
-                      <Clock size={14} className="text-blue-400" />
-                      <span>Status: <strong className="text-slate-300">{item.status}</strong></span>
-                   </div>
-                   {item.assessor_nome && (
-                     <div className="flex items-center gap-1.5 text-slate-500">
-                        <div className="w-4 h-4 rounded-full bg-purple-500/20 flex items-center justify-center">
-                          <span className="text-[8px] font-bold text-purple-400">{item.assessor_nome.substring(0, 1)}</span>
+                   <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs pt-1">
+                      <div className="flex items-center gap-1.5 text-slate-500">
+                         <Send size={14} className="text-purple-400" />
+                         <span>Órgão: <strong className="text-slate-300 font-semibold">{item.orgao_responsavel}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-slate-500">
+                         <Clock size={14} className="text-blue-400" />
+                         <span>Status: <strong className="text-slate-300 font-semibold">{item.status}</strong></span>
+                      </div>
+                      {item.assessor_nome && (
+                        <div className="flex items-center gap-1.5 text-slate-500">
+                           <div className="w-4 h-4 rounded-full bg-purple-500/20 flex items-center justify-center">
+                             <span className="text-[8px] font-bold text-purple-400">{item.assessor_nome.substring(0, 1)}</span>
+                           </div>
+                           <span>Atribuído a: <strong className="text-purple-400 font-semibold">{item.assessor_nome}</strong></span>
                         </div>
-                        <span>Atribuído a: <strong className="text-purple-400">{item.assessor_nome}</strong></span>
-                     </div>
-                   )}
-                   {item.solicitante_telefone && (
+                      )}
+                      {item.solicitante_telefone && (
+                        <button 
+                          type="button"
+                          onClick={() => sendWAMessage(item, 'status_update')}
+                          className="flex items-center gap-1.5 text-emerald-500 hover:text-emerald-400 font-bold transition-all"
+                        >
+                           <MessageSquare size={14} />
+                           <span>Notificar WhatsApp</span>
+                        </button>
+                      )}
+                   </div>
+                </div>
+
+                {/* Card CTA Buttons */}
+                <div className="flex flex-wrap lg:grid lg:grid-cols-1 xl:flex items-center gap-2 shrink-0 lg:self-start">
+                   {/* GEMINI AI SUMMARY ENGINE BUTTON */}
+                   <button 
+                     type="button"
+                     onClick={() => aiSummaries[item.id] ? toggleSummary(item.id) : handleGenerateSummary(item)}
+                     disabled={loadingSummaryId !== null && loadingSummaryId !== item.id}
+                     className={cn(
+                       "text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5",
+                       aiSummaries[item.id]
+                         ? "bg-purple-950/20 border-purple-500/30 text-purple-300 hover:text-white"
+                         : loadingSummaryId === item.id
+                           ? "bg-slate-850 border-slate-800 text-slate-500"
+                           : "bg-gradient-to-r from-purple-500/10 to-indigo-500/10 hover:from-purple-500/20 hover:to-indigo-500/20 border-purple-500/20 text-purple-400 hover:text-purple-300"
+                     )}
+                   >
+                     {loadingSummaryId === item.id ? (
+                       <>
+                         <Loader2 className="animate-spin text-purple-500" size={13} />
+                         <span>Processando...</span>
+                       </>
+                     ) : aiSummaries[item.id] ? (
+                       <>
+                         <Sparkles className="text-purple-400" size={13} />
+                         <span>{expandedSummaries[item.id] ? 'Ocultar Análise' : 'Análise da IA'}</span>
+                       </>
+                     ) : (
+                       <>
+                         <Sparkles className="text-purple-500" size={13} />
+                         <span>Resumir com IA</span>
+                       </>
+                     )}
+                   </button>
+
+                   {profile?.role !== 'consulta' && (
                      <button 
-                       onClick={() => sendWAMessage(item, 'status_update')}
-                       className="flex items-center gap-1.5 text-emerald-500 hover:text-emerald-400 font-bold transition-all ml-4"
+                       type="button"
+                       onClick={() => handleEdit(item)}
+                       className="text-xs font-bold text-slate-400 hover:text-white px-3 py-1.5 bg-slate-800 rounded-lg transition-all cursor-pointer border border-transparent hover:border-slate-700"
                      >
-                        <MessageSquare size={14} />
-                        <span>Notificar WhatsApp</span>
+                       Editar
                      </button>
                    )}
+                   {(profile?.role === 'admin' || profile?.role === 'secretaria_parlamentar') && (
+                     <button 
+                       type="button"
+                       onClick={() => handleDelete(item.id)}
+                       className="text-xs font-bold text-red-500/80 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-all cursor-pointer border border-transparent hover:border-red-500/10"
+                     >
+                       Excluir
+                     </button>
+                   )}
+                   <button 
+                     type="button"
+                     className="text-xs font-bold text-white px-3 py-1.5 bg-purple-600/20 text-purple-400 rounded-lg border border-purple-500/20 hover:bg-purple-600/30 hover:text-white transition-all cursor-pointer"
+                   >
+                     Gerar Ofício
+                   </button>
                 </div>
              </div>
-             <div className="flex items-center gap-2 shrink-0">
-                {profile?.role !== 'consulta' && (
-                  <button 
-                    onClick={() => handleEdit(item)}
-                    className="text-xs font-bold text-slate-400 hover:text-white px-3 py-1.5 bg-slate-800 rounded-lg transition-all"
-                  >
-                    Editar
-                  </button>
-                )}
-                {(profile?.role === 'admin' || profile?.role === 'secretaria_parlamentar') && (
-                  <button 
-                    onClick={() => handleDelete(item.id)}
-                    className="text-xs font-bold text-red-400 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-all"
-                  >
-                    Excluir
-                  </button>
-                )}
-                <button className="text-xs font-bold text-white px-3 py-1.5 bg-purple-600/20 text-purple-400 rounded-lg border border-purple-500/20">
-                  Gerar Ofício
-                </button>
-             </div>
+
+             {/* Expanded AI Summary View */}
+             {aiSummaries[item.id] && expandedSummaries[item.id] && (
+               <motion.div
+                 initial={{ opacity: 0, height: 0 }}
+                 animate={{ opacity: 1, height: 'auto' }}
+                 exit={{ opacity: 0, height: 0 }}
+                 className="overflow-hidden border-t border-slate-800/85 pt-5 mt-1 space-y-3"
+               >
+                 <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                       <Sparkles className="text-purple-400 scale-90" size={16} />
+                       <h4 className="text-xs font-black uppercase tracking-widest text-purple-400">
+                          Resumo Executivo da Demanda (Gemini AI)
+                       </h4>
+                    </div>
+                    <span className="text-[9px] bg-purple-500/15 border border-purple-500/30 text-purple-300 font-mono font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                       Inteligência Ativa
+                    </span>
+                 </div>
+                 
+                 <div className="bg-slate-950 p-5 rounded-2xl border border-slate-850/80 max-h-96 overflow-y-auto leading-relaxed select-text" id={`ai-summary-${item.id}`}>
+                    <div className="markdown-body text-xs text-slate-300 space-y-3">
+                       <ReactMarkdown>{aiSummaries[item.id]}</ReactMarkdown>
+                    </div>
+                 </div>
+               </motion.div>
+             )}
           </motion.div>
         ))}
       </div>
