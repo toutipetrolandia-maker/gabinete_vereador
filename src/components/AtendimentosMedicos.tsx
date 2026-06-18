@@ -39,6 +39,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { logAction } from "../lib/audit";
 import { handleFirestoreError, OperationType } from "../lib/error-handler";
+import { toast } from 'sonner';
 
 export default function AtendimentosMedicos() {
   const { profile, user } = useAuth();
@@ -389,7 +390,7 @@ export default function AtendimentosMedicos() {
         (es) => es.nome.toLowerCase() === newSpecialtyName.trim().toLowerCase(),
       );
       if (exists) {
-        alert("Esta especialidade já foi cadastrada.");
+        toast.warning("Esta especialidade já foi cadastrada.");
         setAddingSpecialty(false);
         return;
       }
@@ -399,9 +400,10 @@ export default function AtendimentosMedicos() {
         created_at: serverTimestamp(),
       });
       setNewSpecialtyName("");
+      toast.success("Especialidade cadastrada com sucesso!");
     } catch (err) {
       console.error("Error adding specialty:", err);
-      alert("Erro ao adicionar especialidade.");
+      toast.error("Erro ao adicionar especialidade.");
     } finally {
       setAddingSpecialty(false);
     }
@@ -411,9 +413,10 @@ export default function AtendimentosMedicos() {
     if (!window.confirm("Deseja realmente remover esta especialidade?")) return;
     try {
       await deleteDoc(doc(db, "especialidades", id));
+      toast.success("Especialidade removida com sucesso!");
     } catch (err) {
       console.error("Error deleting specialty:", err);
-      alert("Erro ao remover especialidade.");
+      toast.error("Erro ao remover especialidade.");
     }
   };
 
@@ -487,6 +490,7 @@ export default function AtendimentosMedicos() {
           previous: existingDoc,
           next: formData,
         });
+        toast.success("Atendimento médico atualizado com sucesso!");
       } else {
         const docRef = await addDoc(collection(db, "atendimentos_medicos"), {
           ...payload,
@@ -496,6 +500,7 @@ export default function AtendimentosMedicos() {
         await logAction("Criar", "atendimentos_medicos", docRef.id, {
           next: formData,
         });
+        toast.success("Atendimento médico criado com sucesso!");
       }
       closeModal();
     } catch (err: any) {
@@ -513,7 +518,7 @@ export default function AtendimentosMedicos() {
         errorMsg = "Sem conexão com a internet.";
       }
 
-      alert(errorMsg);
+      toast.error(errorMsg);
       handleFirestoreError(err, OperationType.WRITE, "atendimentos_medicos");
     } finally {
       setSubmitting(false);
@@ -701,7 +706,9 @@ export default function AtendimentosMedicos() {
       await logAction("Excluir", "atendimentos_medicos", id, {
         previous: existing,
       });
-    } catch (err) {
+      toast.success("Registro médico excluído com sucesso!");
+    } catch (err: any) {
+      toast.error("Erro ao excluir registro médico.");
       handleFirestoreError(
         err,
         OperationType.DELETE,

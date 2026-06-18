@@ -32,6 +32,7 @@ import { cn, formatProperName } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
+import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig } from '../lib/whatsapp';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -153,6 +154,7 @@ export default function Demandas() {
           updated_at: serverTimestamp()
         });
         await logAction('Atualizar', 'demandas_parlamentares', editingId, { previous: existing, next: payload });
+        toast.success("Demanda atualizada com sucesso!");
       } else {
         const docRef = await addDoc(collection(db, 'demandas_parlamentares'), {
           ...payload,
@@ -161,11 +163,12 @@ export default function Demandas() {
           created_at: serverTimestamp(),
         });
         await logAction('Criar', 'demandas_parlamentares', docRef.id, { next: payload });
+        toast.success("Demanda criada com sucesso!");
       }
       closeModal();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Submit error:", err);
-      alert("Erro ao salvar demanda. Tente novamente.");
+      toast.error("Erro ao salvar demanda. Tente novamente.");
     } finally {
       setSubmitting(false);
     }
@@ -201,8 +204,10 @@ export default function Demandas() {
       const existing = data.find(i => i.id === id);
       await deleteDoc(doc(db, 'demandas_parlamentares', id));
       await logAction('Excluir', 'demandas_parlamentares', id, { previous: existing });
+      toast.success("Demanda excluída com sucesso!");
     } catch (err) {
       console.error(err);
+      toast.error("Erro ao excluir demanda.");
     }
   };
 
@@ -221,9 +226,10 @@ export default function Demandas() {
       setAiSummaries(prev => ({ ...prev, [item.id]: summary }));
       setExpandedSummaries(prev => ({ ...prev, [item.id]: true }));
       await logAction('Análise IA', 'demandas_parlamentares', item.id, { next: { action: 'Resumo executivo gerado via Gemini' } });
+      toast.success("Análise de IA concluída com sucesso!");
     } catch (err: any) {
       console.error(err);
-      alert(err.message || "Erro ao conectar-se ao Gemini. Verifique a chave de API.");
+      toast.error(err.message || "Erro ao conectar-se ao Gemini. Verifique a chave de API.");
     } finally {
       setLoadingSummaryId(null);
     }

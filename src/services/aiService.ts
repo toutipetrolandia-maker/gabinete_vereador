@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -252,6 +252,67 @@ Responda em Português Brasileiro. Use Markdown limpo sem decorações excessiva
   } catch (error) {
     console.error("Erro ao gerar resumo executivo:", error);
     throw new Error("Não foi possível conectar com o Gemini API para gerar o resumo técnico.");
+  }
+}
+
+export async function suggestAtendimentoProperties(descricao: string) {
+  if (!ai || !apiKey) {
+    throw new Error("Serviço de IA não configurado ou chave de API ausente.");
+  }
+
+  const prompt = `Analise a descrição a seguir de um atendimento de cidadão em um gabinete parlamentar e indique:
+1. O tipo de atendimento mais adequado entre: "Geral", "Médico", "Demanda" ou "Sugestão".
+2. A prioridade mais adequada entre: "Baixa", "Média" ou "Alta".
+
+Regras de Classificação:
+- "Médico": Assuntos de saúde, exames, consultas, cirurgia, consultas médicas, tratamento de saúde, doação de óculos, receitas, exames médicos, etc.
+- "Demanda": Solicitações de infraestrutura urbana, ofícios para órgãos, requerimentos parlamentares, indicações de cargos, iluminação pública, pavimentação, esgoto, podas, segurança, problemas na cidade.
+- "Sugestão": Ideias, feedbacks, críticas ou propostas de cidadãos para projetos de lei ou melhorias gerais.
+- "Geral": Qualquer outra solicitação que não se encaixe claramente nas anteriores (por exemplo, auxílio geral, dúvidas, preenchimento de cadastro, ajuda financeira, etc.).
+
+Descrição do atendimento:
+"${descricao}"`;
+
+  try {
+    const result = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            tipo_atendimento: {
+              type: Type.STRING,
+              description: "O tipo de atendimento sugerido. Deve ser exatamente um destes: 'Geral', 'Médico', 'Demanda', 'Sugestão'."
+            },
+            prioridade: {
+              type: Type.STRING,
+              description: "A prioridade sugerida. Deve ser exatamente uma destas: 'Baixa', 'Média', 'Alta'."
+            },
+            justificativa: {
+              type: Type.STRING,
+              description: "Breve explicação em português de por que esse tipo e prioridade foram sugeridos."
+            }
+          },
+          required: ["tipo_atendimento", "prioridade", "justificativa"]
+        }
+      }
+    });
+
+    if (!result.text) {
+      throw new Error("Nenhum texto retornado pelo Gemini.");
+    }
+    
+    const data = JSON.parse(result.text.trim());
+    return {
+      tipo_atendimento: ["Geral", "Médico", "Demanda", "Sugestão"].includes(data.tipo_atendimento) ? data.tipo_atendimento : "Geral",
+      prioridade: ["Baixa", "Média", "Alta"].includes(data.prioridade) ? data.prioridade : "Média",
+      justificativa: data.justificativa || ""
+    };
+  } catch (error) {
+    console.error("Erro ao sugerir propriedades do atendimento:", error);
+    throw new Error("Não foi possível obter sugestão da IA neste momento.");
   }
 }
 

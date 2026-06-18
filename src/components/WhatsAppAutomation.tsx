@@ -19,6 +19,7 @@ import { WhatsAppConfig, DEFAULT_TEMPLATES, WhatsAppTemplate } from '../lib/what
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
+import { toast } from 'sonner';
 
 export default function WhatsAppAutomation() {
   const { profile } = useAuth();
@@ -57,10 +58,10 @@ export default function WhatsAppAutomation() {
         updated_at: serverTimestamp()
       });
       await logAction('Atualizar WhatsApp', 'cabinets', profile.cabinetId, { next: newConfig });
-      alert('Configurações de WhatsApp salvas!');
+      toast.success('Configurações de WhatsApp salvas com sucesso!');
     } catch (error) {
       console.error('Error saving WA config:', error);
-      alert('Erro ao salvar.');
+      toast.error('Erro ao salvar as configurações.');
     } finally {
       setSaving(false);
     }

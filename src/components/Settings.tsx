@@ -57,6 +57,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "../lib/utils";
 import { logAction } from "../lib/audit";
+import { toast } from 'sonner';
 import UserManagement from "./UserManagement";
 import Training from "./Training";
 
@@ -298,10 +299,10 @@ export default function Settings() {
         profile.cabinetId,
         { next: data },
       );
-      alert("Configurações salvas com sucesso!");
+      toast.success("Configurações salvas com sucesso!");
     } catch (error) {
       console.error("Erro ao salvar configurações:", error);
-      alert("Erro ao salvar configurações. Verifique o console.");
+      toast.error("Erro ao salvar configurações.");
     } finally {
       setSavingSettings(false);
     }
@@ -435,10 +436,10 @@ export default function Settings() {
       await logAction("Atualizar Perfil", "users", auth.currentUser.uid, {
         next: data,
       });
-      alert("Perfil atualizado com sucesso!");
+      toast.success("Perfil atualizado com sucesso!");
     } catch (error) {
       console.error("Erro ao atualizar perfil:", error);
-      alert("Erro ao atualizar perfil.");
+      toast.error("Erro ao atualizar perfil.");
     } finally {
       setSavingProfile(false);
     }
@@ -507,10 +508,10 @@ export default function Settings() {
           exported_by: profile.nome || profile.email,
         },
       });
-      alert("Cópia de segurança realizada com sucesso!");
+      toast.success("Cópia de segurança realizada com sucesso!");
     } catch (error) {
       console.error("Erro ao realizar backup:", error);
-      alert(
+      toast.error(
         "Erro ao realizar backup: " +
           (error instanceof Error ? error.message : String(error)),
       );

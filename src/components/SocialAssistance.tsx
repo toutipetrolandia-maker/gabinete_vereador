@@ -44,6 +44,7 @@ import { cn, formatProperName } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
+import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig } from '../lib/whatsapp';
 
@@ -421,6 +422,7 @@ export default function SocialAssistance() {
           next: formData,
           cabinetId: profile.cabinetId 
         });
+        toast.success("Auxílio social atualizado com sucesso!");
       } else {
         const docRef = await addDoc(collection(db, 'auxilio_social'), {
           ...payload,
@@ -436,6 +438,7 @@ export default function SocialAssistance() {
           next: formData,
           cabinetId: profile.cabinetId 
         });
+        toast.success("Auxílio social registrado com sucesso!");
       }
       const isEntregue = formData.status === 'Entregue';
       const createdId = editingId;
@@ -453,7 +456,8 @@ export default function SocialAssistance() {
           }
         }, 300);
       }
-    } catch (err) {
+    } catch (err: any) {
+      toast.error("Erro ao salvar auxílio social.");
       handleFirestoreError(err, OperationType.WRITE, 'auxilio_social');
     }
   };
@@ -486,6 +490,8 @@ export default function SocialAssistance() {
         cabinetId: profile?.cabinetId 
       });
 
+      toast.success(`Status de auxílio social atualizado para "${newStatus}"!`);
+
       if (newStatus === 'Entregue' && existing) {
         setTimeout(() => {
           if (confirm("Deseja gerar o recibo de entrega em PDF para prestação de contas?")) {
@@ -499,6 +505,7 @@ export default function SocialAssistance() {
         }, 300);
       }
     } catch (err) {
+      toast.error("Erro ao atualizar status do auxílio.");
       handleFirestoreError(err, OperationType.UPDATE, `auxilio_social/${id}`);
     }
   };
@@ -518,7 +525,9 @@ export default function SocialAssistance() {
         previous: existing,
         cabinetId: profile?.cabinetId 
       });
+      toast.success("Auxílio social excluído com sucesso!");
     } catch (err) {
+      toast.error("Erro ao excluir auxílio social.");
       handleFirestoreError(err, OperationType.DELETE, `auxilio_social/${id}`);
     }
   };

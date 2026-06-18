@@ -23,6 +23,7 @@ import Training from './components/Training';
 import IndicacoesCargos from './components/IndicacoesCargos';
 import SystemUpdatesPopup from './components/SystemUpdatesPopup';
 import { AlertTriangle } from 'lucide-react';
+import { Toaster } from 'sonner';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -136,6 +137,7 @@ export default function App() {
     <ErrorBoundary>
       <AuthProvider>
         <AppContent />
+        <Toaster richColors position="top-right" closeButton theme="dark" />
       </AuthProvider>
     </ErrorBoundary>
   );

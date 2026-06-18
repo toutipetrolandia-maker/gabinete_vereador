@@ -33,6 +33,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 import { logAction } from '../lib/audit';
+import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { useAuth } from '../hooks/useAuth';
 
@@ -108,7 +109,7 @@ export default function Sugestoes() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.lgpd_consent) {
-      alert("É necessário o consentimento da LGPD para registrar a sugestão.");
+      toast.warning("É necessário o consentimento da LGPD para registrar a sugestão.");
       return;
     }
     setSubmitting(true);
@@ -127,6 +128,7 @@ export default function Sugestoes() {
           updated_at: serverTimestamp()
         });
         await logAction('Atualizar', 'sugestoes', editingId, { previous: existing, next: payload });
+        toast.success("Sugestão atualizada com sucesso!");
       } else {
         const docRef = await addDoc(collection(db, 'sugestoes'), {
           ...payload,
@@ -136,11 +138,12 @@ export default function Sugestoes() {
           updated_at: serverTimestamp(),
         });
         await logAction('Criar', 'sugestoes', docRef.id, { next: payload });
+        toast.success("Sugestão enviada com sucesso!");
       }
       closeModal();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Submit error:", err);
-      alert("Erro ao salvar sugestão. Tente novamente.");
+      toast.error("Erro ao salvar sugestão. Tente novamente.");
       handleFirestoreError(err, OperationType.WRITE, 'sugestoes');
     } finally {
       setSubmitting(false);
@@ -177,7 +180,9 @@ export default function Sugestoes() {
       const existing = data.find(i => i.id === id);
       await deleteDoc(doc(db, 'sugestoes', id));
       await logAction('Excluir', 'sugestoes', id, { previous: existing });
-    } catch (err) {
+      toast.success("Sugestão excluída com sucesso!");
+    } catch (err: any) {
+      toast.error("Erro ao excluir sugestão.");
       handleFirestoreError(err, OperationType.DELETE, `sugestoes/${id}`);
     }
   };
@@ -191,7 +196,8 @@ export default function Sugestoes() {
         updated_at: serverTimestamp()
       });
       await logAction('Atualizar', 'sugestoes', id, { previous: { status: existing?.status }, next: { status: newStatus } });
-    } catch (err) {
+      toast.success(`Status da sugestão atualizado para "${newStatus}"!`);
+    } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `sugestoes/${id}`);
     }
   };
@@ -341,7 +347,7 @@ export default function Sugestoes() {
                              });
                            } catch (err) {
                              console.error("Erro ao atribuir assessor para sugestão:", err);
-                             alert("Erro ao atribuir assessor.");
+                             toast.error("Erro ao atribuir assessor.");
                            }
                          }}
                          className="bg-transparent border-none text-blue-300 focus:outline-none focus:ring-0 cursor-pointer pr-1 py-0 scrollbar-none font-bold text-[10px] uppercase"

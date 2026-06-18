@@ -37,8 +37,10 @@ import {
   MapPin,
   Send,
   Map as MapIcon,
-  Bell
+  Bell,
+  Sparkles
 } from 'lucide-react';
+import { suggestAtendimentoProperties } from '../services/aiService';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatProperName } from '../lib/utils';
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMapEvents, useMap } from 'react-leaflet';
@@ -90,6 +92,7 @@ import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig } from '../lib/whatsapp';
+import { toast } from 'sonner';
 
 export default function Atendimentos() {
   const { profile, user } = useAuth();
@@ -364,6 +367,7 @@ export default function Atendimentos() {
       nome: item.nome,
     });
     window.open(getWhatsAppLink(item.telefone, message), '_blank');
+    toast.success('Mensagem de aniversário enviada!');
   };
 
   useEffect(() => {
@@ -454,6 +458,7 @@ export default function Atendimentos() {
     });
 
     window.open(getWhatsAppLink(item.telefone, message), '_blank');
+    toast.success('Mensagem enviada com sucesso!');
   };
 
   const initialForm = {
@@ -502,6 +507,33 @@ export default function Atendimentos() {
 
   // Form State
   const [formData, setFormData] = useState(initialForm);
+  const [loadingAiSuggestion, setLoadingAiSuggestion] = useState(false);
+
+  const handleAiSuggestion = async () => {
+    if (!formData.descricao || !formData.descricao.trim()) {
+      toast.warning("Por favor, digite uma descrição detalhada no campo 'Descrição / Demanda' antes de solicitar a sugestão do Assistente.");
+      return;
+    }
+
+    setLoadingAiSuggestion(true);
+    try {
+      const suggestion = await suggestAtendimentoProperties(formData.descricao);
+      setFormData(prev => ({
+        ...prev,
+        tipo_atendimento: suggestion.tipo_atendimento,
+        prioridade: suggestion.prioridade
+      }));
+      toast.success(
+        `Sugestão do Assistente aplicada! Tipo: ${suggestion.tipo_atendimento}, Prioridade: ${suggestion.prioridade}. Motivo: ${suggestion.justificativa}`,
+        { duration: 8000 }
+      );
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Erro ao conectar-se ao Assistente Gemini.");
+    } finally {
+      setLoadingAiSuggestion(false);
+    }
+  };
 
   const fetchMedicalHistory = async (cpf: string) => {
     const maskedCPF = maskCPF(cpf);
@@ -730,7 +762,7 @@ export default function Atendimentos() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.lgpd_consent) {
-      alert("O cidadão deve consentir com a LGPD para realizar o cadastro.");
+      toast.warning("O cidadão deve consentir com a LGPD para realizar o cadastro.");
       return;
     }
 
@@ -775,12 +807,14 @@ export default function Atendimentos() {
         const collectionName = existingDoc?.sourceCollection === 'atendimentos_medicos' ? 'atendimentos_medicos' : 'atendimentos';
         await updateDoc(doc(db, collectionName, editingId), payload);
         await logAction('Atualizar', collectionName, editingId, { previous: existingDoc, next: formData, cabinetId: profile.cabinetId });
+        toast.success("Atendimento atualizado com sucesso!");
       } else {
         const docRef = await addDoc(collection(db, 'atendimentos'), {
           ...payload,
           created_at: serverTimestamp(),
         });
         await logAction('Criar', 'atendimentos', docRef.id, { next: formData, cabinetId: profile.cabinetId });
+        toast.success("Atendimento criado com sucesso!");
       }
       
       closeModal();
@@ -795,7 +829,7 @@ export default function Atendimentos() {
         errorMsg = "Você parece estar offline. Verifique sua rede.";
       }
 
-      alert(errorMsg);
+      toast.error(errorMsg);
       handleFirestoreError(err, OperationType.WRITE, 'atendimentos');
     } finally {
       setSubmitting(false);
@@ -811,9 +845,11 @@ export default function Atendimentos() {
         updated_at: serverTimestamp()
       });
       await logAction('Atualizar', collectionName, id, { previous: { status: existing?.status }, next: { status: newStatus }, cabinetId: profile.cabinetId });
-    } catch (err) {
+      toast.success(`Status atualizado para "${newStatus}"!`);
+    } catch (err: any) {
       const existing = data.find(i => i.id === id);
       const collectionName = existing?.sourceCollection === 'atendimentos_medicos' ? 'atendimentos_medicos' : 'atendimentos';
+      toast.error("Erro ao atualizar status.");
       handleFirestoreError(err, OperationType.UPDATE, `${collectionName}/${id}`);
     }
   };
@@ -867,9 +903,11 @@ export default function Atendimentos() {
       const collectionName = existing?.sourceCollection === 'atendimentos_medicos' ? 'atendimentos_medicos' : 'atendimentos';
       await deleteDoc(doc(db, collectionName, id));
       await logAction('Excluir', collectionName, id, { previous: existing, cabinetId: profile.cabinetId });
-    } catch (err) {
+      toast.success("Atendimento excluído com sucesso!");
+    } catch (err: any) {
       const existing = data.find(i => i.id === id);
       const collectionName = existing?.sourceCollection === 'atendimentos_medicos' ? 'atendimentos_medicos' : 'atendimentos';
+      toast.error("Erro ao excluir atendimento.");
       handleFirestoreError(err, OperationType.DELETE, `${collectionName}/${id}`);
     }
   };
@@ -1193,9 +1231,10 @@ export default function Atendimentos() {
                                       next: { assessor_id: newAssessorId },
                                       cabinetId: profile.cabinetId
                                     });
+                                    toast.success("Assessor atribuído com sucesso!");
                                   } catch (err) {
                                     console.error("Erro ao atribuir assessor:", err);
-                                    alert("Erro ao atribuir assessor.");
+                                    toast.error("Erro ao atribuir assessor.");
                                   }
                                 }}
                                 className="bg-transparent border-none text-blue-300 focus:outline-none focus:ring-0 cursor-pointer pr-1 py-0 scrollbar-none font-bold text-[10px]"
@@ -1879,7 +1918,23 @@ export default function Atendimentos() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Descrição / Demanda</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Descrição / Demanda</label>
+                    <button
+                      type="button"
+                      onClick={handleAiSuggestion}
+                      disabled={loadingAiSuggestion}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-bold transition-all border",
+                        "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500",
+                        "border-indigo-500 text-white cursor-pointer shadow-md shadow-indigo-900/30",
+                        "disabled:opacity-50 disabled:cursor-not-allowed"
+                      )}
+                    >
+                      <Sparkles size={13} className={cn(loadingAiSuggestion ? "animate-spin" : "")} />
+                      {loadingAiSuggestion ? "Analisando..." : "Sugestão do Assistente"}
+                    </button>
+                  </div>
                   <textarea 
                     rows={4}
                     value={formData.descricao}
