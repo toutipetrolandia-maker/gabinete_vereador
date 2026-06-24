@@ -427,18 +427,18 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
         )}
         
         {/* Header Bar */}
-        <header className="flex items-center justify-between mb-8 pb-6 border-b border-slate-800/50">
+        <header className="flex items-center justify-between mb-8 pb-6 border-b border-slate-800/50 pl-14 lg:pl-0">
            <div 
              onClick={() => setIsCommandBarOpen(true)}
              className="flex items-center justify-between gap-4 bg-slate-900 border border-slate-800 hover:border-slate-750 hover:bg-slate-850/50 px-4 py-2.5 rounded-2xl w-full max-w-md cursor-pointer transition-all group shadow-sm select-none"
              title="Abrir barra de comandos (Ctrl+K)"
              id="header-command-trigger"
            >
-              <div className="flex items-center gap-3">
-                <Search size={18} className="text-slate-500 group-hover:text-slate-400 transition-colors" />
-                <span className="text-sm text-slate-500">Pesquisar ou abrir módulo...</span>
+              <div className="flex items-center gap-3 min-w-0">
+                <Search size={18} className="text-slate-500 group-hover:text-slate-400 transition-colors shrink-0" />
+                <span className="text-sm text-slate-500 truncate">Pesquisar...</span>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="hidden sm:flex items-center gap-1 shrink-0">
                 <span className="text-[10px] bg-slate-850 text-slate-500 border border-slate-750 px-1.5 py-0.5 rounded font-mono group-hover:text-slate-400 group-hover:border-slate-700 transition-colors">Ctrl</span>
                 <span className="text-[10px] bg-slate-850 text-slate-500 border border-slate-750 px-1.5 py-0.5 rounded font-mono group-hover:text-slate-400 group-hover:border-slate-700 transition-colors">K</span>
               </div>

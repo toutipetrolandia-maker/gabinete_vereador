@@ -15,7 +15,7 @@ import {
 import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
-import { WhatsAppConfig, DEFAULT_TEMPLATES, WhatsAppTemplate } from '../lib/whatsapp';
+import { WhatsAppConfig, DEFAULT_TEMPLATES, WhatsAppTemplate, executeWhatsAppSend } from '../lib/whatsapp';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
@@ -28,6 +28,11 @@ export default function WhatsAppAutomation() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'templates' | 'config'>('templates');
 
+  // Test states
+  const [testPhone, setTestPhone] = useState('');
+  const [testMessage, setTestMessage] = useState('Olá! Este é um teste de envio da integração de WhatsApp do Gabinete Digital.');
+  const [testing, setTesting] = useState(false);
+
   useEffect(() => {
     if (!profile?.cabinetId) return;
 
@@ -39,8 +44,12 @@ export default function WhatsAppAutomation() {
           templates: DEFAULT_TEMPLATES,
           api_url: '',
           instance_id: '',
-          token: ''
+          token: '',
+          api_type: 'evolution'
         };
+        if (waConfig && !waConfig.api_type) {
+          waConfig.api_type = 'evolution';
+        }
         setConfig(waConfig);
       }
       setLoading(false);
@@ -73,6 +82,29 @@ export default function WhatsAppAutomation() {
       t.id === id ? { ...t, content } : t
     );
     setConfig({ ...config, templates: newTemplates });
+  };
+
+  const handleTestSend = async () => {
+    if (!config) return;
+    if (!testPhone.trim()) {
+      toast.error('Por favor, informe um número de telefone de teste.');
+      return;
+    }
+    
+    setTesting(true);
+    const toastId = toast.loading('Enviando mensagem de teste via API...');
+    try {
+      const result = await executeWhatsAppSend(config, testPhone, testMessage);
+      if (result.success) {
+        toast.success('Mensagem de teste enviada com sucesso via API!', { id: toastId });
+      } else {
+        toast.error(`Falha ao enviar via API: ${result.error}`, { id: toastId, duration: 8000 });
+      }
+    } catch (error: any) {
+      toast.error(`Erro inesperado: ${error?.message || error}`, { id: toastId });
+    } finally {
+      setTesting(false);
+    }
   };
 
   if (loading) return <div className="p-10 text-center text-slate-500">Carregando automação...</div>;
@@ -221,12 +253,25 @@ export default function WhatsAppAutomation() {
                     Configuração de API
                   </h2>
                   <p className="text-slate-400 text-sm">
-                    Para habilitar o envio automático silencioso, você precisa conectar uma instância do WhatsApp via API. Recomendamos a <strong>Evolution API</strong>. Se não configurado, o sistema usará links convencionais.
+                    Para habilitar o envio automático silencioso, conecte uma instância do WhatsApp via API para este gabinete. Escolha entre plataformas populares ou um webhook genérico.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                    <div className="space-y-4">
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">Tipo de API</label>
+                         <select
+                           value={config?.api_type || 'evolution'}
+                           onChange={(e) => config && setConfig({ ...config, api_type: e.target.value as any })}
+                           className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-slate-300 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm"
+                         >
+                           <option value="evolution">Evolution API (Recomendado)</option>
+                           <option value="zapi">Z-API</option>
+                           <option value="generic">Webhook / Custom POST Genérico</option>
+                         </select>
+                      </div>
+
                       <div className="space-y-2">
                          <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">URL da API</label>
                          <input 
@@ -234,11 +279,14 @@ export default function WhatsAppAutomation() {
                            value={config?.api_url || ''}
                            onChange={(e) => config && setConfig({ ...config, api_url: e.target.value })}
                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-slate-300 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm"
-                           placeholder="https://sua-api.com"
+                           placeholder={config?.api_type === 'zapi' ? "https://api.z-api.io" : "https://sua-api.com"}
                          />
                       </div>
+
                       <div className="space-y-2">
-                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">ID da Instância</label>
+                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">
+                           {config?.api_type === 'generic' ? 'ID de Identificação (Opcional)' : 'ID da Instância'}
+                         </label>
                          <input 
                            type="text"
                            value={config?.instance_id || ''}
@@ -251,7 +299,9 @@ export default function WhatsAppAutomation() {
 
                    <div className="space-y-4">
                       <div className="space-y-2">
-                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">Token de Autenticação (ApyKey)</label>
+                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">
+                           {config?.api_type === 'evolution' ? 'Token (ApiKey)' : config?.api_type === 'zapi' ? 'Token da Instância' : 'Token de Autenticação (Opcional)'}
+                         </label>
                          <input 
                            type="password"
                            value={config?.token || ''}
@@ -264,26 +314,66 @@ export default function WhatsAppAutomation() {
                       <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-3">
                          <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase">
                             <CheckCircle2 size={16} />
-                            Vantagens da API
+                            Status da Configuração
                          </div>
-                         <ul className="space-y-2">
-                            <li className="text-[10px] text-slate-500 flex items-center gap-2">
-                               <div className="w-1 h-1 bg-emerald-500 rounded-full" />
-                               Envio imediato sem trocar de tela
+                         <ul className="space-y-2 text-[11px] text-slate-400">
+                            <li className="flex items-center gap-2">
+                               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                               Envio silencioso automático no fluxo de atendimentos e demandas
                             </li>
-                            <li className="text-[10px] text-slate-500 flex items-center gap-2">
-                               <div className="w-1 h-1 bg-emerald-500 rounded-full" />
-                               Relatório de mensagens enviadas
+                            <li className="flex items-center gap-2">
+                               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                               Modelo adaptado para cada tipo de API (Evolution, Z-API ou Genérico)
                             </li>
                          </ul>
                       </div>
                    </div>
                 </div>
 
+                {/* Test Area */}
+                <div className="pt-6 border-t border-slate-800 space-y-4">
+                  <div className="flex flex-col">
+                    <h3 className="text-sm font-bold text-slate-200">Testar Conexão de API</h3>
+                    <p className="text-xs text-slate-500">Envie uma mensagem instantânea de teste para validar sua configuração antes de salvar.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">Número de Teste (com DDD)</label>
+                      <input 
+                        type="text"
+                        value={testPhone}
+                        onChange={(e) => setTestPhone(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:ring-1 focus:ring-blue-500 outline-none text-sm"
+                        placeholder="Ex: 81999999999"
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-2 flex gap-4 items-end">
+                      <div className="flex-1 space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">Mensagem de Teste</label>
+                        <input 
+                          type="text"
+                          value={testMessage}
+                          onChange={(e) => setTestMessage(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-300 focus:ring-1 focus:ring-blue-500 outline-none text-sm"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleTestSend}
+                        disabled={testing || !testPhone}
+                        className="bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-200 font-bold px-5 py-3 rounded-xl transition-all border border-slate-700 text-sm whitespace-nowrap disabled:opacity-40 shrink-0 cursor-pointer"
+                      >
+                        {testing ? 'Enviando...' : 'Enviar Teste'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="p-6 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex items-start gap-4">
                    <Info className="text-amber-500 shrink-0" size={20} />
                    <p className="text-xs text-amber-500 font-medium">
-                      Nota: O envio via API requer serviços de terceiros. Se você deixar desativado, o sistema funcionará perfeitamente abrindo o WhatsApp Web/App com a mensagem escrita para você apenas clicar em enviar.
+                      Nota: O envio silencioso automático economiza muito tempo. Se o seu token expirar ou se a API estiver desativada, o sistema usará o link convencional abrindo o WhatsApp Web com o texto preenchido.
                    </p>
                 </div>
               </motion.div>

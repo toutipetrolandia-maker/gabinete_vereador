@@ -24,6 +24,7 @@ import IndicacoesCargos from './components/IndicacoesCargos';
 import SystemUpdatesPopup from './components/SystemUpdatesPopup';
 import { AlertTriangle } from 'lucide-react';
 import { Toaster } from 'sonner';
+import { applySystemTheme, getActiveSystemThemeId } from './lib/themes';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -87,6 +88,9 @@ function AppContent() {
     } else {
       document.documentElement.classList.remove('light');
     }
+    // Apply system color theme
+    const activeColorTheme = getActiveSystemThemeId();
+    applySystemTheme(activeColorTheme);
   }, []);
 
   if (loading) {

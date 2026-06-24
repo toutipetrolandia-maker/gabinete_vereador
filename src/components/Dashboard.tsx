@@ -13,6 +13,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { collection, query, limit, getDocs, orderBy, onSnapshot, doc, where } from 'firebase/firestore';
+import DashboardIndicadores from './DashboardIndicadores';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { motion } from 'motion/react';
@@ -32,6 +33,7 @@ import {
 
 export default function Dashboard() {
   const { profile, isSuperAdmin } = useAuth();
+  const [activeSubTab, setActiveSubTab] = useState<'geral' | 'indicadores'>('geral');
   const [stats, setStats] = useState({
     atendimentos: 0,
     medicos: 0,
@@ -239,20 +241,52 @@ export default function Dashboard() {
         )}
       </header>
 
-      {/* Stats Grid */}
-      <div className={cn(
-        "grid grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4 px-1 md:px-0",
-        [
-          'atendimentos', 
-          'medicos', 
-          'demandas', 
-          'auxilios', 
-          'sugestoes', 
-          'indicacoes'
-        ].filter(id => id !== 'indicacoes' || (profile?.role === 'vereador' || isSuperAdmin)).length === 6 
-          ? "xl:grid-cols-6" 
-          : "xl:grid-cols-5"
-      )}>
+      {/* Sub-tabs Selector */}
+      <div className="flex border-b border-slate-800 pb-1.5 px-1 md:px-0">
+        <div className="flex bg-slate-900 border border-slate-800 p-1 rounded-2xl">
+          <button
+            onClick={() => setActiveSubTab('geral')}
+            className={cn(
+              "px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer",
+              activeSubTab === 'geral'
+                ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
+                : "text-slate-400 hover:text-slate-200"
+            )}
+          >
+            Visão Geral
+          </button>
+          <button
+            onClick={() => setActiveSubTab('indicadores')}
+            className={cn(
+              "px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer",
+              activeSubTab === 'indicadores'
+                ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
+                : "text-slate-400 hover:text-slate-200"
+            )}
+          >
+            Painel de Indicadores
+          </button>
+        </div>
+      </div>
+
+      {activeSubTab === 'indicadores' ? (
+        <DashboardIndicadores />
+      ) : (
+        <>
+          {/* Stats Grid */}
+          <div className={cn(
+            "grid grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4 px-1 md:px-0",
+            [
+              'atendimentos', 
+              'medicos', 
+              'demandas', 
+              'auxilios', 
+              'sugestoes', 
+              'indicacoes'
+            ].filter(id => id !== 'indicacoes' || (profile?.role === 'vereador' || isSuperAdmin)).length === 6 
+              ? "xl:grid-cols-6" 
+              : "xl:grid-cols-5"
+          )}>
         {[
           { label: 'Atendimentos', value: stats.atendimentos, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
           { label: 'Cidadãos (CRM)', value: stats.cidadaos, icon: TrendingUp, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
@@ -407,6 +441,8 @@ export default function Dashboard() {
           </table>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

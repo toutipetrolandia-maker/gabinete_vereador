@@ -91,7 +91,7 @@ import {
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
-import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig } from '../lib/whatsapp';
+import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig, sendWhatsAppNotification } from '../lib/whatsapp';
 import { toast } from 'sonner';
 
 export default function Atendimentos() {
@@ -445,7 +445,7 @@ export default function Atendimentos() {
     return () => unsub();
   }, [profile?.cabinetId]);
 
-  const sendWAMessage = (item: any, trigger: 'welcome' | 'status_update') => {
+  const sendWAMessage = async (item: any, trigger: 'welcome' | 'status_update') => {
     if (!item.telefone) return;
     const template = waConfig?.templates?.find(t => t.trigger === trigger);
     const content = template?.content || (trigger === 'welcome' ? 'Olá {{nome}}, recebemos seu contato.' : 'Olá {{nome}}, seu status foi atualizado para {{status}}.');
@@ -457,8 +457,21 @@ export default function Atendimentos() {
       titulo: item.tipo_atendimento
     });
 
-    window.open(getWhatsAppLink(item.telefone, message), '_blank');
-    toast.success('Mensagem enviada com sucesso!');
+    const toastId = toast.loading('Enviando mensagem de WhatsApp...');
+    try {
+      const res = await sendWhatsAppNotification(waConfig, item.telefone, message);
+      if (res.type === 'api') {
+        toast.success('Mensagem enviada com sucesso via API!', { id: toastId });
+      } else {
+        if (res.error) {
+          toast.warning(`API indisponível: ${res.error}. Abrindo WhatsApp manual...`, { id: toastId, duration: 4000 });
+        } else {
+          toast.success('Pronto! Abrindo link do WhatsApp...', { id: toastId });
+        }
+      }
+    } catch (e: any) {
+      toast.error('Erro ao processar envio de WhatsApp.', { id: toastId });
+    }
   };
 
   const initialForm = {
@@ -508,6 +521,56 @@ export default function Atendimentos() {
   // Form State
   const [formData, setFormData] = useState(initialForm);
   const [loadingAiSuggestion, setLoadingAiSuggestion] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
+
+  // Check if draft exists in localStorage on mount and whenever showModal changes
+  useEffect(() => {
+    const checkDraft = () => {
+      const saved = localStorage.getItem('atendimento_form_draft');
+      setHasDraft(!!saved);
+    };
+    checkDraft();
+  }, [showModal, formData]);
+
+  // Auto-save draft when formData changes
+  useEffect(() => {
+    if (!editingId && showModal) {
+      const isDefault = JSON.stringify(formData) === JSON.stringify(initialForm);
+      if (!isDefault) {
+        localStorage.setItem('atendimento_form_draft', JSON.stringify(formData));
+        setHasDraft(true);
+      }
+    }
+  }, [formData, editingId, showModal]);
+
+  // Load draft automatically when opening the modal for a NEW attendance
+  useEffect(() => {
+    if (showModal && !editingId) {
+      const savedDraft = localStorage.getItem('atendimento_form_draft');
+      if (savedDraft) {
+        try {
+          const parsed = JSON.parse(savedDraft);
+          if (parsed && typeof parsed === 'object') {
+            setFormData(parsed);
+            toast.info("Rascunho de atendimento recuperado!", {
+              description: "Você pode continuar preenchendo de onde parou.",
+              action: {
+                label: "Descartar",
+                onClick: () => {
+                  setFormData(initialForm);
+                  localStorage.removeItem('atendimento_form_draft');
+                  setHasDraft(false);
+                  toast.success("Rascunho descartado.");
+                }
+              }
+            });
+          }
+        } catch (err) {
+          console.error("Erro ao carregar rascunho:", err);
+        }
+      }
+    }
+  }, [showModal, editingId]);
 
   const handleAiSuggestion = async () => {
     if (!formData.descricao || !formData.descricao.trim()) {
@@ -815,6 +878,8 @@ export default function Atendimentos() {
         });
         await logAction('Criar', 'atendimentos', docRef.id, { next: formData, cabinetId: profile.cabinetId });
         toast.success("Atendimento criado com sucesso!");
+        localStorage.removeItem('atendimento_form_draft');
+        setHasDraft(false);
       }
       
       closeModal();
@@ -935,7 +1000,7 @@ export default function Atendimentos() {
           <h1 className="text-2xl md:text-3xl font-bold text-white">Atendimentos</h1>
           <p className="text-slate-400 text-sm">Gerencie os atendimentos gerais do gabinete.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setOnlyMyAtendimentos(!onlyMyAtendimentos)}
             className={cn(
@@ -1113,7 +1178,7 @@ export default function Atendimentos() {
               className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 md:py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all text-sm md:text-base"
             />
           </div>
-          <div className="relative flex-1 max-w-xs">
+          <div className="relative flex-1 sm:max-w-xs">
             <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
               type="text" 
@@ -1123,7 +1188,7 @@ export default function Atendimentos() {
               className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 md:py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all text-sm md:text-base font-mono"
             />
           </div>
-          <div className="relative flex-1 max-w-xs">
+          <div className="relative flex-1 sm:max-w-xs">
             <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
               type="text" 
@@ -1630,7 +1695,32 @@ export default function Atendimentos() {
                  <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 border-r border-slate-800">
                     <div className="flex items-center justify-between mb-4">
                       <div>
-                        <h2 className="text-lg md:text-xl font-bold text-white tracking-tight">{editingId ? 'Editar Atendimento' : 'Novo Atendimento'}</h2>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="text-lg md:text-xl font-bold text-white tracking-tight">{editingId ? 'Editar Atendimento' : 'Novo Atendimento'}</h2>
+                          {!editingId && hasDraft && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider animate-pulse flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                Rascunho Salvo
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm("Tem certeza que deseja limpar este formulário e apagar o rascunho salvo?")) {
+                                    setFormData(initialForm);
+                                    localStorage.removeItem('atendimento_form_draft');
+                                    setHasDraft(false);
+                                    toast.success("Rascunho apagado.");
+                                  }
+                                }}
+                                className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider cursor-pointer transition-colors"
+                                title="Apagar rascunho e limpar formulário"
+                              >
+                                Apagar Rascunho
+                              </button>
+                            </div>
+                          )}
+                        </div>
                         <p className="text-slate-500 text-xs md:text-sm font-sans">Preencha as informações para registro.</p>
                       </div>
                       <button onClick={closeModal} className="p-2 hover:bg-slate-800 rounded-lg transition-colors md:hidden">

@@ -28,6 +28,7 @@ import {
   AlertCircle,
   Sun,
   Moon,
+  Palette,
 } from "lucide-react";
 import {
   collection,
@@ -60,6 +61,7 @@ import { logAction } from "../lib/audit";
 import { toast } from 'sonner';
 import UserManagement from "./UserManagement";
 import Training from "./Training";
+import { SYSTEM_THEMES, applySystemTheme, getActiveSystemThemeId } from "../lib/themes";
 
 export default function Settings() {
   const { profile, isSuperAdmin, hasModuleAccess } = useAuth();
@@ -78,6 +80,8 @@ export default function Settings() {
     (localStorage.getItem("theme") as "light" | "dark") || "dark",
   );
 
+  const [systemThemeId, setSystemThemeId] = useState(getActiveSystemThemeId());
+
   const handleToggleTheme = (selectedTheme: "light" | "dark") => {
     localStorage.setItem("theme", selectedTheme);
     setTheme(selectedTheme);
@@ -86,6 +90,12 @@ export default function Settings() {
     } else {
       document.documentElement.classList.remove("light");
     }
+  };
+
+  const handleSelectSystemTheme = (themeId: string) => {
+    applySystemTheme(themeId);
+    setSystemThemeId(themeId);
+    toast.success("Cor do sistema atualizada com sucesso!");
   };
 
   // Password Change State
@@ -769,6 +779,40 @@ export default function Settings() {
                       <Moon size={18} className={theme === "dark" ? "text-blue-400" : ""} />
                       Modo Escuro
                     </button>
+                  </div>
+                </div>
+
+                {/* Color Selector Section */}
+                <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-4 animate-fadeIn">
+                  <div className="flex items-center gap-3">
+                    <Palette className="text-blue-500 animate-pulse" size={20} />
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-slate-200">
+                      Cor de Destaque do Sistema
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Selecione a paleta de cores principal para destacar botões, links, abas ativas e detalhes visuais.
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                    {SYSTEM_THEMES.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => handleSelectSystemTheme(t.id)}
+                        className={cn(
+                          "flex flex-col items-center justify-center p-3 rounded-xl border text-xs gap-2 cursor-pointer transition-all",
+                          systemThemeId === t.id
+                            ? "bg-slate-900 border-blue-500 shadow-lg text-white font-bold"
+                            : "bg-slate-950/40 border-slate-850 text-slate-400 hover:text-slate-200 hover:bg-slate-850 hover:border-slate-800"
+                        )}
+                      >
+                        <span
+                          className="w-5 h-5 rounded-full border border-white/20 shadow-inner flex-shrink-0"
+                          style={{ backgroundColor: t.color }}
+                        />
+                        <span className="truncate w-full text-center">{t.name}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
 

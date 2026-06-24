@@ -46,7 +46,7 @@ import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
 import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
-import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig } from '../lib/whatsapp';
+import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig, sendWhatsAppNotification } from '../lib/whatsapp';
 
 export default function SocialAssistance() {
   const { profile } = useAuth();
@@ -616,7 +616,7 @@ export default function SocialAssistance() {
     }
   };
 
-  const sendWAMessage = (item: any) => {
+  const sendWAMessage = async (item: any) => {
     if (!item.beneficiado_telefone) return;
     const trigger = item.status === 'Entregue' ? 'status_update' : 'welcome';
     const template = waConfig?.templates?.find(t => t.trigger === trigger);
@@ -634,7 +634,21 @@ export default function SocialAssistance() {
       titulo: item.tipo_beneficio
     });
 
-    window.open(getWhatsAppLink(item.beneficiado_telefone, message), '_blank');
+    const toastId = toast.loading('Enviando mensagem de WhatsApp...');
+    try {
+      const res = await sendWhatsAppNotification(waConfig, item.beneficiado_telefone, message);
+      if (res.type === 'api') {
+        toast.success('Mensagem enviada com sucesso via API!', { id: toastId });
+      } else {
+        if (res.error) {
+          toast.warning(`API indisponível: ${res.error}. Abrindo WhatsApp manual...`, { id: toastId, duration: 4000 });
+        } else {
+          toast.success('Pronto! Abrindo link do WhatsApp...', { id: toastId });
+        }
+      }
+    } catch (e: any) {
+      toast.error('Erro ao processar envio de WhatsApp.', { id: toastId });
+    }
   };
 
   const getStatusColor = (status: string) => {

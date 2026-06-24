@@ -12,7 +12,8 @@ import {
   Trash2,
   AlertCircle,
   CheckCircle2,
-  History
+  History,
+  Download
 } from 'lucide-react';
 import { 
   format, 
@@ -147,6 +148,7 @@ export default function Agenda() {
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [officeHours, setOfficeHours] = useState({ inicio: '08:00', fim: '13:00' });
   
   const initialForm = {
@@ -346,6 +348,125 @@ export default function Agenda() {
     }
   };
 
+  const exportToICS = (eventsToExport: any[], filename = 'agenda-compromissos.ics') => {
+    if (eventsToExport.length === 0) {
+      alert("Nenhum compromisso encontrado para exportação.");
+      return;
+    }
+
+    const sanitizeText = (text: string) => {
+      if (!text) return '';
+      return text
+        .replace(/\\/g, '\\\\')
+        .replace(/,/g, '\\,')
+        .replace(/;/g, '\\;')
+        .replace(/\n/g, '\\n')
+        .trim();
+    };
+
+    const pad = (num: number) => String(num).padStart(2, '0');
+
+    let icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Gabinete Digital//Agenda//PT',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH'
+    ];
+
+    eventsToExport.forEach(event => {
+      const datePart = (event.data || '').replace(/-/g, '');
+      if (!datePart || datePart.length !== 8) return;
+
+      const startPart = (event.hora_inicio || '08:00').replace(/:/g, '') + '00';
+      const endPart = (event.hora_fim || '09:00').replace(/:/g, '') + '00';
+
+      const dtStart = `${datePart}T${startPart}`;
+      const dtEnd = `${datePart}T${endPart}`;
+
+      const now = new Date();
+      const dtStamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
+
+      const summary = sanitizeText(event.titulo || `Compromisso (${event.tipo || 'Geral'})`);
+      
+      let descriptionParts = [];
+      if (event.descricao) {
+        descriptionParts.push(event.descricao);
+      }
+      if (event.tipo) {
+        descriptionParts.push(`Tipo: ${event.tipo}`);
+      }
+      if (event.contato_nome) {
+        let contactStr = `Contato: ${event.contato_nome}`;
+        if (event.contato_telefone) contactStr += ` (${event.contato_telefone})`;
+        descriptionParts.push(contactStr);
+      }
+      if (event.status) {
+        descriptionParts.push(`Status: ${event.status === 'realizado' ? 'Realizado' : 'Pendente'}`);
+      }
+      
+      const description = sanitizeText(descriptionParts.join('\\n'));
+      const location = sanitizeText(event.local || '');
+
+      icsContent.push('BEGIN:VEVENT');
+      icsContent.push(`UID:${event.id || Math.random().toString(36).substring(2)}@gabinete.digital`);
+      icsContent.push(`DTSTAMP:${dtStamp}`);
+      icsContent.push(`DTSTART:${dtStart}`);
+      icsContent.push(`DTEND:${dtEnd}`);
+      icsContent.push(`SUMMARY:${summary}`);
+      if (description) {
+        icsContent.push(`DESCRIPTION:${description}`);
+      }
+      if (location) {
+        icsContent.push(`LOCATION:${location}`);
+      }
+      icsContent.push('END:VEVENT');
+    });
+
+    icsContent.push('END:VCALENDAR');
+
+    const blob = new Blob([icsContent.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportSingleEvent = (event: any) => {
+    const formattedTitle = (event.titulo || 'compromisso')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-');
+    exportToICS([event], `compromisso-${formattedTitle}.ics`);
+  };
+
+  const handleExportVisibleMonth = () => {
+    const monthEvents = events.filter(event => {
+      try {
+        const eventDate = parse(event.data, 'yyyy-MM-dd', new Date());
+        return isSameMonth(eventDate, currentDate);
+      } catch (e) {
+        return false;
+      }
+    });
+    
+    const monthName = format(currentDate, 'MMMM-yyyy', { locale: ptBR })
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+      
+    exportToICS(monthEvents, `agenda-${monthName}.ics`);
+  };
+
+  const handleExportAll = () => {
+    exportToICS(events, 'agenda-completa.ics');
+  };
+
   const days = eachDayOfInterval({
     start: startOfWeek(startOfMonth(currentDate)),
     end: endOfWeek(endOfMonth(currentDate))
@@ -363,7 +484,52 @@ export default function Agenda() {
           <h1 className="text-2xl md:text-3xl font-bold text-white">Agenda do Vereador</h1>
           <p className="text-slate-400 text-sm">Compromissos, sessões e atendimentos oficiais.</p>
         </div>
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex items-center gap-3 w-full md:w-auto relative">
+          <div className="relative">
+            <button
+              onClick={() => setShowExportDropdown(!showExportDropdown)}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all border border-slate-700 hover:border-slate-600 font-semibold cursor-pointer"
+              title="Exportar compromissos para arquivo .ics"
+            >
+              <Download size={18} />
+              <span>Exportar Agenda</span>
+            </button>
+            
+            {showExportDropdown && (
+              <>
+                <div 
+                  className="fixed inset-0 z-10" 
+                  onClick={() => setShowExportDropdown(false)} 
+                />
+                <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl z-20 py-2">
+                  <div className="px-4 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 mb-1">
+                    Exportar como .ICS
+                  </div>
+                  <button
+                    onClick={() => {
+                      handleExportVisibleMonth();
+                      setShowExportDropdown(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white font-medium transition-colors cursor-pointer flex items-center gap-2"
+                  >
+                    <CalendarIcon size={14} className="text-blue-500" />
+                    Mês Atual ({format(currentDate, 'MM/yyyy')})
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleExportAll();
+                      setShowExportDropdown(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white font-medium transition-colors cursor-pointer flex items-center gap-2"
+                  >
+                    <Download size={14} className="text-emerald-500" />
+                    Todos os Compromissos
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
           {profile?.role !== 'consulta' && (
             <button 
               onClick={() => {
@@ -371,7 +537,7 @@ export default function Agenda() {
                 setEditingId(null);
                 setShowModal(true);
               }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20 flex-1 md:flex-none"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20 flex-1 md:flex-none cursor-pointer"
             >
               <Plus size={20} />
               <span className="font-semibold">Agendar Compromisso</span>
@@ -579,42 +745,54 @@ export default function Agenda() {
                   </div>
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
                     <button 
-                      onClick={() => handleToggleComplete(event)} 
-                      title={event.status === 'realizado' ? "Marcar como pendente" : "Marcar como realizado"}
-                      className={cn(
-                        "p-2 rounded-lg flex flex-col items-center gap-0.5 transition-colors",
-                        event.status === 'realizado'
-                          ? "bg-emerald-500/10 text-emerald-400"
-                          : "hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400"
-                      )}
+                      onClick={() => handleExportSingleEvent(event)} 
+                      title="Exportar compromisso (.ics)"
+                      className="p-2 hover:bg-blue-500/10 text-slate-500 hover:text-blue-400 rounded-lg flex flex-col items-center gap-0.5 cursor-pointer"
                     >
-                      <CheckCircle2 size={16} />
-                      <span className="text-[8px] font-black uppercase">{event.status === 'realizado' ? 'Concluir' : 'Cumprir'}</span>
+                      <Download size={16} />
+                      <span className="text-[8px] font-black uppercase">Exportar</span>
                     </button>
-                    <button 
-                      onClick={() => handlePostpone(event)} 
-                      title="Adiar para amanhã"
-                      className="p-2 hover:bg-amber-500/10 text-slate-500 hover:text-amber-400 rounded-lg flex flex-col items-center gap-0.5"
-                    >
-                      <History size={16} />
-                      <span className="text-[8px] font-black uppercase">Adiar</span>
-                    </button>
-                    <button 
-                      onClick={() => handleEdit(event)} 
-                      title="Remarcar / Editar"
-                      className="p-2 hover:bg-blue-500/10 text-slate-500 hover:text-blue-400 rounded-lg flex flex-col items-center gap-0.5"
-                    >
-                      <Edit2 size={16} />
-                      <span className="text-[8px] font-black uppercase">Remarcar</span>
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(event.id, event.titulo)} 
-                      title="Excluir"
-                      className="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg flex flex-col items-center gap-0.5"
-                    >
-                      <Trash2 size={16} />
-                      <span className="text-[8px] font-black uppercase">Excluir</span>
-                    </button>
+                    {profile?.role !== 'consulta' && (
+                      <>
+                        <button 
+                          onClick={() => handleToggleComplete(event)} 
+                          title={event.status === 'realizado' ? "Marcar como pendente" : "Marcar como realizado"}
+                          className={cn(
+                            "p-2 rounded-lg flex flex-col items-center gap-0.5 transition-colors",
+                            event.status === 'realizado'
+                              ? "bg-emerald-500/10 text-emerald-400"
+                              : "hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400"
+                          )}
+                        >
+                          <CheckCircle2 size={16} />
+                          <span className="text-[8px] font-black uppercase">{event.status === 'realizado' ? 'Concluir' : 'Cumprir'}</span>
+                        </button>
+                        <button 
+                          onClick={() => handlePostpone(event)} 
+                          title="Adiar para amanhã"
+                          className="p-2 hover:bg-amber-500/10 text-slate-500 hover:text-amber-400 rounded-lg flex flex-col items-center gap-0.5"
+                        >
+                          <History size={16} />
+                          <span className="text-[8px] font-black uppercase">Adiar</span>
+                        </button>
+                        <button 
+                          onClick={() => handleEdit(event)} 
+                          title="Remarcar / Editar"
+                          className="p-2 hover:bg-blue-500/10 text-slate-500 hover:text-blue-400 rounded-lg flex flex-col items-center gap-0.5"
+                        >
+                          <Edit2 size={16} />
+                          <span className="text-[8px] font-black uppercase">Remarcar</span>
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(event.id, event.titulo)} 
+                          title="Excluir"
+                          className="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg flex flex-col items-center gap-0.5"
+                        >
+                          <Trash2 size={16} />
+                          <span className="text-[8px] font-black uppercase">Excluir</span>
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -689,14 +867,15 @@ export default function Agenda() {
                     <p>{error}</p>
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-4">
+                
+                <fieldset disabled={profile?.role === 'consulta'} className="grid grid-cols-2 gap-4 border-none p-0 m-0">
                   <div className="col-span-2">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Título do Compromisso</label>
-                    <input autoFocus required type="text" value={formData.titulo} onChange={e => setFormData({...formData, titulo: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1" placeholder="Ex: Sessão Plenária" />
+                    <input autoFocus required type="text" value={formData.titulo} onChange={e => setFormData({...formData, titulo: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 text-white" placeholder="Ex: Sessão Plenária" />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Tipo</label>
-                    <select value={formData.tipo} onChange={e => setFormData({...formData, tipo: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1">
+                    <select value={formData.tipo} onChange={e => setFormData({...formData, tipo: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 text-white">
                       <option>Compromisso</option>
                       <option>Sessão</option>
                       <option>Gabinete</option>
@@ -706,7 +885,7 @@ export default function Agenda() {
                   </div>
                    <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Data</label>
-                    <input required type="date" value={formData.data} onChange={e => setFormData({...formData, data: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 [color-scheme:dark]" />
+                    <input required type="date" value={formData.data} onChange={e => setFormData({...formData, data: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 text-white [color-scheme:dark]" />
                     {formData.data && (() => {
                       try {
                         const parsedDate = parse(formData.data, 'yyyy-MM-dd', new Date());
@@ -725,23 +904,23 @@ export default function Agenda() {
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Hora Início</label>
-                    <input required type="time" value={formData.hora_inicio} onChange={e => setFormData({...formData, hora_inicio: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 [color-scheme:dark]" />
+                    <input required type="time" value={formData.hora_inicio} onChange={e => setFormData({...formData, hora_inicio: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 text-white [color-scheme:dark]" />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Hora Fim</label>
-                    <input required type="time" value={formData.hora_fim} onChange={e => setFormData({...formData, hora_fim: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 [color-scheme:dark]" />
+                    <input required type="time" value={formData.hora_fim} onChange={e => setFormData({...formData, hora_fim: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 text-white [color-scheme:dark]" />
                   </div>
                   <div className="col-span-2">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Local</label>
-                    <input type="text" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1" placeholder="Ex: Câmara Municipal" />
+                    <input type="text" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 text-white" placeholder="Ex: Câmara Municipal" />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Nome de Contato</label>
-                    <input type="text" value={formData.contato_nome} onChange={e => setFormData({...formData, contato_nome: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1" placeholder="Pessoa de contato" />
+                    <input type="text" value={formData.contato_nome} onChange={e => setFormData({...formData, contato_nome: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 text-white" placeholder="Pessoa de contato" />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Telefone de Contato</label>
-                    <input type="text" value={formData.contato_telefone} onChange={e => setFormData({...formData, contato_telefone: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1" placeholder="(00) 00000-0000" />
+                    <input type="text" value={formData.contato_telefone} onChange={e => setFormData({...formData, contato_telefone: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 text-white" placeholder="(00) 00000-0000" />
                   </div>
                   <div className="col-span-2 grid grid-cols-2 gap-4 pt-4 border-t border-slate-800">
                     <div className="col-span-2">
@@ -752,32 +931,55 @@ export default function Agenda() {
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-slate-500 uppercase">Data do Lembrete</label>
-                      <input type="date" value={formData.lembrete_data} onChange={e => setFormData({...formData, lembrete_data: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 [color-scheme:dark]" />
+                      <input type="date" value={formData.lembrete_data} onChange={e => setFormData({...formData, lembrete_data: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 text-white [color-scheme:dark]" />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-slate-500 uppercase">Hora do Lembrete</label>
-                      <input type="time" value={formData.lembrete_hora} onChange={e => setFormData({...formData, lembrete_hora: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 [color-scheme:dark]" />
+                      <input type="time" value={formData.lembrete_hora} onChange={e => setFormData({...formData, lembrete_hora: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 text-white [color-scheme:dark]" />
                     </div>
                   </div>
                   <div className="col-span-2 pt-4">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Descrição/Notas</label>
-                    <textarea rows={3} value={formData.descricao} onChange={e => setFormData({...formData, descricao: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 resize-none" placeholder="Detalhes adicionais..." />
+                    <textarea rows={3} value={formData.descricao} onChange={e => setFormData({...formData, descricao: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none mt-1 text-white resize-none" placeholder="Detalhes adicionais..." />
                   </div>
-                </div>
-                <button 
-                  type="submit" 
-                  disabled={submitting}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed py-3.5 rounded-xl font-bold text-white shadow-xl shadow-blue-900/20 transition-all mt-4 flex items-center justify-center gap-3"
-                >
-                  {submitting ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Salvando...
-                    </>
-                  ) : (
-                    editingId ? 'Salvar Alterações' : 'Confirmar Agendamento'
-                  )}
-                </button>
+                </fieldset>
+
+                {editingId && (
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const currentEvent = events.find(e => e.id === editingId);
+                      if (currentEvent) {
+                        handleExportSingleEvent(currentEvent);
+                      }
+                    }}
+                    className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-3.5 rounded-xl font-bold shadow-md hover:border-slate-600 transition-all mt-4 flex items-center justify-center gap-2 cursor-pointer border border-slate-700"
+                  >
+                    <Download size={18} />
+                    <span>Exportar Compromisso (.ics)</span>
+                  </button>
+                )}
+
+                {profile?.role === 'consulta' ? (
+                  <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800 text-center text-slate-500 text-xs italic font-mono mt-2">
+                    Visualização da Agenda (Apenas Leitura)
+                  </div>
+                ) : (
+                  <button 
+                    type="submit" 
+                    disabled={submitting}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed py-3.5 rounded-xl font-bold text-white shadow-xl shadow-blue-900/20 transition-all mt-4 flex items-center justify-center gap-3 cursor-pointer"
+                  >
+                    {submitting ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      editingId ? 'Salvar Alterações' : 'Confirmar Agendamento'
+                    )}
+                  </button>
+                )}
               </form>
             </motion.div>
           </div>

@@ -34,7 +34,7 @@ import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
 import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
-import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig } from '../lib/whatsapp';
+import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig, sendWhatsAppNotification } from '../lib/whatsapp';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 import ReactMarkdown from 'react-markdown';
@@ -99,7 +99,7 @@ export default function Demandas() {
     return () => unsub();
   }, [profile?.cabinetId]);
 
-  const sendWAMessage = (item: any, trigger: 'welcome' | 'status_update') => {
+  const sendWAMessage = async (item: any, trigger: 'welcome' | 'status_update') => {
     const phone = item.solicitante_telefone || item.telefone;
     if (!phone) return;
     
@@ -113,7 +113,21 @@ export default function Demandas() {
       titulo: item.assunto
     });
 
-    window.open(getWhatsAppLink(phone, message), '_blank');
+    const toastId = toast.loading('Enviando mensagem de WhatsApp...');
+    try {
+      const res = await sendWhatsAppNotification(waConfig, phone, message);
+      if (res.type === 'api') {
+        toast.success('Mensagem enviada com sucesso via API!', { id: toastId });
+      } else {
+        if (res.error) {
+          toast.warning(`API indisponível: ${res.error}. Abrindo WhatsApp manual...`, { id: toastId, duration: 4000 });
+        } else {
+          toast.success('Pronto! Abrindo link do WhatsApp...', { id: toastId });
+        }
+      }
+    } catch (e: any) {
+      toast.error('Erro ao processar envio de WhatsApp.', { id: toastId });
+    }
   };
 
   useEffect(() => {
@@ -460,17 +474,17 @@ export default function Demandas() {
                   </button>
                </div>
                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                      <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Nº Protocolo</label>
                         <input value={formData.protocolo} onChange={e => setFormData({...formData, protocolo: e.target.value.toUpperCase()})} className="w-full bg-slate-800 rounded-xl p-3 border-none font-mono text-sm" placeholder="2024/001" />
                      </div>
-                     <div className="space-y-1 col-span-2">
+                     <div className="space-y-1 md:col-span-2">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Assunto / Título</label>
                         <input required value={formData.assunto} onChange={e => setFormData({...formData, assunto: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none" />
                      </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Solicitante (Nome)</label>
                         <input value={formData.solicitante_nome} onChange={e => setFormData({...formData, solicitante_nome: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none" placeholder="Nome do Cidadão" />
@@ -478,9 +492,9 @@ export default function Demandas() {
                      <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Solicitante (WhatsApp)</label>
                         <input value={formData.solicitante_telefone} onChange={e => setFormData({...formData, solicitante_telefone: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none" placeholder="(00) 00000-0000" />
-                     </div>
+                      </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Órgão Destino</label>
                         <input value={formData.orgao_responsavel} onChange={e => setFormData({...formData, orgao_responsavel: e.target.value})} className="w-full bg-slate-800 rounded-xl p-3 border-none" placeholder="Ex: Sec. de Obras" />
