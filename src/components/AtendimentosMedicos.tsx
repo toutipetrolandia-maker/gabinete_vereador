@@ -40,6 +40,7 @@ import { ptBR } from "date-fns/locale";
 import { logAction } from "../lib/audit";
 import { handleFirestoreError, OperationType } from "../lib/error-handler";
 import { toast } from 'sonner';
+import { showSuccessNotification } from '../lib/notifications';
 
 export default function AtendimentosMedicos() {
   const { profile, user } = useAuth();
@@ -72,8 +73,11 @@ export default function AtendimentosMedicos() {
     cpf: "",
     telefone: "",
     data_nascimento: "",
+    cep: "",
     endereco: "",
     bairro: "",
+    cidade: "",
+    estado: "",
     zona_rural: false,
     unidade_saude: "",
     especialidade: "",
@@ -127,6 +131,44 @@ export default function AtendimentosMedicos() {
       .replace(/(-\d{4})\d+?$/, "$1");
   };
 
+  const maskCEP = (value: string) => {
+    return value
+      .replace(/\D/g, "")
+      .replace(/^(\d{5})(\d)/, "$1-$2")
+      .slice(0, 9);
+  };
+
+  const handleCEPChange = async (value: string) => {
+    const masked = maskCEP(value);
+    setFormData((prev) => ({ ...prev, cep: masked }));
+    
+    const cleanCEP = masked.replace(/\D/g, "");
+    if (cleanCEP.length === 8) {
+      setLoadingCEP(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cleanCEP}/json/`);
+        const data = await res.json();
+        if (data && !data.erro) {
+          setFormData((prev) => ({
+            ...prev,
+            endereco: data.logradouro || prev.endereco,
+            bairro: data.bairro || prev.bairro,
+            cidade: data.localidade || prev.cidade,
+            estado: data.uf || prev.estado,
+          }));
+          toast.success("Endereço preenchido automaticamente via CEP!");
+        } else {
+          toast.error("CEP não encontrado.");
+        }
+      } catch (err) {
+        console.error("Erro ao buscar CEP:", err);
+        toast.error("Erro ao buscar CEP.");
+      } finally {
+        setLoadingCEP(false);
+      }
+    }
+  };
+
   const [formData, setFormData] = useState(initialForm);
   const [especialidades, setEspecialidades] = useState<
     { id: string; nome: string }[]
@@ -134,6 +176,7 @@ export default function AtendimentosMedicos() {
   const [newSpecialtyName, setNewSpecialtyName] = useState("");
   const [addingSpecialty, setAddingSpecialty] = useState(false);
   const [showSpecialtiesModal, setShowSpecialtiesModal] = useState(false);
+  const [loadingCEP, setLoadingCEP] = useState(false);
 
   // Function to search general assistance data by CPF
   const searchCitizenData = async (cpf: string) => {
@@ -210,8 +253,11 @@ export default function AtendimentosMedicos() {
           nome_completo: newestDoc.nome_completo || medData.nome_completo || genData.nome_completo || "",
           telefone: newestDoc.telefone || medData.telefone || genData.telefone || "",
           data_nascimento: newestDoc.data_nascimento || medData.data_nascimento || genData.data_nascimento || "",
+          cep: newestDoc.cep || medData.cep || genData.cep || "",
           endereco: newestDoc.endereco || medData.endereco || genData.endereco || "",
           bairro: newestDoc.bairro || medData.bairro || genData.bairro || "",
+          cidade: newestDoc.cidade || medData.cidade || genData.cidade || "",
+          estado: newestDoc.estado || medData.estado || genData.estado || "",
           zona_rural: newestDoc.zona_rural !== undefined ? newestDoc.zona_rural : (medData.zona_rural !== undefined ? medData.zona_rural : (genData.zona_rural !== undefined ? genData.zona_rural : false)),
           cartao_sus: newestDoc.cartao_sus || medData.cartao_sus || genData.cartao_sus || "",
           unidade_saude: newestDoc.unidade_saude || medData.unidade_saude || genData.unidade_saude || "",
@@ -235,8 +281,11 @@ export default function AtendimentosMedicos() {
             nome_completo: prev.nome_completo || foundData.nome_completo || "",
             telefone: prev.telefone || foundData.telefone || "",
             data_nascimento: prev.data_nascimento || foundData.data_nascimento || "",
+            cep: prev.cep || foundData.cep || "",
             endereco: prev.endereco || foundData.endereco || "",
             bairro: prev.bairro || foundData.bairro || "",
+            cidade: prev.cidade || foundData.cidade || "",
+            estado: prev.estado || foundData.estado || "",
             cartao_sus: prev.cartao_sus || foundData.cartao_sus || "",
             unidade_saude: prev.unidade_saude || foundData.unidade_saude || "",
             zona_rural:
@@ -490,7 +539,7 @@ export default function AtendimentosMedicos() {
           previous: existingDoc,
           next: formData,
         });
-        toast.success("Atendimento médico atualizado com sucesso!");
+        showSuccessNotification("Atendimento Médico Atualizado!", `O registro médico de ${payload.nome_completo} foi atualizado com sucesso.`, "medico");
       } else {
         const docRef = await addDoc(collection(db, "atendimentos_medicos"), {
           ...payload,
@@ -500,7 +549,7 @@ export default function AtendimentosMedicos() {
         await logAction("Criar", "atendimentos_medicos", docRef.id, {
           next: formData,
         });
-        toast.success("Atendimento médico criado com sucesso!");
+        showSuccessNotification("Atendimento Médico Registrado!", `O registro médico de ${payload.nome_completo} foi cadastrado com sucesso.`, "medico");
       }
       closeModal();
     } catch (err: any) {
@@ -669,8 +718,11 @@ export default function AtendimentosMedicos() {
       cpf: item.cpf || "",
       telefone: item.telefone || "",
       data_nascimento: item.data_nascimento || "",
+      cep: item.cep || "",
       endereco: item.endereco || "",
       bairro: item.bairro || "",
+      cidade: item.cidade || "",
+      estado: item.estado || "",
       zona_rural: !!item.zona_rural,
       unidade_saude: item.unidade_saude || "",
       especialidade: item.especialidade || "",
@@ -1218,6 +1270,25 @@ export default function AtendimentosMedicos() {
                         </div>
                       </div>
                       <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider flex items-center justify-between">
+                          <span>CEP</span>
+                          {loadingCEP && <span className="text-[9px] text-emerald-400 animate-pulse lowercase font-normal">Buscando CEP...</span>}
+                        </label>
+                        <div className="relative">
+                          <input
+                            value={formData.cep || ""}
+                            onChange={(e) => handleCEPChange(e.target.value)}
+                            className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50"
+                            placeholder="00000-000"
+                          />
+                          {loadingCEP && (
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                              <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
                         <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
                           Endereço
                         </label>
@@ -1248,6 +1319,41 @@ export default function AtendimentosMedicos() {
                             }
                             className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50"
                             placeholder="Nome do bairro"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+                            Cidade
+                          </label>
+                          <input
+                            value={formData.cidade || ""}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                cidade: e.target.value,
+                              })
+                            }
+                            className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50"
+                            placeholder="Cidade"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+                            Estado
+                          </label>
+                          <input
+                            value={formData.estado || ""}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                estado: e.target.value,
+                              })
+                            }
+                            className="w-full bg-slate-800 border-none rounded-xl p-4 focus:ring-2 focus:ring-emerald-500/50"
+                            placeholder="UF"
+                            maxLength={2}
                           />
                         </div>
                         <div className="space-y-1 flex items-center gap-3 pt-4">

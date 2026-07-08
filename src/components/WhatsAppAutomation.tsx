@@ -84,6 +84,14 @@ export default function WhatsAppAutomation() {
     setConfig({ ...config, templates: newTemplates });
   };
 
+  const toggleAutoSend = (id: string, enabledAuto: boolean) => {
+    if (!config) return;
+    const newTemplates = config.templates.map(t => 
+      t.id === id ? { ...t, enabledAuto } : t
+    );
+    setConfig({ ...config, templates: newTemplates });
+  };
+
   const handleTestSend = async () => {
     if (!config) return;
     if (!testPhone.trim()) {
@@ -209,32 +217,75 @@ export default function WhatsAppAutomation() {
                 className="grid grid-cols-1 md:grid-cols-2 gap-6"
               >
                 {config?.templates.map((template) => (
-                  <div key={template.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm hover:border-emerald-500/30 transition-all flex flex-col h-full">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500 border border-emerald-500/20">
-                           <Send size={18} />
+                  <div key={template.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm hover:border-emerald-500/30 transition-all flex flex-col h-full justify-between gap-4">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500 border border-emerald-500/20">
+                             <Send size={18} />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-white">{template.name}</h3>
+                            <span className="text-[10px] uppercase font-black text-slate-500 tracking-wider">Gatilho: {template.trigger}</span>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-bold text-white">{template.name}</h3>
-                          <span className="text-[10px] uppercase font-black text-slate-500 tracking-wider">Trigger: {template.trigger}</span>
+
+                        {/* Automatic Trigger Toggle */}
+                        <div className="flex items-center gap-2 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800 shrink-0">
+                          <span className="text-[10px] font-bold text-slate-400">Automático</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleAutoSend(template.id, !template.enabledAuto)}
+                            className={cn(
+                              "relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer",
+                              template.enabledAuto ? "bg-emerald-500" : "bg-slate-700"
+                            )}
+                          >
+                            <span className={cn(
+                              "inline-block h-3 w-3 transform rounded-full bg-white transition-transform",
+                              template.enabledAuto ? "translate-x-5" : "translate-x-1"
+                            )} />
+                          </button>
                         </div>
                       </div>
+
+                      <textarea
+                        value={template.content}
+                        onChange={(e) => updateTemplate(template.id, e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-sm text-slate-300 focus:ring-1 focus:ring-emerald-500 outline-none transition-all resize-none min-h-[120px]"
+                        placeholder="Escreva sua mensagem aqui..."
+                      />
                     </div>
 
-                    <textarea
-                      value={template.content}
-                      onChange={(e) => updateTemplate(template.id, e.target.value)}
-                      className="flex-1 w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-sm text-slate-300 focus:ring-1 focus:ring-emerald-500 outline-none transition-all resize-none min-h-[140px]"
-                      placeholder="Escreva sua mensagem aqui..."
-                    />
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-2">
+                         <span className="px-2 py-1 bg-slate-800 rounded text-[9px] font-mono text-slate-500">{"{{nome}}"}</span>
+                         <span className="px-2 py-1 bg-slate-800 rounded text-[9px] font-mono text-slate-500">{"{{id}}"}</span>
+                         {template.trigger === 'status_update' && (
+                           <span className="px-2 py-1 bg-slate-800 rounded text-[9px] font-mono text-slate-500">{"{{status}}"}</span>
+                         )}
+                         {template.trigger === 'reminder' && (
+                           <>
+                             <span className="px-2 py-1 bg-slate-800 rounded text-[9px] font-mono text-slate-500">{"{{data}}"}</span>
+                             <span className="px-2 py-1 bg-slate-800 rounded text-[9px] font-mono text-slate-500">{"{{hora}}"}</span>
+                           </>
+                         )}
+                      </div>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
-                       <span className="px-2 py-1 bg-slate-800 rounded text-[9px] font-mono text-slate-500">{"{{nome}}"}</span>
-                       <span className="px-2 py-1 bg-slate-800 rounded text-[9px] font-mono text-slate-500">{"{{id}}"}</span>
-                       {template.trigger === 'status_update' && (
-                         <span className="px-2 py-1 bg-slate-800 rounded text-[9px] font-mono text-slate-500">{"{{status}}"}</span>
-                       )}
+                      <div className="text-[11px] text-slate-500">
+                        {template.trigger === 'welcome' && (
+                          <span className="text-slate-500 italic block">⚡ Dispara automaticamente ao cadastrar novos Atendimentos, Demandas ou Auxílios.</span>
+                        )}
+                        {template.trigger === 'status_update' && (
+                          <span className="text-slate-500 italic block">⚡ Dispara automaticamente ao atualizar status de Atendimentos, Demandas ou Auxílios.</span>
+                        )}
+                        {template.trigger === 'reminder' && (
+                          <span className="text-slate-500 italic block">⚡ Modelo padrão para envio de lembretes na Agenda.</span>
+                        )}
+                        {template.trigger === 'birthday' && (
+                          <span className="text-slate-500 italic block">⚡ Modelo padrão para mensagens de aniversário.</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

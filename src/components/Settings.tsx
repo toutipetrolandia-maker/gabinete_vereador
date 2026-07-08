@@ -29,6 +29,7 @@ import {
   Sun,
   Moon,
   Palette,
+  Eye,
 } from "lucide-react";
 import {
   collection,
@@ -76,19 +77,23 @@ export default function Settings() {
   );
   const [biometricLoading, setBiometricLoading] = useState(false);
 
-  const [theme, setTheme] = useState<"light" | "dark">(
-    (localStorage.getItem("theme") as "light" | "dark") || "dark",
+  const [theme, setTheme] = useState<"light" | "dark" | "high-contrast">(
+    (localStorage.getItem("theme") as "light" | "dark" | "high-contrast") || "dark",
   );
 
   const [systemThemeId, setSystemThemeId] = useState(getActiveSystemThemeId());
 
-  const handleToggleTheme = (selectedTheme: "light" | "dark") => {
+  const handleToggleTheme = (selectedTheme: "light" | "dark" | "high-contrast") => {
     localStorage.setItem("theme", selectedTheme);
     setTheme(selectedTheme);
+    
+    // Reset theme classes
+    document.documentElement.classList.remove("light", "high-contrast");
+    
     if (selectedTheme === "light") {
       document.documentElement.classList.add("light");
-    } else {
-      document.documentElement.classList.remove("light");
+    } else if (selectedTheme === "high-contrast") {
+      document.documentElement.classList.add("high-contrast");
     }
   };
 
@@ -752,12 +757,12 @@ export default function Settings() {
                   <p className="text-xs text-slate-400">
                     Escolha a aparência visual do Gabinete Digital para este dispositivo.
                   </p>
-                  <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
                     <button
                       type="button"
                       onClick={() => handleToggleTheme("light")}
                       className={cn(
-                        "flex items-center justify-center gap-3 p-4 rounded-xl border font-bold text-sm cursor-pointer transition-all",
+                        "flex items-center justify-center gap-2 p-4 rounded-xl border font-bold text-sm cursor-pointer transition-all",
                         theme === "light"
                           ? "bg-white text-slate-950 border-white shadow-xl"
                           : "bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:bg-slate-850"
@@ -770,7 +775,7 @@ export default function Settings() {
                       type="button"
                       onClick={() => handleToggleTheme("dark")}
                       className={cn(
-                        "flex items-center justify-center gap-3 p-4 rounded-xl border font-bold text-sm cursor-pointer transition-all",
+                        "flex items-center justify-center gap-2 p-4 rounded-xl border font-bold text-sm cursor-pointer transition-all",
                         theme === "dark"
                           ? "bg-slate-800 text-white border-blue-500 shadow-xl shadow-blue-900/20"
                           : "bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:bg-slate-850"
@@ -778,6 +783,19 @@ export default function Settings() {
                     >
                       <Moon size={18} className={theme === "dark" ? "text-blue-400" : ""} />
                       Modo Escuro
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleTheme("high-contrast")}
+                      className={cn(
+                        "flex items-center justify-center gap-2 p-4 rounded-xl border font-bold text-sm cursor-pointer transition-all",
+                        theme === "high-contrast"
+                          ? "bg-yellow-450 text-black border-yellow-450 shadow-xl shadow-yellow-500/20 font-black"
+                          : "bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:bg-slate-850"
+                      )}
+                    >
+                      <Eye size={18} className={theme === "high-contrast" ? "text-black" : "text-yellow-500"} />
+                      Alto Contraste
                     </button>
                   </div>
                 </div>

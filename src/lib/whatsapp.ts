@@ -6,6 +6,7 @@ export interface WhatsAppTemplate {
   name: string;
   content: string;
   trigger: 'welcome' | 'status_update' | 'reminder' | 'manual' | 'birthday';
+  enabledAuto?: boolean;
 }
 
 export interface WhatsAppConfig {
@@ -22,25 +23,29 @@ export const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
     id: 'welcome',
     name: 'Boas-vindas',
     trigger: 'welcome',
-    content: 'Olá *{{nome}}*, o Gabinete Digital agradece seu contato! Registramos seu atendimento com sucesso. Em breve daremos um retorno.'
+    content: 'Olá *{{nome}}*, o Gabinete Digital agradece seu contato! Registramos seu atendimento com sucesso. Em breve daremos um retorno.',
+    enabledAuto: false
   },
   {
     id: 'status_update',
     name: 'Atualização de Demanda',
     trigger: 'status_update',
-    content: 'Olá *{{nome}}*, informamos que sua demanda "*{{titulo}}*" foi atualizada para o status: *{{status}}*.'
+    content: 'Olá *{{nome}}*, informamos que sua demanda "*{{titulo}}*" foi atualizada para o status: *{{status}}*.',
+    enabledAuto: false
   },
   {
     id: 'reminder',
     name: 'Lembrete de Agenda',
     trigger: 'reminder',
-    content: 'Lembrete: Você tem um compromisso agendado com o Gabinete para o dia *{{data}}* às *{{hora}}*.'
+    content: 'Lembrete: Você tem um compromisso agendado com o Gabinete para o dia *{{data}}* às *{{hora}}*.',
+    enabledAuto: false
   },
   {
     id: 'birthday',
     name: 'Parabéns / Aniversário',
     trigger: 'birthday',
-    content: 'Olá *{{nome}}*! 🎉 Nós do Gabinete Gostaríamos de lhe desejar um feliz aniversário! Que seu novo ciclo seja repleto de realizações, saúde, sucesso e muita paz. Parabéns! 🎂🎈✨'
+    content: 'Olá *{{nome}}*! 🎉 Nós do Gabinete Gostaríamos de lhe desejar um feliz aniversário! Que seu novo ciclo seja repleto de realizações, saúde, sucesso e muita paz. Parabéns! 🎂🎈✨',
+    enabledAuto: false
   }
 ];
 

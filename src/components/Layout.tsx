@@ -137,11 +137,45 @@ export default function Layout({ children, activeTab, setActiveTab }: LayoutProp
           detail: { message: '⌨️ Atalho: Abrindo Novo Atendimento...' } 
         }));
       }
+
+      // Alt + Key combinations for direct module navigation
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !isInput) {
+        const key = e.key.toLowerCase();
+        const shortcutMap: Record<string, { tab: string; label: string }> = {
+          d: { tab: 'dashboard', label: 'Dashboard' },
+          s: { tab: 'saas', label: 'Admin SaaS' },
+          a: { tab: 'agenda', label: 'Agenda' },
+          c: { tab: 'cidadaos', label: 'Cidadãos CRM' },
+          t: { tab: 'atendimentos', label: 'Atendimentos' },
+          m: { tab: 'medico', label: 'Atend. Médico' },
+          x: { tab: 'auxilio', label: 'Auxílio Social' },
+          i: { tab: 'indicacoes', label: 'Indicações' },
+          o: { tab: 'malotes', label: 'Malotes' },
+          p: { tab: 'demandas', label: 'Demandas' },
+          g: { tab: 'sugestoes', label: 'Sugestões' },
+          r: { tab: 'reunioes', label: 'Reuniões & Soluções' },
+          l: { tab: 'relatorios', label: 'Relatórios' },
+          w: { tab: 'whatsapp', label: 'Mensagens' },
+          h: { tab: 'history', label: 'Logs / Auditoria' },
+          f: { tab: 'config', label: 'Configurações' }
+        };
+
+        if (shortcutMap[key]) {
+          const target = shortcutMap[key];
+          if (hasModuleAccess(target.tab)) {
+            e.preventDefault();
+            setActiveTab(target.tab);
+            window.dispatchEvent(new CustomEvent('show-shortcut-toast', { 
+              detail: { message: `⌨️ Atalho: Abrindo ${target.label} (Alt + ${key.toUpperCase()})` } 
+            }));
+          }
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setActiveTab]);
+  }, [setActiveTab, hasModuleAccess]);
 
   const isSuperAdmin = authIsSuper;
 

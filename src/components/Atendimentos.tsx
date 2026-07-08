@@ -93,6 +93,7 @@ import { logAction } from '../lib/audit';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig, sendWhatsAppNotification } from '../lib/whatsapp';
 import { toast } from 'sonner';
+import { showSuccessNotification } from '../lib/notifications';
 
 export default function Atendimentos() {
   const { profile, user } = useAuth();
@@ -236,6 +237,7 @@ export default function Atendimentos() {
   const [cabinetUsers, setCabinetUsers] = useState<any[]>([]);
   const [onlyMyAtendimentos, setOnlyMyAtendimentos] = useState(false);
   const [especialidades, setEspecialidades] = useState<{ id: string; nome: string }[]>([]);
+  const [loadingCEP, setLoadingCEP] = useState(false);
 
   const todayBirthdays = useMemo(() => {
     const list: Array<{ id: string; nome: string; telefone: string; data_nascimento: string; tipo: 'Cidadão' | 'Colaborador' }> = [];
@@ -480,8 +482,11 @@ export default function Atendimentos() {
     telefone: '',
     email: '',
     data_nascimento: '',
+    cep: '',
     endereco: '',
     bairro: '',
+    cidade: '',
+    estado: '',
     zona_rural: false,
     tipo_atendimento: 'Geral',
     especialidade: '',
@@ -516,11 +521,55 @@ export default function Atendimentos() {
       .replace(/(-\d{4})\d+?$/, '$1');
   };
 
+  const maskCEP = (value: string) => {
+    return value
+      .replace(/\D/g, '')
+      .replace(/^(\d{5})(\d)/, '$1-$2')
+      .slice(0, 9);
+  };
+
+  const handleCEPChange = async (value: string) => {
+    const masked = maskCEP(value);
+    setFormData(prev => ({ ...prev, cep: masked }));
+    
+    const cleanCEP = masked.replace(/\D/g, '');
+    if (cleanCEP.length === 8) {
+      setLoadingCEP(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cleanCEP}/json/`);
+        const data = await res.json();
+        if (data && !data.erro) {
+          setFormData(prev => ({
+            ...prev,
+            endereco: data.logradouro || prev.endereco,
+            bairro: data.bairro || prev.bairro,
+            cidade: data.localidade || prev.cidade,
+            estado: data.uf || prev.estado
+          }));
+          toast.success("Endereço preenchido automaticamente via CEP!");
+        } else {
+          toast.error("CEP não encontrado.");
+        }
+      } catch (err) {
+        console.error("Erro ao buscar CEP:", err);
+        toast.error("Erro ao buscar CEP.");
+      } finally {
+        setLoadingCEP(false);
+      }
+    }
+  };
+
   const normalizeCPF = (val: string) => val.replace(/\D/g, '');
 
   // Form State
   const [formData, setFormData] = useState(initialForm);
   const [loadingAiSuggestion, setLoadingAiSuggestion] = useState(false);
+  const [lastAiSuggestion, setLastAiSuggestion] = useState<{
+    tipo_atendimento: string;
+    prioridade: string;
+    justificativa: string;
+    analisadoEm: string;
+  } | null>(null);
   const [hasDraft, setHasDraft] = useState(false);
 
   // Check if draft exists in localStorage on mount and whenever showModal changes
@@ -572,9 +621,15 @@ export default function Atendimentos() {
     }
   }, [showModal, editingId]);
 
+  useEffect(() => {
+    if (!showModal) {
+      setLastAiSuggestion(null);
+    }
+  }, [showModal]);
+
   const handleAiSuggestion = async () => {
     if (!formData.descricao || !formData.descricao.trim()) {
-      toast.warning("Por favor, digite uma descrição detalhada no campo 'Descrição / Demanda' antes de solicitar a sugestão do Assistente.");
+      toast.warning("Por favor, digite uma descrição detalhada no campo 'Descrição / Demanda' antes de solicitar a triagem com IA.");
       return;
     }
 
@@ -586,9 +641,15 @@ export default function Atendimentos() {
         tipo_atendimento: suggestion.tipo_atendimento,
         prioridade: suggestion.prioridade
       }));
+      setLastAiSuggestion({
+        tipo_atendimento: suggestion.tipo_atendimento,
+        prioridade: suggestion.prioridade,
+        justificativa: suggestion.justificativa,
+        analisadoEm: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      });
       toast.success(
-        `Sugestão do Assistente aplicada! Tipo: ${suggestion.tipo_atendimento}, Prioridade: ${suggestion.prioridade}. Motivo: ${suggestion.justificativa}`,
-        { duration: 8000 }
+        `Triagem realizada com sucesso! Tipo: ${suggestion.tipo_atendimento}, Prioridade: ${suggestion.prioridade}`,
+        { duration: 5000 }
       );
     } catch (err: any) {
       console.error(err);
@@ -706,6 +767,9 @@ export default function Atendimentos() {
           data_nascimento: medData.data_nascimento || genData.data_nascimento || '',
           endereco: medData.endereco || genData.endereco || '',
           bairro: medData.bairro || genData.bairro || '',
+          cidade: medData.cidade || genData.cidade || '',
+          estado: medData.estado || genData.estado || '',
+          cep: medData.cep || genData.cep || '',
           zona_rural: medData.zona_rural !== undefined ? medData.zona_rural : (genData.zona_rural !== undefined ? genData.zona_rural : false)
         };
 
@@ -718,6 +782,9 @@ export default function Atendimentos() {
           data_nascimento: prev.data_nascimento || foundData.data_nascimento || '',
           endereco: prev.endereco || foundData.endereco || '',
           bairro: prev.bairro || foundData.bairro || '',
+          cidade: prev.cidade || foundData.cidade || '',
+          estado: prev.estado || foundData.estado || '',
+          cep: prev.cep || foundData.cep || '',
           zona_rural: foundData.zona_rural !== undefined ? foundData.zona_rural : prev.zona_rural,
         }));
       } else {
@@ -870,16 +937,46 @@ export default function Atendimentos() {
         const collectionName = existingDoc?.sourceCollection === 'atendimentos_medicos' ? 'atendimentos_medicos' : 'atendimentos';
         await updateDoc(doc(db, collectionName, editingId), payload);
         await logAction('Atualizar', collectionName, editingId, { previous: existingDoc, next: formData, cabinetId: profile.cabinetId });
-        toast.success("Atendimento atualizado com sucesso!");
+        showSuccessNotification("Atendimento Atualizado!", `O atendimento de ${payload.nome_completo} foi atualizado com sucesso.`, "atendimento");
+
+        // Automatic status update trigger
+        if (existingDoc && existingDoc.status !== payload.status) {
+          const statusTemplate = waConfig?.templates?.find(t => t.trigger === 'status_update');
+          if (statusTemplate?.enabledAuto && payload.telefone) {
+            const tempItem = {
+              nome_completo: payload.nome_completo,
+              telefone: payload.telefone,
+              tipo_atendimento: payload.tipo_atendimento || 'Atendimento',
+              status: payload.status
+            };
+            setTimeout(() => {
+              sendWAMessage(tempItem, 'status_update');
+            }, 600);
+          }
+        }
       } else {
         const docRef = await addDoc(collection(db, 'atendimentos'), {
           ...payload,
           created_at: serverTimestamp(),
         });
         await logAction('Criar', 'atendimentos', docRef.id, { next: formData, cabinetId: profile.cabinetId });
-        toast.success("Atendimento criado com sucesso!");
+        showSuccessNotification("Atendimento Registrado!", `O atendimento de ${payload.nome_completo} foi cadastrado com sucesso.`, "atendimento");
         localStorage.removeItem('atendimento_form_draft');
         setHasDraft(false);
+
+        // Automatic welcome trigger
+        const welcomeTemplate = waConfig?.templates?.find(t => t.trigger === 'welcome');
+        if (welcomeTemplate?.enabledAuto && payload.telefone) {
+          const tempItem = {
+            nome_completo: payload.nome_completo,
+            telefone: payload.telefone,
+            tipo_atendimento: payload.tipo_atendimento || 'Atendimento',
+            status: payload.status || 'Pendente'
+          };
+          setTimeout(() => {
+            sendWAMessage(tempItem, 'welcome');
+          }, 600);
+        }
       }
       
       closeModal();
@@ -911,6 +1008,20 @@ export default function Atendimentos() {
       });
       await logAction('Atualizar', collectionName, id, { previous: { status: existing?.status }, next: { status: newStatus }, cabinetId: profile.cabinetId });
       toast.success(`Status atualizado para "${newStatus}"!`);
+
+      // Automatic status update trigger
+      const statusTemplate = waConfig?.templates?.find(t => t.trigger === 'status_update');
+      if (statusTemplate?.enabledAuto && existing?.telefone) {
+        const tempItem = {
+          nome_completo: existing.nome_completo,
+          telefone: existing.telefone,
+          tipo_atendimento: existing.tipo_atendimento || 'Atendimento',
+          status: newStatus
+        };
+        setTimeout(() => {
+          sendWAMessage(tempItem, 'status_update');
+        }, 600);
+      }
     } catch (err: any) {
       const existing = data.find(i => i.id === id);
       const collectionName = existing?.sourceCollection === 'atendimentos_medicos' ? 'atendimentos_medicos' : 'atendimentos';
@@ -937,8 +1048,11 @@ export default function Atendimentos() {
       telefone: item.telefone || '',
       email: item.email || '',
       data_nascimento: item.data_nascimento || '',
+      cep: item.cep || '',
       endereco: item.endereco || '',
       bairro: item.bairro || '',
+      cidade: item.cidade || '',
+      estado: item.estado || '',
       zona_rural: item.zona_rural || false,
       tipo_atendimento: item.tipo_atendimento || 'Geral',
       especialidade: item.especialidade || '',
@@ -1873,6 +1987,26 @@ export default function Atendimentos() {
                     />
                   </div>
                   <div className="space-y-2 col-span-2 md:col-span-1">
+                    <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider flex items-center justify-between">
+                      <span>CEP</span>
+                      {loadingCEP && <span className="text-[10px] text-blue-400 animate-pulse lowercase font-normal">Buscando...</span>}
+                    </label>
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={formData.cep || ''}
+                        onChange={e => handleCEPChange(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors"
+                        placeholder="00000-000"
+                      />
+                      {loadingCEP && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2 col-span-2 md:col-span-1">
                     <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Endereço</label>
                     <input 
                       type="text" 
@@ -1890,6 +2024,27 @@ export default function Atendimentos() {
                       onChange={e => setFormData({...formData, bairro: e.target.value})}
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors"
                       placeholder="Nome do bairro"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Cidade</label>
+                    <input 
+                      type="text" 
+                      value={formData.cidade || ''}
+                      onChange={e => setFormData({...formData, cidade: e.target.value})}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors"
+                      placeholder="Cidade"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Estado (UF)</label>
+                    <input 
+                      type="text" 
+                      value={formData.estado || ''}
+                      onChange={e => setFormData({...formData, estado: e.target.value})}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors"
+                      placeholder="UF"
+                      maxLength={2}
                     />
                   </div>
                   <div className="space-y-2 flex items-center gap-3 pt-6">
@@ -2007,6 +2162,7 @@ export default function Atendimentos() {
                     </select>
                   </div>
                 </div>
+
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Descrição / Demanda</label>
@@ -2022,7 +2178,7 @@ export default function Atendimentos() {
                       )}
                     >
                       <Sparkles size={13} className={cn(loadingAiSuggestion ? "animate-spin" : "")} />
-                      {loadingAiSuggestion ? "Analisando..." : "Sugestão do Assistente"}
+                      {loadingAiSuggestion ? "Analisando..." : "Triagem com IA"}
                     </button>
                   </div>
                   <textarea 
@@ -2032,6 +2188,49 @@ export default function Atendimentos() {
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-colors resize-none"
                     placeholder="Descreva detalhadamente o que foi solicitado..."
                   />
+
+                  <AnimatePresence>
+                    {lastAiSuggestion && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden mt-2"
+                      >
+                        <div className="p-3.5 bg-indigo-950/40 border border-indigo-500/30 rounded-xl space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-indigo-400 flex items-center gap-1">
+                              <Sparkles size={12} className="animate-pulse" />
+                              Resultado da Triagem IA (Gemini)
+                            </span>
+                            <span className="text-[9px] text-slate-500">
+                              Gerado às {lastAiSuggestion.analisadoEm}
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+                              <span className="text-[10px] text-slate-400 block font-medium uppercase tracking-wider">Tipo Sugerido</span>
+                              <span className="font-bold text-slate-200">{lastAiSuggestion.tipo_atendimento}</span>
+                            </div>
+                            <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+                              <span className="text-[10px] text-slate-400 block font-medium uppercase tracking-wider">Prioridade Sugerida</span>
+                              <span className={cn(
+                                "font-bold",
+                                lastAiSuggestion.prioridade === 'Alta' ? "text-red-400" :
+                                lastAiSuggestion.prioridade === 'Média' ? "text-amber-400" : "text-emerald-400"
+                              )}>{lastAiSuggestion.prioridade}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="text-xs text-slate-300 leading-relaxed bg-slate-900/40 p-2 rounded-lg border border-slate-800/50">
+                            <strong className="text-[10px] text-slate-400 block font-medium uppercase tracking-wider mb-0.5">Análise Técnica</strong>
+                            {lastAiSuggestion.justificativa}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 {/* Reminder Setup Section */}

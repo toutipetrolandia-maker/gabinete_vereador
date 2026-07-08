@@ -34,6 +34,7 @@ import { ptBR } from 'date-fns/locale';
 
 import { logAction } from '../lib/audit';
 import { toast } from 'sonner';
+import { showSuccessNotification } from '../lib/notifications';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { useAuth } from '../hooks/useAuth';
 
@@ -128,7 +129,7 @@ export default function Sugestoes() {
           updated_at: serverTimestamp()
         });
         await logAction('Atualizar', 'sugestoes', editingId, { previous: existing, next: payload });
-        toast.success("Sugestão atualizada com sucesso!");
+        showSuccessNotification("Sugestão Atualizada!", `A sugestão de ${payload.nome_completo} foi atualizada com sucesso.`, "citizen");
       } else {
         const docRef = await addDoc(collection(db, 'sugestoes'), {
           ...payload,
@@ -138,7 +139,7 @@ export default function Sugestoes() {
           updated_at: serverTimestamp(),
         });
         await logAction('Criar', 'sugestoes', docRef.id, { next: payload });
-        toast.success("Sugestão enviada com sucesso!");
+        showSuccessNotification("Sugestão Enviada!", `A sugestão de ${payload.nome_completo} foi enviada com sucesso.`, "citizen");
       }
       closeModal();
     } catch (err: any) {

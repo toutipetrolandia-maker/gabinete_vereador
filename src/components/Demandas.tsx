@@ -33,6 +33,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
 import { toast } from 'sonner';
+import { showSuccessNotification } from '../lib/notifications';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig, sendWhatsAppNotification } from '../lib/whatsapp';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -168,7 +169,24 @@ export default function Demandas() {
           updated_at: serverTimestamp()
         });
         await logAction('Atualizar', 'demandas_parlamentares', editingId, { previous: existing, next: payload });
-        toast.success("Demanda atualizada com sucesso!");
+        showSuccessNotification("Demanda Atualizada!", `A demanda de ${payload.solicitante_nome} foi atualizada com sucesso.`, "demanda");
+
+        // Automatic status update trigger
+        if (existing && existing.status !== payload.status) {
+          const statusTemplate = waConfig?.templates?.find(t => t.trigger === 'status_update');
+          const phone = payload.solicitante_telefone;
+          if (statusTemplate?.enabledAuto && phone) {
+            const tempItem = {
+              solicitante_nome: payload.solicitante_nome,
+              solicitante_telefone: phone,
+              assunto: payload.assunto || 'Demanda',
+              status: payload.status
+            };
+            setTimeout(() => {
+              sendWAMessage(tempItem, 'status_update');
+            }, 600);
+          }
+        }
       } else {
         const docRef = await addDoc(collection(db, 'demandas_parlamentares'), {
           ...payload,
@@ -177,7 +195,22 @@ export default function Demandas() {
           created_at: serverTimestamp(),
         });
         await logAction('Criar', 'demandas_parlamentares', docRef.id, { next: payload });
-        toast.success("Demanda criada com sucesso!");
+        showSuccessNotification("Demanda Registrada!", `A demanda de ${payload.solicitante_nome} foi cadastrada com sucesso.`, "demanda");
+
+        // Automatic welcome trigger
+        const welcomeTemplate = waConfig?.templates?.find(t => t.trigger === 'welcome');
+        const phone = payload.solicitante_telefone;
+        if (welcomeTemplate?.enabledAuto && phone) {
+          const tempItem = {
+            solicitante_nome: payload.solicitante_nome,
+            solicitante_telefone: phone,
+            assunto: payload.assunto || 'Demanda',
+            status: payload.status || 'Pendente'
+          };
+          setTimeout(() => {
+            sendWAMessage(tempItem, 'welcome');
+          }, 600);
+        }
       }
       closeModal();
     } catch (err: any) {

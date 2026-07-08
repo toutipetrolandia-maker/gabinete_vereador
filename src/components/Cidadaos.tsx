@@ -33,8 +33,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatProperName } from '../lib/utils';
+import { showSuccessNotification } from '../lib/notifications';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import ImportadorPlanilha from './ImportadorPlanilha';
 
 interface CitizenRecord {
   id: string;
@@ -43,6 +45,9 @@ interface CitizenRecord {
   telefone?: string;
   bairro?: string;
   endereco?: string;
+  cidade?: string;
+  estado?: string;
+  cep?: string;
   created_at: any;
   type: 'Geral' | 'Médico' | 'Auxílio' | 'Demanda';
   data: any;
@@ -55,6 +60,7 @@ export default function Cidadaos() {
   const [search, setSearch] = useState('');
   const [selectedCPF, setSelectedCPF] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editName, setEditName] = useState('');
   const [editCPF, setEditCPF] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -156,7 +162,11 @@ export default function Cidadaos() {
         cpf,
         nome: formatProperName(latest.nome_completo || (latest as any).beneficiado_nome || (latest as any).solicitante_nome || 'Nome não identificado'),
         telefone: latest.telefone || (latest as any).whatsapp || (latest as any).beneficiado_telefone || '-',
+        endereco: latest.endereco || '-',
         bairro: latest.bairro || '-',
+        cidade: latest.cidade || '',
+        estado: latest.estado || '',
+        cep: latest.cep || '',
         count: records.length,
         types: Array.from(new Set(records.map(r => r.type))),
         records: records.sort((a, b) => {
@@ -232,6 +242,11 @@ export default function Cidadaos() {
       // Update selected CPF to keep the screen focused on this corrected record
       setSelectedCPF(normalizedNewCPF || 'SEM-CPF');
       setShowEditModal(false);
+      showSuccessNotification(
+        "Cidadão Atualizado!",
+        `Os dados unificados de ${formatProperName(editName)} foram corrigidos com sucesso.`,
+        "citizen"
+      );
     } catch (e) {
       console.error("Erro ao atualizar o cidadão no CRM:", e);
       alert("Erro ao atualizar os dados do cidadão. Verifique suas permissões ou tente novamente.");
@@ -250,6 +265,13 @@ export default function Cidadaos() {
           </h1>
           <p className="text-slate-400 text-sm">Dados unificados e histórico completo por CPF.</p>
         </div>
+        <button
+          onClick={() => setShowImportModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-lg hover:shadow-blue-500/20 shrink-0 cursor-pointer"
+        >
+          <FileText size={16} />
+          <span>Importar Planilha</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -379,7 +401,7 @@ export default function Cidadaos() {
                             </div>
                             <div className="flex items-center gap-3 text-slate-400">
                                <MapPin size={16} className="text-blue-500" />
-                               <span className="text-sm font-medium">{selectedCitizen.bairro}</span>
+                               <span className="text-sm font-medium">{selectedCitizen.endereco && selectedCitizen.endereco !== '-' ? `${selectedCitizen.endereco}, ` : ''}{selectedCitizen.bairro}{selectedCitizen.cidade ? `, ${selectedCitizen.cidade}` : ''}{selectedCitizen.estado ? ` - ${selectedCitizen.estado}` : ''}{selectedCitizen.cep ? ` - CEP: ${selectedCitizen.cep}` : ''}</span>
                             </div>
                          </div>
                       </div>
@@ -574,6 +596,17 @@ export default function Cidadaos() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showImportModal && (
+          <ImportadorPlanilha
+            onClose={() => setShowImportModal(false)}
+            onSuccess={() => {
+              setShowImportModal(false);
+            }}
+          />
         )}
       </AnimatePresence>
     </div>

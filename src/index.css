@@ -42,6 +42,65 @@ html.light {
   --slate-100: #030712; /* Max dark typography */
 }
 
+html.high-contrast {
+  /* High Contrast Theme Colors */
+  --slate-950: #000000;
+  --slate-900: #000000;
+  --slate-800: #111111; /* Inputs & light gray borders */
+  --slate-750: #1c1c1c; /* Inputs & focused backgrounds */
+  --slate-700: #ffffff; /* Secondary light borders */
+  --slate-600: #ffffff; /* Dark gray secondary labels */
+  --slate-500: #ffffff; /* Secondary text */
+  --slate-400: #ffffff; /* Primary dark body text */
+  --slate-300: #ffffff; /* Contrasting headers */
+  --slate-200: #ffffff; /* High contrast headings/text */
+  --slate-100: #ffffff; /* Max dark typography */
+
+  --primary-50: #000000;
+  --primary-100: #ffff00;
+  --primary-200: #ffff00;
+  --primary-300: #ffff00;
+  --primary-400: #ffff00;
+  --primary-500: #ffff00;
+  --primary-600: #ffff00;
+  --primary-700: #ffff00;
+  --primary-900: #000000;
+}
+
+/* High contrast specific element overrides */
+html.high-contrast .text-slate-400,
+html.high-contrast .text-slate-500,
+html.high-contrast .text-slate-600 {
+  color: #ffffff !important;
+}
+
+html.high-contrast .border-slate-800,
+html.high-contrast .border-slate-700,
+html.high-contrast .border-slate-800\/80 {
+  border-color: #ffffff !important;
+  border-width: 1.5px !important;
+}
+
+html.high-contrast .bg-slate-900,
+html.high-contrast .bg-slate-950 {
+  background-color: #000000 !important;
+}
+
+html.high-contrast .bg-slate-800,
+html.high-contrast .bg-slate-850 {
+  background-color: #111111 !important;
+  border: 1.5px solid #ffffff !important;
+}
+
+html.high-contrast button {
+  border: 1.5px solid #ffffff !important;
+}
+
+html.high-contrast .text-blue-500,
+html.high-contrast .text-blue-400 {
+  color: #ffff00 !important;
+}
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;

@@ -83,10 +83,11 @@ function AppContent() {
 
   React.useEffect(() => {
     const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.classList.remove('light', 'high-contrast');
     if (savedTheme === 'light') {
       document.documentElement.classList.add('light');
-    } else {
-      document.documentElement.classList.remove('light');
+    } else if (savedTheme === 'high-contrast') {
+      document.documentElement.classList.add('high-contrast');
     }
     // Apply system color theme
     const activeColorTheme = getActiveSystemThemeId();

@@ -68,7 +68,7 @@ export default function CommandBar({ isOpen, onClose, setActiveTab, activeTab }:
   // Keyboard shortcut listener to open command bar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         if (isOpen) {
           onClose();
@@ -362,7 +362,7 @@ export default function CommandBar({ isOpen, onClose, setActiveTab, activeTab }:
                               "text-[10px] font-mono px-1.5 py-0.5 rounded",
                               isActive ? "bg-blue-700 text-blue-200 border border-blue-500" : "bg-slate-800 text-slate-500 border border-slate-750"
                             )}>
-                              {item.shortcut}
+                              Alt + {item.shortcut}
                             </span>
                           )}
                           <ChevronRight size={14} className={isActive ? "opacity-100" : "opacity-30"} />
@@ -419,8 +419,8 @@ export default function CommandBar({ isOpen, onClose, setActiveTab, activeTab }:
             </div>
 
             {/* Footer Status Bar */}
-            <div className="px-6 py-2 bg-slate-950/50 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-              <div className="flex items-center gap-4">
+            <div className="px-6 py-2 bg-slate-950/50 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-500 font-medium">
+              <div className="flex items-center gap-4 flex-wrap">
                 <span className="flex items-center gap-1">
                   <span className="p-0.5 bg-slate-800 border border-slate-700/50 rounded text-[9px] font-mono">↑↓</span> Navegar
                 </span>
@@ -430,10 +430,13 @@ export default function CommandBar({ isOpen, onClose, setActiveTab, activeTab }:
                 <span className="flex items-center gap-1">
                   <span className="p-0.5 bg-slate-800 border border-slate-700/50 px-1 rounded text-[9px] font-mono">Esc</span> Fechar
                 </span>
+                <span className="flex items-center gap-1">
+                  <span className="p-0.5 bg-slate-800 border border-slate-700/50 px-1 rounded text-[9px] font-mono">Alt + Letra</span> Ir p/ Módulo
+                </span>
               </div>
-              <div className="hidden sm:flex items-center gap-1">
+              <div className="flex items-center gap-1">
                 <Command size={10} className="text-slate-500" />
-                <span>Atalho Global:</span>
+                <span>Painel:</span>
                 <span className="bg-slate-800 border border-slate-700/50 text-slate-400 px-1 py-0.5 rounded font-mono text-[9px]">Ctrl + K</span>
               </div>
             </div>

@@ -45,6 +45,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { logAction } from '../lib/audit';
 import { toast } from 'sonner';
+import { showSuccessNotification } from '../lib/notifications';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { getWhatsAppLink, formatWhatsAppMessage, WhatsAppConfig, sendWhatsAppNotification } from '../lib/whatsapp';
 
@@ -422,7 +423,23 @@ export default function SocialAssistance() {
           next: formData,
           cabinetId: profile.cabinetId 
         });
-        toast.success("Auxílio social atualizado com sucesso!");
+        showSuccessNotification("Auxílio Social Atualizado!", `O auxílio de ${payload.beneficiado_nome} foi atualizado com sucesso.`, "auxilio");
+
+        // Automatic status update trigger
+        if (existingDoc && existingDoc.status !== payload.status) {
+          const statusTemplate = waConfig?.templates?.find(t => t.trigger === 'status_update');
+          if (statusTemplate?.enabledAuto && payload.beneficiado_telefone) {
+            const tempItem = {
+              beneficiado_nome: payload.beneficiado_nome,
+              beneficiado_telefone: payload.beneficiado_telefone,
+              tipo_beneficio: payload.tipo_beneficio || 'Auxílio Social',
+              status: payload.status
+            };
+            setTimeout(() => {
+              sendWAMessage(tempItem);
+            }, 600);
+          }
+        }
       } else {
         const docRef = await addDoc(collection(db, 'auxilio_social'), {
           ...payload,
@@ -438,7 +455,21 @@ export default function SocialAssistance() {
           next: formData,
           cabinetId: profile.cabinetId 
         });
-        toast.success("Auxílio social registrado com sucesso!");
+        showSuccessNotification("Auxílio Social Registrado!", `O auxílio de ${payload.beneficiado_nome} foi cadastrado com sucesso.`, "auxilio");
+
+        // Automatic welcome trigger
+        const welcomeTemplate = waConfig?.templates?.find(t => t.trigger === 'welcome');
+        if (welcomeTemplate?.enabledAuto && payload.beneficiado_telefone) {
+          const tempItem = {
+            beneficiado_nome: payload.beneficiado_nome,
+            beneficiado_telefone: payload.beneficiado_telefone,
+            tipo_beneficio: payload.tipo_beneficio || 'Auxílio Social',
+            status: payload.status || 'Pendente'
+          };
+          setTimeout(() => {
+            sendWAMessage(tempItem);
+          }, 600);
+        }
       }
       const isEntregue = formData.status === 'Entregue';
       const createdId = editingId;
@@ -491,6 +522,20 @@ export default function SocialAssistance() {
       });
 
       toast.success(`Status de auxílio social atualizado para "${newStatus}"!`);
+
+      // Automatic status update trigger
+      const statusTemplate = waConfig?.templates?.find(t => t.trigger === 'status_update');
+      if (statusTemplate?.enabledAuto && existing?.beneficiado_telefone) {
+        const tempItem = {
+          beneficiado_nome: existing.beneficiado_nome,
+          beneficiado_telefone: existing.beneficiado_telefone,
+          tipo_beneficio: existing.tipo_beneficio || 'Auxílio Social',
+          status: newStatus
+        };
+        setTimeout(() => {
+          sendWAMessage(tempItem);
+        }, 600);
+      }
 
       if (newStatus === 'Entregue' && existing) {
         setTimeout(() => {
