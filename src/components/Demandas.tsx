@@ -116,7 +116,14 @@ export default function Demandas() {
 
     const toastId = toast.loading('Enviando mensagem de WhatsApp...');
     try {
-      const res = await sendWhatsAppNotification(waConfig, phone, message);
+      const res = await sendWhatsAppNotification(
+        waConfig, 
+        phone, 
+        message,
+        profile?.cabinetId,
+        item.cpf || item.indicado_cpf || item.beneficiado_cpf || item.solicitante_cpf || 'SEM-CPF',
+        item.solicitante_nome || 'Cidadão'
+      );
       if (res.type === 'api') {
         toast.success('Mensagem enviada com sucesso via API!', { id: toastId });
       } else {

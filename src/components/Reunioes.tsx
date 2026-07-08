@@ -80,6 +80,7 @@ interface Meeting {
   propostas_ids: string[];
   usuario_nome?: string;
   created_at?: any;
+  cidadao_cpf?: string;
 }
 
 export default function Reunioes() {
@@ -102,6 +103,26 @@ export default function Reunioes() {
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
   const [expandedMeetingId, setExpandedMeetingId] = useState<string | null>(null);
 
+  // Citizens for linking
+  const [citizens, setCitizens] = useState<{cpf: string, nome: string}[]>([]);
+
+  useEffect(() => {
+    if (!profile?.cabinetId) return;
+    const q = query(
+      collection(db, 'atendimentos'),
+      where('cabinetId', '==', profile.cabinetId)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const list = snap.docs.map(d => ({
+        cpf: d.data().cpf || '',
+        nome: d.data().nome_completo || ''
+      })).filter(c => c.cpf);
+      const unique = Array.from(new Map(list.map(item => [item.cpf, item])).values());
+      setCitizens(unique);
+    });
+    return () => unsub();
+  }, [profile?.cabinetId]);
+
   // Filters
   const [proposalStatusFilter, setProposalStatusFilter] = useState<string>('todos');
   const [proposalCategoryFilter, setProposalCategoryFilter] = useState<string>('todos');
@@ -114,7 +135,8 @@ export default function Reunioes() {
     tipo: 'Alinhamento Geral' as 'Alinhamento Geral' | 'Planejamento Estratégico' | 'Demandas do Prefeito' | 'Urgente',
     resumo_pauta: '',
     assessores_ids: [] as string[],
-    propostas_ids: [] as string[]
+    propostas_ids: [] as string[],
+    cidadao_cpf: ''
   });
 
   const [proposalForm, setProposalForm] = useState({
@@ -263,6 +285,7 @@ export default function Reunioes() {
       resumo_pauta: meetingForm.resumo_pauta.trim(),
       assessores_ids: meetingForm.assessores_ids,
       propostas_ids: meetingForm.propostas_ids,
+      cidadao_cpf: meetingForm.cidadao_cpf || '',
       cabinetId: profile.cabinetId,
       usuario_id: user?.uid || profile.id || '',
       usuario_nome: profile.nome || 'Advisor',
@@ -305,7 +328,8 @@ export default function Reunioes() {
       tipo: 'Alinhamento Geral',
       resumo_pauta: '',
       assessores_ids: [],
-      propostas_ids: []
+      propostas_ids: [],
+      cidadao_cpf: ''
     });
   };
 
@@ -317,7 +341,8 @@ export default function Reunioes() {
       tipo: m.tipo,
       resumo_pauta: m.resumo_pauta || '',
       assessores_ids: m.assessores_ids || [],
-      propostas_ids: m.propostas_ids || []
+      propostas_ids: m.propostas_ids || [],
+      cidadao_cpf: m.cidadao_cpf || ''
     });
     setShowMeetingModal(true);
   };
@@ -1361,6 +1386,20 @@ export default function Reunioes() {
                       <option value="Urgente">Urgente</option>
                     </select>
                   </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Cidadão Vinculado (Opcional)</label>
+                  <select
+                    value={meetingForm.cidadao_cpf || ''}
+                    onChange={(e) => setMeetingForm({ ...meetingForm, cidadao_cpf: e.target.value })}
+                    className="w-full bg-slate-800 border-none rounded-xl p-3 focus:ring-1 focus:ring-blue-500 text-white cursor-pointer"
+                  >
+                    <option value="">-- Selecione um Cidadão --</option>
+                    {citizens.map(c => (
+                      <option key={c.cpf} value={c.cpf}>{c.nome} ({c.cpf})</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Staff Attendees Checkboxes */}

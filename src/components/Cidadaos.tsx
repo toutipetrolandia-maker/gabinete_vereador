@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { 
   collection, 
   query, 
@@ -29,7 +29,9 @@ import {
   FileText,
   Pencil,
   X,
-  Save
+  Save,
+  MessageSquare,
+  Handshake
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatProperName } from '../lib/utils';
@@ -37,6 +39,8 @@ import { showSuccessNotification } from '../lib/notifications';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ImportadorPlanilha from './ImportadorPlanilha';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface CitizenRecord {
   id: string;
@@ -184,6 +188,140 @@ export default function Cidadaos() {
 
   const selectedCitizen = selectedCPF ? uniqueCitizens.find(c => c.cpf === selectedCPF) : null;
 
+  const [additionalEvents, setAdditionalEvents] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!profile?.cabinetId || !selectedCPF) {
+      setAdditionalEvents([]);
+      return;
+    }
+
+    // 1. Query WhatsApp messages sent to this citizen
+    const qWa = query(
+      collection(db, 'mensagens_whatsapp'),
+      where('cabinetId', '==', profile.cabinetId),
+      where('cpf', '==', selectedCPF)
+    );
+
+    const unsubWa = onSnapshot(qWa, (snap) => {
+      const waEvents = snap.docs.map(doc => ({
+        id: doc.id,
+        type: 'WhatsApp' as const,
+        created_at: doc.data().created_at,
+        data: doc.data()
+      }));
+      setAdditionalEvents(prev => {
+        const filtered = prev.filter(e => e.type !== 'WhatsApp');
+        return [...filtered, ...waEvents];
+      });
+    });
+
+    // 2. Query Meetings that are related to this citizen
+    const qMeet = query(
+      collection(db, 'reunioes_assessores'),
+      where('cabinetId', '==', profile.cabinetId)
+    );
+
+    const unsubMeet = onSnapshot(qMeet, (snap) => {
+      const citizenName = selectedCitizen?.nome || '';
+      const meetEvents = snap.docs
+        .map(doc => {
+          const data = doc.data();
+          let meetingDate: any = null;
+          if (data.created_at) {
+            meetingDate = data.created_at;
+          } else if (data.data_hora) {
+            const d = new Date(data.data_hora);
+            meetingDate = { toDate: () => d };
+          }
+          return {
+            id: doc.id,
+            type: 'Reunião' as const,
+            created_at: meetingDate,
+            data
+          };
+        })
+        .filter(meet => {
+          const cpfString = selectedCPF;
+          
+          const hasCPF = meet.data.cidadao_cpf === cpfString || 
+                          (meet.data.cidadaos_envolvidos && meet.data.cidadaos_envolvidos.includes(cpfString));
+                          
+          const mentionsCPF = meet.data.resumo_pauta?.includes(cpfString) || 
+                              meet.data.titulo?.includes(cpfString);
+                              
+          const mentionsName = citizenName && (
+            meet.data.resumo_pauta?.toLowerCase().includes(citizenName.toLowerCase()) ||
+            meet.data.titulo?.toLowerCase().includes(citizenName.toLowerCase())
+          );
+          
+          return hasCPF || mentionsCPF || mentionsName;
+        });
+
+      setAdditionalEvents(prev => {
+        const filtered = prev.filter(e => e.type !== 'Reunião');
+        return [...filtered, ...meetEvents];
+      });
+    });
+
+    return () => {
+      unsubWa();
+      unsubMeet();
+    };
+  }, [profile?.cabinetId, selectedCPF, selectedCitizen?.nome]);
+
+  const unifiedTimeline = useMemo(() => {
+    if (!selectedCitizen) return [];
+    
+    // Convert selectedCitizen.records into timeline items
+    const recordItems = selectedCitizen.records.map(record => ({
+      id: record.id,
+      type: record.type, // 'Geral' | 'Médico' | 'Auxílio' | 'Demanda'
+      created_at: record.created_at,
+      title: record.data.tipo_atendimento || record.data.especialidade || record.data.tipo_beneficio || record.data.assunto || 'Atendimento',
+      description: record.data.descricao || record.data.descricao_problema || record.data.observacoes || 'Sem descrição detalhada.',
+      status: record.data.status,
+      usuario_nome: record.data.usuario_nome || 'Gabinete',
+      raw: record
+    }));
+
+    // Map additionalEvents (WhatsApp and Meetings)
+    const extraItems = additionalEvents.map(event => {
+      if (event.type === 'WhatsApp') {
+        return {
+          id: event.id,
+          type: 'WhatsApp' as const,
+          created_at: event.created_at,
+          title: 'Mensagem de WhatsApp',
+          description: event.data.mensagem || '',
+          status: 'Enviada',
+          usuario_nome: event.data.usuario_nome || 'Sistema',
+          raw: event
+        };
+      } else {
+        // Reunião
+        return {
+          id: event.id,
+          type: 'Reunião' as const,
+          created_at: event.created_at,
+          title: event.data.titulo || 'Reunião Realizada',
+          description: `Tipo: ${event.data.tipo || 'Geral'}. Pauta: ${event.data.resumo_pauta || 'Sem pauta definida.'}`,
+          status: 'Realizada',
+          usuario_nome: event.data.usuario_nome || 'Gabinete',
+          raw: event
+        };
+      }
+    });
+
+    // Merge and sort in descending chronological order
+    const merged = [...recordItems, ...extraItems];
+    return merged.sort((a, b) => {
+      const dateA = a.created_at?.toDate?.() || (a.created_at instanceof Date ? a.created_at : new Date(0));
+      const dateB = b.created_at?.toDate?.() || (b.created_at instanceof Date ? b.created_at : new Date(0));
+      return dateB.getTime() - dateA.getTime();
+    });
+  }, [selectedCitizen, additionalEvents]);
+
   const handleUpdateCitizen = async () => {
     if (!selectedCitizen) return;
     if (!editName.trim()) {
@@ -252,6 +390,281 @@ export default function Cidadaos() {
       alert("Erro ao atualizar os dados do cidadão. Verifique suas permissões ou tente novamente.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleExportPDF = (citizen: any) => {
+    try {
+      const doc = new jsPDF();
+      
+      // Header Section
+      doc.setFillColor(30, 41, 59); // Slate-800
+      doc.rect(0, 0, 210, 38, 'F');
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor(255, 255, 255);
+      doc.text('GABINETE DIGITAL', 15, 18);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.setTextColor(156, 163, 175);
+      doc.text('Ficha Consolidada do Cidadão e Histórico de Atendimentos', 15, 25);
+      
+      const generatedAt = format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+      doc.setFontSize(9);
+      doc.setTextColor(203, 213, 225);
+      doc.text(`Gerado em: ${generatedAt}`, 210 - 15, 22, { align: 'right' });
+
+      // Personal Info Box Title
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42);
+      doc.text('DADOS DO CIDADÃO', 15, 52);
+      
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.5);
+      doc.line(15, 55, 210 - 15, 55);
+
+      // Info grid layout
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text('Nome Completo:', 15, 63);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text(citizen.nome, 48, 63);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text('CPF:', 15, 71);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text(citizen.cpf, 48, 71);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text('Telefone/WhatsApp:', 15, 79);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text(citizen.telefone || 'Não informado', 53, 79);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text('Endereço:', 15, 87);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      
+      const fullAddress = [
+        citizen.endereco && citizen.endereco !== '-' ? citizen.endereco : null,
+        citizen.bairro && citizen.bairro !== '-' ? `Bairro: ${citizen.bairro}` : null,
+        citizen.cidade ? citizen.cidade : null,
+        citizen.estado ? citizen.estado : null,
+        citizen.cep ? `CEP: ${citizen.cep}` : null
+      ].filter(Boolean).join(', ');
+
+      const splitAddress = doc.splitTextToSize(fullAddress || 'Não informado', 155);
+      doc.text(splitAddress, 38, 87);
+
+      const addressLinesCount = splitAddress.length;
+      let statsY = 87 + (addressLinesCount * 5) + 3;
+
+      // Stats section
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42);
+      doc.text('ESTATÍSTICAS DA JORNADA', 15, statsY);
+      
+      doc.setDrawColor(226, 232, 240);
+      doc.line(15, statsY + 3, 210 - 15, statsY + 3);
+
+      let boxY = statsY + 8;
+      
+      // Total Interactions Box
+      doc.setFillColor(248, 250, 252);
+      doc.rect(15, boxY, 42, 20, 'F');
+      doc.setDrawColor(241, 245, 249);
+      doc.rect(15, boxY, 42, 20, 'D');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text('TOTAL INTERAÇÕES', 17, boxY + 6);
+      doc.setFontSize(14);
+      doc.setTextColor(59, 130, 246);
+      doc.text(String(citizen.count), 17, boxY + 15);
+
+      // First Interaction Box
+      doc.setFillColor(248, 250, 252);
+      doc.rect(62, boxY, 42, 20, 'F');
+      doc.rect(62, boxY, 42, 20, 'D');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text('PRIMEIRA INTERAÇÃO', 64, boxY + 6);
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      
+      let firstDate = '-';
+      if (citizen.records && citizen.records.length > 0) {
+        const firstRec = citizen.records[citizen.records.length - 1];
+        if (firstRec.created_at) {
+          try {
+            let dVal = new Date();
+            if (typeof firstRec.created_at.toDate === 'function') dVal = firstRec.created_at.toDate();
+            else if (firstRec.created_at.seconds) dVal = new Date(firstRec.created_at.seconds * 1000);
+            else dVal = new Date(firstRec.created_at);
+            firstDate = format(dVal, "dd/MM/yyyy");
+          } catch {
+            firstDate = '-';
+          }
+        }
+      }
+      doc.text(firstDate, 64, boxY + 14);
+
+      // Last Interaction Box
+      doc.setFillColor(248, 250, 252);
+      doc.rect(109, boxY, 42, 20, 'F');
+      doc.rect(109, boxY, 42, 20, 'D');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text('ÚLTIMA INTERAÇÃO', 111, boxY + 6);
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      
+      let lastDate = '-';
+      if (citizen.records && citizen.records.length > 0) {
+        const lastRec = citizen.records[0];
+        if (lastRec.created_at) {
+          try {
+            let dVal = new Date();
+            if (typeof lastRec.created_at.toDate === 'function') dVal = lastRec.created_at.toDate();
+            else if (lastRec.created_at.seconds) dVal = new Date(lastRec.created_at.seconds * 1000);
+            else dVal = new Date(lastRec.created_at);
+            lastDate = format(dVal, "dd/MM/yyyy");
+          } catch {
+            lastDate = '-';
+          }
+        }
+      }
+      doc.text(lastDate, 111, boxY + 14);
+
+      // Categories Box
+      doc.setFillColor(248, 250, 252);
+      doc.rect(156, boxY, 39, 20, 'F');
+      doc.rect(156, boxY, 39, 20, 'D');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text('ÁREAS DE CONTATO', 158, boxY + 6);
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      
+      const contactTypes = citizen.types.join(', ');
+      const splitTypes = doc.splitTextToSize(contactTypes, 35);
+      doc.text(splitTypes, 158, boxY + 13);
+
+      // Table Title
+      let tableTitleY = boxY + 28;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42);
+      doc.text('HISTÓRICO COMPLETO DE INTERAÇÕES', 15, tableTitleY);
+      
+      doc.setDrawColor(226, 232, 240);
+      doc.line(15, tableTitleY + 3, 210 - 15, tableTitleY + 3);
+
+      const tableData = citizen.records.map((record: any) => {
+        let dateStr = '-';
+        if (record.created_at) {
+          try {
+            let dateVal = new Date();
+            if (typeof record.created_at.toDate === 'function') {
+              dateVal = record.created_at.toDate();
+            } else if (record.created_at.seconds) {
+              dateVal = new Date(record.created_at.seconds * 1000);
+            } else {
+              dateVal = new Date(record.created_at);
+            }
+            dateStr = format(dateVal, "dd/MM/yyyy HH:mm", { locale: ptBR });
+          } catch {
+            dateStr = '-';
+          }
+        }
+        
+        const typeStr = record.type || 'Geral';
+        const subjectStr = record.data?.tipo_atendimento || record.data?.especialidade || record.data?.tipo_beneficio || record.data?.assunto || 'Atendimento';
+        const descStr = record.data?.descricao || record.data?.descricao_problema || record.data?.observacoes || 'Sem descrição detalhada.';
+        const statusStr = record.data?.status || 'Pendente';
+        const userStr = record.data?.usuario_nome || 'Gabinete';
+        
+        return [dateStr, typeStr, subjectStr, descStr, statusStr, userStr];
+      });
+
+      autoTable(doc, {
+        startY: tableTitleY + 6,
+        head: [['Data/Hora', 'Tipo', 'Assunto/Serviço', 'Descrição / Relato do Cidadão', 'Status', 'Assessor']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [30, 41, 59],
+          textColor: [255, 255, 255],
+          fontSize: 8.5,
+          fontStyle: 'bold',
+          halign: 'left'
+        },
+        styles: {
+          fontSize: 8,
+          cellPadding: 2.5,
+          valign: 'top',
+          overflow: 'linebreak'
+        },
+        columnStyles: {
+          0: { cellWidth: 26 },
+          1: { cellWidth: 16 },
+          2: { cellWidth: 28 },
+          3: { cellWidth: 72 },
+          4: { cellWidth: 18 },
+          5: { cellWidth: 20 },
+        },
+        margin: { left: 15, right: 15, bottom: 20 },
+        didDrawPage: (data) => {
+          const totalPages = doc.getNumberOfPages();
+          const pageCount = data.pageNumber;
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(148, 163, 184);
+          doc.text(
+            `Página ${pageCount} de ${totalPages}`,
+            105,
+            290,
+            { align: 'center' }
+          );
+          doc.text(
+            'Gabinete Digital - Inteligência e Gestão de Mandato',
+            15,
+            290
+          );
+        }
+      });
+
+      const sanitizedFilename = `ficha_${citizen.nome.toLowerCase().replace(/[^a-z0-9]/g, '_')}.pdf`;
+      doc.save(sanitizedFilename);
+      showSuccessNotification(
+        "Ficha Exportada!",
+        `O arquivo PDF de ${citizen.nome} foi gerado com sucesso para impressão.`,
+        "citizen"
+      );
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      alert("Houve um erro ao gerar o relatório em PDF do cidadão.");
     }
   };
 
@@ -392,6 +805,14 @@ export default function Cidadaos() {
                                <Pencil size={11} />
                                <span>Corrigir</span>
                              </button>
+                             <button
+                               onClick={() => handleExportPDF(selectedCitizen)}
+                               className="px-2.5 py-1 rounded-xl bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/20 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                               title="Exportar Ficha Completa do Cidadão em PDF"
+                             >
+                               <FileText size={11} />
+                               <span>Exportar Ficha</span>
+                             </button>
                            </div>
                          </div>
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -451,49 +872,54 @@ export default function Cidadaos() {
                   </h3>
 
                   <div className="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-blue-600/50 before:via-slate-800 before:to-transparent">
-                    {selectedCitizen.records.map((record, idx) => (
-                      <div key={record.id} className="relative flex items-start gap-8 group">
+                    {unifiedTimeline.map((item, idx) => (
+                      <div key={item.id} className="relative flex items-start gap-8 group">
                          <div className={cn(
                            "mt-1.5 w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 transition-transform group-hover:scale-110",
-                           record.type === 'Geral' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40" :
-                           record.type === 'Médico' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/40" :
-                           record.type === 'Auxílio' ? "bg-amber-600 text-white shadow-lg shadow-amber-900/40" :
-                           "bg-indigo-600 text-white shadow-lg shadow-indigo-900/40"
+                           item.type === 'Geral' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40" :
+                           item.type === 'Médico' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/40" :
+                           item.type === 'Auxílio' ? "bg-amber-600 text-white shadow-lg shadow-amber-900/40" :
+                           item.type === 'Demanda' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-900/40" :
+                           item.type === 'WhatsApp' ? "bg-teal-600 text-white shadow-lg shadow-teal-900/40" :
+                           "bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-900/40"
                          )}>
-                            {record.type === 'Geral' && <Activity size={18} />}
-                            {record.type === 'Médico' && <Heart size={18} />}
-                            {record.type === 'Auxílio' && <Package size={18} />}
-                            {record.type === 'Demanda' && <FileText size={18} />}
+                            {item.type === 'Geral' && <Activity size={18} />}
+                            {item.type === 'Médico' && <Heart size={18} />}
+                            {item.type === 'Auxílio' && <Package size={18} />}
+                            {item.type === 'Demanda' && <FileText size={18} />}
+                            {item.type === 'WhatsApp' && <MessageSquare size={18} />}
+                            {item.type === 'Reunião' && <Handshake size={18} />}
                          </div>
                          <div className="flex-1 bg-slate-950/50 border border-slate-800/50 rounded-2xl p-5 hover:bg-slate-800/20 transition-all">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-black uppercase tracking-wider text-slate-500">{record.type}</span>
+                                  <span className={cn(
+                                    "text-xs font-black uppercase tracking-wider",
+                                    item.type === 'WhatsApp' ? "text-teal-400" :
+                                    item.type === 'Reunião' ? "text-fuchsia-400" : "text-slate-500"
+                                  )}>{item.type}</span>
                                   <span className="text-slate-700">•</span>
-                                  <span className="text-slate-200 font-bold">{record.data.tipo_atendimento || record.data.especialidade || record.data.tipo_beneficio || record.data.assunto}</span>
+                                  <span className="text-slate-200 font-bold">{item.title}</span>
                                </div>
                                <span className="text-[10px] font-mono text-slate-500 bg-slate-900 px-2 py-1 rounded-lg">
-                                  {format(record.created_at?.toDate(), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
+                                  {item.created_at ? format(typeof item.created_at.toDate === 'function' ? item.created_at.toDate() : (item.created_at instanceof Date ? item.created_at : new Date(item.created_at)), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR }) : 'Data não registrada'}
                                </span>
                             </div>
                             <p className="text-sm text-slate-400 leading-relaxed italic">
-                               "{record.data.descricao || record.data.descricao_problema || record.data.observacoes || 'Sem descrição detalhada.'}"
+                               "{item.description}"
                             </p>
                             <div className="mt-4 pt-4 border-t border-slate-800/50 flex flex-wrap gap-4 items-center justify-between">
                                <div className="flex gap-2">
                                   <span className={cn(
                                     "text-[10px] px-2 py-0.5 rounded-md font-bold uppercase",
-                                    record.data.status === 'Concluído' ? "bg-emerald-500/10 text-emerald-500" : "bg-blue-500/10 text-blue-500"
+                                    item.status === 'Concluído' || item.status === 'Realizada' || item.status === 'Enviada' ? "bg-emerald-500/10 text-emerald-500" : "bg-blue-500/10 text-blue-500"
                                   )}>
-                                    {record.data.status}
+                                    {item.status || 'Ativo'}
                                   </span>
                                   <span className="text-[10px] px-2 py-0.5 bg-slate-900 text-slate-500 rounded-md font-bold">
-                                    ASSESSOR: {record.data.usuario_nome?.split(' ')[0] || 'Gabinete'}
+                                    ORIGEM: {item.usuario_nome?.split(' ')[0] || 'Gabinete'}
                                   </span>
                                </div>
-                               <button className="text-blue-400 hover:text-blue-300 flex items-center gap-1.5 text-xs font-bold transition-colors">
-                                 Ver Detalhes <ExternalLink size={12} />
-                               </button>
                             </div>
                          </div>
                       </div>

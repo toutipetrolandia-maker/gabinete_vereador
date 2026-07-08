@@ -1,4 +1,4 @@
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 
 export interface WhatsAppTemplate {
@@ -153,10 +153,30 @@ export async function executeWhatsAppSend(config: WhatsAppConfig, phone: string,
 export async function sendWhatsAppNotification(
   config: WhatsAppConfig | undefined,
   phone: string,
-  message: string
+  message: string,
+  cabinetId?: string,
+  cpf?: string,
+  nome?: string
 ): Promise<{ success: boolean; type: 'api' | 'link' | 'error'; error?: string }> {
   if (!phone) {
     return { success: false, type: 'error', error: 'Telefone não fornecido' };
+  }
+
+  // Save the message to Firestore if cabinetId and cpf are provided
+  if (cabinetId && cpf) {
+    try {
+      await addDoc(collection(db, 'mensagens_whatsapp'), {
+        cabinetId,
+        cpf,
+        nome: nome || '',
+        telefone: phone,
+        mensagem: message,
+        created_at: serverTimestamp(),
+        usuario_nome: 'Sistema'
+      });
+    } catch (e) {
+      console.error('Erro ao salvar log de WhatsApp no Firestore:', e);
+    }
   }
 
   if (config?.enabled && config.api_url) {
@@ -176,13 +196,13 @@ export async function sendWhatsAppNotification(
   return { success: true, type: 'link' };
 }
 
-export async function sendWhatsAppMessage(cabinetId: string, phone: string, message: string) {
+export async function sendWhatsAppMessage(cabinetId: string, phone: string, message: string, cpf?: string, nome?: string) {
   try {
     const cabinetDoc = await getDoc(doc(db, 'cabinets', cabinetId));
     if (!cabinetDoc.exists()) return false;
     
     const config = cabinetDoc.data().whatsapp_config as WhatsAppConfig;
-    const res = await sendWhatsAppNotification(config, phone, message);
+    const res = await sendWhatsAppNotification(config, phone, message, cabinetId, cpf, nome);
     return res.success;
   } catch (error) {
     console.error('Erro ao enviar mensagem de WhatsApp:', error);

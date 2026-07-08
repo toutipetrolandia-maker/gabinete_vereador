@@ -353,7 +353,7 @@ export default function Atendimentos() {
     });
   }, [generalHistory, medicalHistory]);
 
-  const sendBirthdayWish = (item: any) => {
+  const sendBirthdayWish = async (item: any) => {
     if (!item.telefone) return;
     const template = waConfig?.templates?.find(t => t.trigger === 'birthday');
     let content = template?.content;
@@ -368,7 +368,14 @@ export default function Atendimentos() {
       ...item,
       nome: item.nome,
     });
-    window.open(getWhatsAppLink(item.telefone, message), '_blank');
+    await sendWhatsAppNotification(
+      waConfig, 
+      item.telefone, 
+      message,
+      profile?.cabinetId,
+      item.cpf || 'SEM-CPF',
+      item.nome
+    );
     toast.success('Mensagem de aniversário enviada!');
   };
 
@@ -461,7 +468,14 @@ export default function Atendimentos() {
 
     const toastId = toast.loading('Enviando mensagem de WhatsApp...');
     try {
-      const res = await sendWhatsAppNotification(waConfig, item.telefone, message);
+      const res = await sendWhatsAppNotification(
+        waConfig, 
+        item.telefone, 
+        message,
+        profile?.cabinetId,
+        item.cpf || item.indicado_cpf || item.beneficiado_cpf || 'SEM-CPF',
+        item.nome_completo
+      );
       if (res.type === 'api') {
         toast.success('Mensagem enviada com sucesso via API!', { id: toastId });
       } else {
@@ -1246,9 +1260,16 @@ export default function Atendimentos() {
                 </div>
                 {lembrete.telefone && (
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const message = `Olá ${lembrete.nome.split(' ')[0]}, o Gabinete gostaria de lembrar sobre o vencimento de sua consulta/exame: "${lembrete.descricao}" agendada/vencendo em ${format(new Date(lembrete.data + "T12:00:00"), "dd/MM/yyyy")}.`;
-                      window.open(`https://api.whatsapp.com/send?phone=55${lembrete.telefone.replace(/\D/g, '')}&text=${encodeURIComponent(message)}`, '_blank');
+                      await sendWhatsAppNotification(
+                        waConfig, 
+                        lembrete.telefone, 
+                        message,
+                        profile?.cabinetId,
+                        lembrete.cpf || 'SEM-CPF',
+                        lembrete.nome
+                      );
                     }}
                     className="w-full bg-slate-900 border border-slate-800 hover:border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 p-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
